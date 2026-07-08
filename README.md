@@ -44,7 +44,7 @@ works today from a clean clone.
 **Primary — reproduce the full dev environment** (recommended):
 
 ```bash
-git clone <repo-url> SmartCLI
+git clone https://github.com/dwgx/SmartCLI SmartCLI
 cd SmartCLI
 python -m pip install -r requirements.txt
 ```
