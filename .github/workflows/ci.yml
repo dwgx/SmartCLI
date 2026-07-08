@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  # Windows matches the dev/target environment (ConPTY via pywinpty). We run only
+  # the deterministic, non-interactive checks here — the drive-tui PTY probes and
+  # the effort_selector interactive path need a live TTY and are flaky/hang-prone
+  # under CI ConPTY, so they are intentionally excluded.
+  windows-tests:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    env:
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
+
+      - name: fx regression (verify_fx)
+        run: python tests/verify_fx.py
+
+      - name: README literal import-order check
+        run: python tests/_readme_literal.py
+
+      - name: tui-ui self test
+        working-directory: skills/tui-ui
+        run: python self_test.py
+
+      - name: cmd-art effect catalog renders
+        working-directory: skills/cmd-art
+        run: python -m fx list
+
+      - name: tui-ui widget catalog renders
+        working-directory: skills/tui-ui
+        run: python -m ui widgets

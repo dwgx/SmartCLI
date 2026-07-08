@@ -1,0 +1,26 @@
+# Python build / packaging artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.eggs/
+
+# Local dev / test scratch
+tools/screenshot/out/
+*.tmp
+_*_tmp.py
+
+# EXCLUDED FROM PUBLIC RELEASE — reverse-engineered third-party (claude.exe)
+# decompiled source + binary string dump. Legal/IP exposure; internal-only.
+# See release-conventions memory. Do NOT publish this directory.
+research/cc-decompiled/
+# dev-only scratch capture frames from effort_selector iteration
+research/mine-frames/
+research/mine-now/
+research/real-frames/
+research/_*
+
+# OS noise
+Thumbs.db
+.DS_Store

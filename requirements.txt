@@ -1,0 +1,26 @@
+# SmartCLI — REQUIRED runtime dependencies.
+#
+# These are the only third-party packages SmartCLI needs to run its core
+# perceive/drive stack. Everything else in the repo (frame effects, layout
+# widgets, ASCII-fication of images, figlet banners) is pure stdlib or degrades
+# gracefully when an OPTIONAL package is absent — see requirements-optional.txt.
+#
+# Install:   python -m pip install -r requirements.txt
+# Works on Windows and POSIX: the pywinpty line is gated by an environment
+# marker so `pip` simply skips it on non-Windows hosts (POSIX uses the stdlib
+# `pty` backend, which needs no third-party package).
+#
+# Floors are `>=` known-good baselines, not exact pins, because the APIs these
+# modules use have been stable across the ranges below. Versions VERIFIED on the
+# development box (Windows 11, CPython 3.14.6): pyte 0.8.2, pywinpty 3.0.5.
+
+# pyte — VT emulator + Screen/Stream model. Hard top-level import in
+# smartcli_core/screen_model.py (and the pyte-simulation screenshot tools).
+# 0.8.x API (pyte.Screen / pyte.Stream) is stable.
+pyte>=0.8.1
+
+# pywinpty — ConPTY wrapper used by smartcli_core WinptyBackend. Imported lazily
+# (`import winpty`) only inside the Windows spawn path, so it is Windows-only:
+# the marker keeps `pip install -r` clean on Linux/mac. The PtyProcess.spawn /
+# setwinsize / isalive / terminate API this code uses is stable across 2.x–3.x.
+pywinpty>=2.0; platform_system == "Windows"

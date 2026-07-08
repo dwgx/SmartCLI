@@ -1,0 +1,33 @@
+# SmartCLI — OPTIONAL dependencies.
+#
+# NONE of these are required to run SmartCLI. Every import site is guarded
+# (try/except or a caller that catches ImportError) and falls back to a
+# pure-stdlib path, so the project runs with zero of these installed. Install
+# them only to unlock the extra surface noted per line.
+#
+# Install everything here:   python -m pip install -r requirements-optional.txt
+# Or install a single extra via pyproject:
+#     python -m pip install "smartcli[art]"     # -> pyfiglet
+#     python -m pip install "smartcli[image]"   # -> Pillow
+#     python -m pip install "smartcli[width]"   # -> wcwidth
+#     python -m pip install "smartcli[all]"     # -> all of the above
+#
+# Floors are `>=` known-good baselines. Versions VERIFIED on the development box
+# (Windows 11, CPython 3.14.6): pyfiglet 1.0.4, Pillow 12.2.0, wcwidth 0.8.1.
+
+# pyfiglet — real FIGlet fonts for banner effects/widgets. Guarded imports in
+# skills/cmd-art/fx/effects/{text3d,banner_scroll}.py and
+# skills/tui-ui/ui/widgets.py (Banner). Absent -> built-in 5-row block font.
+pyfiglet>=1.0.0
+
+# Pillow (PIL) — real raster images for image2ascii, the raster.py sub-cell
+# loader, and the pyte->PNG screenshot harness (tools/screenshot/shot.py).
+# Guarded in the effect/raster paths; absent -> PNM parser / procedural demo.
+# NOTE: tools/screenshot/shot.py imports PIL at module top level, so the PNG
+# screenshot harness specifically DOES require Pillow to run.
+Pillow>=10.0.0
+
+# wcwidth — authoritative per-codepoint cell width (the same table pyte/tmux
+# use) for CJK/emoji alignment in skills/tui-ui/ui/core.py and the screenshot
+# width checks. Guarded; absent -> a matching unicodedata stdlib fallback.
+wcwidth>=0.2.0

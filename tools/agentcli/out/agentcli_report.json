@@ -1,0 +1,93 @@
+{
+  "ok": true,
+  "started": "2026-07-08T23:18:01",
+  "cwd": "D:\\Project\\SmartCLI",
+  "python": "3.14.6",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "render_label": "pyte-simulation (VT emulation -> PIL); NOT a real-tmux capture",
+  "scenarios": [
+    {
+      "name": "repl",
+      "ok": true,
+      "detail": "ran '6*7'; marker; out='42'",
+      "top_pattern": "repl",
+      "output": [
+        "42"
+      ],
+      "explain": "facts: screen 24x80; cursor at r0c4; highlighted row 0: \">>>\" (reverse_or_bg); 1 highlighted span(s)\nparadigm: repl (0.97) -- interactive REPL/shell: cursor parked on a prompt (>>> , ... , $ , # , In [n]:); type a line, read the result\nalso plausible: form(0.60), menu_select(0.10)",
+      "png": "D:\\Project\\SmartCLI\\tools\\agentcli\\out\\screens\\repl.png"
+    },
+    {
+      "name": "confirm",
+      "ok": true,
+      "detail": "answered 'yes' ('y') to \"Allow tool action? [y/N]\"; dialog dismissed",
+      "top_pattern": "confirm",
+      "png": "D:\\Project\\SmartCLI\\tools\\agentcli\\out\\screens\\confirm.png"
+    },
+    {
+      "name": "progress",
+      "ok": true,
+      "detail": "completed via marker 'DONE' (+child exited) under 10000ms ceiling",
+      "top_pattern": "form",
+      "png": "D:\\Project\\SmartCLI\\tools\\agentcli\\out\\screens\\progress.png"
+    },
+    {
+      "name": "menu_select",
+      "ok": true,
+      "detail": "selected row 4 'Cherry' in 2 step(s); enter=stable",
+      "top_pattern": "menu_select",
+      "png": "D:\\Project\\SmartCLI\\tools\\agentcli\\out\\screens\\menu_select.png"
+    },
+    {
+      "name": "search_filter",
+      "ok": true,
+      "detail": "typed 2/5 char(s); matches 1/8; accepted 'grape'",
+      "top_pattern": "search_filter",
+      "png": "D:\\Project\\SmartCLI\\tools\\agentcli\\out\\screens\\search_filter.png"
+    },
+    {
+      "name": "subagents",
+      "ok": true,
+      "detail": "observed 3 completed worker lines",
+      "top_pattern": "(none)",
+      "png": "D:\\Project\\SmartCLI\\tools\\agentcli\\out\\screens\\subagents.png"
+    }
+  ],
+  "external": [
+    {
+      "name": "codex",
+      "ok": true,
+      "skipped": false,
+      "detail": "help output matched",
+      "command": [
+        "cmd.exe",
+        "/c",
+        "codex",
+        "--help"
+      ],
+      "source": "https://github.com/openai/codex",
+      "png": "D:\\Project\\SmartCLI\\tools\\agentcli\\out\\screens\\external_codex.png"
+    },
+    {
+      "name": "aider",
+      "ok": true,
+      "skipped": true,
+      "detail": "aider not installed",
+      "source": "https://github.com/Aider-AI/aider"
+    },
+    {
+      "name": "opencode",
+      "ok": true,
+      "skipped": true,
+      "detail": "opencode not installed",
+      "source": "https://github.com/anomalyco/opencode"
+    },
+    {
+      "name": "goose",
+      "ok": true,
+      "skipped": true,
+      "detail": "goose not installed",
+      "source": "https://github.com/aaif-goose/goose"
+    }
+  ]
+}
