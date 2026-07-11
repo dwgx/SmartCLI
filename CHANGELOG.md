@@ -5,6 +5,25 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-07-11
+
+Test coverage, release maturity, and metadata. No `smartcli_core` code changes.
+
+### Added
+- **Test coverage** for previously-uncovered paths: live end-to-end driving of the
+  pager / form / wizard recipes (`_drive_probe6.py` + fixtures), deterministic
+  virtual-clock unit tests for the readiness TIMEOUT/STABLE/MARKER/late-flush/min_wait
+  paths (`test_readiness.py`), drive-tui CLI + per-session token-auth E2E
+  (`_tui_cli_probe.py`), a `box_junction` engine self-test, and a unified
+  `tests/run_all.py` runner.
+- **PyPI Trusted Publishing (OIDC)** workflow (`.github/workflows/publish.yml`) —
+  tokenless releases on tag push.
+- **Packaging metadata** — trove classifiers, keywords, and `[project.urls]`.
+
+### Changed
+- Skill `SKILL.md` descriptions trimmed to ≤500 chars, made agent-neutral, and
+  YAML-hardened for marketplace listings.
+
 ## [0.1.0] - 2026-07-08
 
 Initial public release.
