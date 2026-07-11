@@ -61,6 +61,12 @@ def probe_pager():
         check(name == "pager" and pconf >= 0.6,
               f"classify picks 'pager' with conf>=0.6 (top={name}/{conf:.2f}, pager={pconf:.2f})")
 
+        # Screen-verify (not res.data-trusting): capture the body BEFORE driving so
+        # we can prove the pager actually SCROLLED, not just that drive() claimed so.
+        # A no-op / stuck driver leaves the body identical → this catches it.
+        before_txt = snap.text if hasattr(snap, "text") else str(snap)
+        before_body = "\n".join(before_txt.splitlines()[:5])
+
         res = get("pager").drive(s, intent="to_end")
         print(f"    drive('to_end') ok={res.ok} detail={res.detail}")
         print(f"      pages={res.data.get('pages')} "
@@ -72,6 +78,14 @@ def probe_pager():
         check(bool(res.data.get("end_reached")), "pager reached end_reached=True")
         check("(END)" in (res.data.get("status") or ""),
               "pager bottom marker '(END)' seen in final status line")
+        # STRONG screen-verified check: the visible body must have changed after
+        # paging to the end (fresh snapshot, not res.data). Defeats a no-op driver.
+        s.wait_stable(quiet_ms=150, max_wait_ms=1500)
+        after_snap = s.snapshot()
+        after_txt = after_snap.text if hasattr(after_snap, "text") else str(after_snap)
+        after_body = "\n".join(after_txt.splitlines()[:5])
+        check(after_body != before_body,
+              "pager body actually scrolled (screen-verified, first 5 rows changed)")
     finally:
         s.close()
 

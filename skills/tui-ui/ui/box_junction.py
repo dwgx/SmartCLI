@@ -247,6 +247,24 @@ def _selftest() -> None:
        resolve_glyph(0, HEAVY, 0, HEAVY) == "━"
        and resolve_glyph(HEAVY, 0, HEAVY, 0) == "┃")
 
+    # --- SAME-ARM weight compose: max wins (B3) ---------------------------
+    # Overlap a THIN then a HEAVY run on the SAME cells/arm. `_bump` composes via
+    # max(), so the heavier weight must win → heavy glyph. A max→min mutation
+    # would keep THIN here, so this case defends the compose contract (line 139).
+    g5 = BoxGrid(4, 1)
+    g5.add_h_line(0, 0, 4, THIN)     # lay a thin horizontal run
+    g5.add_h_line(0, 0, 4, HEAVY)    # overlay a heavy run on the SAME arm
+    r5 = g5.resolve()
+    ok("weight: same-arm THIN then HEAVY composes to HEAVY (max, not min) ━",
+       r5[0][1] == "━", f"got {r5[0][1]!r}")
+    # And the reverse order must be order-independent (max is commutative).
+    g6 = BoxGrid(4, 1)
+    g6.add_h_line(0, 0, 4, HEAVY)
+    g6.add_h_line(0, 0, 4, THIN)     # thin over heavy must NOT downgrade it
+    r6 = g6.resolve()
+    ok("weight: same-arm HEAVY then THIN stays HEAVY (max order-independent) ━",
+       r6[0][1] == "━", f"got {r6[0][1]!r}")
+
     # --- resolve_glyph exact mixed form where Unicode has one --------------
     ok("resolve_glyph: exact thin⇋heavy cross is ┿", resolve_glyph(1, 2, 1, 2) == "┿",
        f"got {resolve_glyph(1, 2, 1, 2)!r}")

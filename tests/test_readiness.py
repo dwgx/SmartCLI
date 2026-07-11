@@ -37,6 +37,7 @@ class VirtualClock:
 
     def __init__(self) -> None:
         self.t = 0.0
+        self.last_sleep = None   # duration of the most recent sleep() (seconds)
 
     def monotonic(self) -> float:
         return self.t
@@ -44,6 +45,7 @@ class VirtualClock:
     def sleep(self, seconds: float) -> None:
         # Advance virtual time; also nudge forward on zero-sleep to guarantee
         # progress so no loop can spin forever in a test.
+        self.last_sleep = seconds
         self.t += seconds if seconds > 0 else 0.001
 
 
@@ -137,41 +139,55 @@ def test_stable_timeout():
 
 
 def test_late_flush_resume():
-    """A late flush after grace resumes the wait instead of declaring done early.
+    """A late flush delivered ONLY on the post-grace `tail = read_fn()` drain must
+    resume the wait — not let it return True on the half-drawn (pre-flush) screen.
 
-    We inject exactly one late batch on the post-grace `tail = read_fn()` drain.
-    readiness must consume it, reset stability, and only return True once the
-    screen re-settles — never return on the half-drawn (pre-flush) screen.
+    This targets readiness.py lines 87-93 specifically. The flush is delivered on
+    the exact read that immediately follows a `grace` sleep (grace=40ms, distinct
+    from the 30ms poll sleep), so it can only land on the tail drain — the branch
+    the earlier version of this test never exercised (mutation-proven false-green).
+
+    Proof of resume: (a) the flush was delivered on a tail drain, and (b) the wait
+    kept polling AFTER the flush (reads continued) instead of returning immediately.
+    Under a mutant that drops the resume branch, the function returns True right
+    after the flush drain → no further reads → this test FAILS.
     """
-    _install_clock()
+    clk = _install_clock()
     reads = {"n": 0}
-    flush_at = {"call": None}   # records which read_fn call delivered the flush
+    tail_flush = {"delivered_at": None}
+    reads_after_flush = {"n": 0}
 
     def read_fn():
         reads["n"] += 1
-        # Deliver the late flush the first time we've gone quiet long enough that
-        # a grace-drain read happens (n>=4 in this cadence), exactly once.
-        if flush_at["call"] is None and reads["n"] >= 4:
-            flush_at["call"] = reads["n"]
+        if tail_flush["delivered_at"] is not None:
+            reads_after_flush["n"] += 1
+            return b""  # quiet again so it can finally re-settle
+        # The tail drain is the read whose immediately-preceding sleep was `grace`
+        # (40ms), not a `poll` (30ms). Deliver the flush there, exactly once.
+        if clk.last_sleep is not None and abs(clk.last_sleep - 0.040) < 1e-9:
+            tail_flush["delivered_at"] = reads["n"]
             return b"late output"
         return b""
 
     def hash_fn():
-        # screen changes once the flush has been delivered, then settles at 2
-        return 2 if flush_at["call"] is not None else 1
+        # constant until the flush lands (so quiet accumulates and we reach the
+        # tail drain), then a new value that itself settles.
+        return 2 if tail_flush["delivered_at"] is not None else 1
 
     ok = readiness.wait_until_stable(
         read_fn=read_fn,
         get_screen_hash_fn=hash_fn,
         quiet_ms=60, poll_ms=30, max_wait_ms=5000, grace_ms=40, min_wait_ms=0,
     )
-    # Main contract: it re-settled to True AFTER a late flush was consumed.
-    check(ok is True, "wait_until_stable: resumes after late flush then settles", f"ret={ok}")
-    # A late flush was actually delivered and consumed, and reads continued
-    # past that point (so it did NOT return on the stale pre-flush screen).
-    check(flush_at["call"] is not None, "wait_until_stable: late flush was delivered", f"flush_at={flush_at['call']}")
-    check(reads["n"] > flush_at["call"], "wait_until_stable: kept reading past the late flush",
-          f"reads={reads['n']} flush_at={flush_at['call']}")
+    check(ok is True, "wait_until_stable: resumes after tail-drain flush then settles", f"ret={ok}")
+    check(tail_flush["delivered_at"] is not None,
+          "wait_until_stable: flush landed on the post-grace tail drain",
+          f"at read #{tail_flush['delivered_at']}")
+    # The crux: after the tail-drain flush, the loop must have RESUMED (more reads),
+    # not returned. A mutant dropping the resume branch returns immediately → 0.
+    check(reads_after_flush["n"] > 0,
+          "wait_until_stable: kept polling after the tail-drain flush (resumed, not returned)",
+          f"reads_after_flush={reads_after_flush['n']}")
 
 
 def test_min_wait_guard():
@@ -253,6 +269,28 @@ def test_wait_ready_stable():
     check(reason == "STABLE", "wait_ready: settles to STABLE with no marker", f"reason={reason}")
 
 
+def test_wait_ready_stable_timing_floor():
+    """wait_ready must NOT declare STABLE before quiet_ms + min_wait_ms elapse.
+
+    Mirrors test_min_wait_guard but for wait_ready's stability branch. Asserts a
+    virtual-time floor, so a mutant that declares STABLE on the first quiet poll
+    (ignoring quiet_ms/min_wait_ms) is caught (the false-green M7 gap).
+    """
+    clk = _install_clock()
+    reason, _ = readiness.wait_ready(
+        read_fn=seq_reader([]),               # instantly quiet
+        get_screen_hash_fn=seq_hashes([5]),   # constant hash
+        get_text_fn=seq_text(["idle"]),
+        get_snapshot_fn=lambda: "S",
+        marker=None, quiet_ms=200, poll_ms=30, max_wait_ms=8000,
+        min_wait_ms=300, grace_ms=0,
+    )
+    check(reason == "STABLE", "wait_ready: eventually STABLE past the floor", f"reason={reason}")
+    # Must have waited at least min_wait (0.3s); a no-quiet mutant returns near t=0.
+    check(clk.t >= 0.3, "wait_ready: honored quiet_ms + min_wait_ms floor before STABLE",
+          f"virt_t={clk.t:.3f}s (>=0.3)")
+
+
 def test_wait_ready_timeout():
     """wait_ready returns TIMEOUT when marker never matches and screen churns."""
     clk = _install_clock()
@@ -284,7 +322,8 @@ def main() -> int:
         test_stable_reached, test_stable_timeout, test_late_flush_resume,
         test_min_wait_guard, test_regex_match, test_regex_timeout_returns_snapshot,
         test_regex_min_wait, test_wait_ready_marker_beats_stability,
-        test_wait_ready_stable, test_wait_ready_timeout,
+        test_wait_ready_stable, test_wait_ready_stable_timing_floor,
+        test_wait_ready_timeout,
     ):
         fn()
     wall = _real_time.perf_counter() - t0
