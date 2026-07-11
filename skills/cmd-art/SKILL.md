@@ -8,7 +8,7 @@ description: >-
   rainbow/lolcat gradient text, starfield, tunnel, fireworks, image-to-ASCII,
   and more. Use when the request is for a terminal animation, ANSI/CLI art, or
   a new console effect. Pure Python stdlib; truecolor.
-version: 0.1.0
+version: 0.1.2
 ---
 
 # cmd-art

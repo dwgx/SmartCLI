@@ -5,6 +5,33 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2026-07-11
+
+Correctness fixes found by a deep review + mutation-testing pass, each with a
+repro and a regression-lock test (all independently re-verified for drift).
+
+### Fixed
+- **`smartcli_core` readiness (#1)** — `wait_ready`/`wait_until_stable` could
+  declare STABLE on a never-painted blank screen during a startup quiet-gap.
+  Added an optional `blank_hash` gate (default off = old behavior); `PtySession`
+  passes its blank baseline so a blank+no-output screen TIMEOUTs instead of
+  falsely settling, while a drawn static screen still settles.
+- **`smartcli_core` docs (#2)** — the quickstart marker `r">>> $"` can never
+  match (pyte space-pads lines); examples now use unanchored `r">>> "`.
+- **`smartcli_core` PTY backend (#4)** — `WinptyBackend.spawn` now resets its
+  queue/EOF/reader so a re-used backend can't inherit a stale EOF sentinel or a
+  latched `_eof`.
+- **Degenerate-input crashes** in skill code: `field.Ripple` (wavelength 0,
+  falloff 0, empty palette), `SliderTrack` (empty positions list),
+  `BrailleChart` (non-finite series values), and `fx` `Param` int coercion
+  (zero-padded `08`/`010` and `±`-signed based literals now parse; clean error
+  message otherwise).
+
+### Added
+- Regression-lock tests: `test_readiness.py` (blank-gate + false-green hardening),
+  `test_degenerate_inputs.py`, `test_fx_contract.py` (exact fx frame contract,
+  18×6), a `box_junction` self-test, and a unified `tests/run_all.py` runner.
+
 ## [0.1.1] - 2026-07-11
 
 Test coverage, release maturity, and metadata. No `smartcli_core` code changes.
