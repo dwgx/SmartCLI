@@ -64,11 +64,13 @@ class Param:
             # decimals like "08"/"010" — base 0 alone rejects the latter, which is
             # a confusing footgun for a CLI user typing a leading-zero number.
             try:
-                low = s.lower()
-                if low[:2] in ("0x", "0o", "0b") or low[:3] in ("-0x", "-0o", "-0b"):
-                    v = int(s, 0)
+                # Strip an optional leading sign, then check for a base prefix on
+                # the unsigned part — so +0x10 and -0x10 are handled symmetrically.
+                unsigned = s[1:] if s[:1] in ("+", "-") else s
+                if unsigned[:2].lower() in ("0x", "0o", "0b"):
+                    v = int(s, 0)      # honor 0x/0o/0b (with either sign)
                 else:
-                    v = int(s, 10)
+                    v = int(s, 10)     # plain decimal, incl. zero-padded 08/010
             except ValueError:
                 raise ValueError(f"param {self.name!r}: not an integer: {raw!r}")
         elif self.kind == "float":

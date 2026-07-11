@@ -71,6 +71,9 @@ def main() -> int:
     check(p.coerce("08") == 8, "Param int '08' -> 8 (not base-0 ValueError)", f"={p.coerce('08')}")
     check(p.coerce("010") == 10, "Param int '010' -> 10", f"={p.coerce('010')}")
     check(p.coerce("0x10") == 16, "Param int '0x10' -> 16 (hex preserved)", f"={p.coerce('0x10')}")
+    # sign symmetry: +0x/-0x both honored (a prior fix narrowed this by omitting +)
+    check(p.coerce("+0x10") == 16, "Param int '+0x10' -> 16 (plus-signed hex)", f"={p.coerce('+0x10')}")
+    check(p.coerce("-0x10") == -16, "Param int '-0x10' -> -16 (minus-signed hex)", f"={p.coerce('-0x10')}")
     try:
         p.coerce("abc")
         check(False, "Param int 'abc' raises ValueError", "no error raised")
