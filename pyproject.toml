@@ -40,6 +40,41 @@ license-files = ["LICENSE"]
 # No match/case and no runtime `X | Y` types are used, so nothing forces higher.
 requires-python = ">=3.9"
 
+authors = [{name = "dwgx"}]
+
+keywords = [
+    "terminal",
+    "tui",
+    "pty",
+    "ansi",
+    "cli",
+    "ascii-art",
+    "terminal-effects",
+    "claude-skill",
+    "pyte",
+    "conpty",
+]
+
+# Real PyPI trove classifiers. NOTE: no `License ::` classifier is listed on
+# purpose — with the PEP 639 SPDX `license = "MIT"` field above, setuptools
+# (77+) treats a license trove classifier as redundant/conflicting and errors
+# out. The SPDX field is the single source of truth for licensing.
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Terminals",
+    "Topic :: Software Development :: Libraries",
+    "Environment :: Console",
+]
+
 # REQUIRED runtime deps (mirror requirements.txt). pyte is a hard top-level
 # import; pywinpty is imported only on the Windows PTY backend path, hence the
 # environment marker. POSIX uses the stdlib `pty` backend (no extra package).
@@ -47,6 +82,13 @@ dependencies = [
     "pyte>=0.8.1",
     "pywinpty>=2.0; platform_system == 'Windows'",
 ]
+
+[project.urls]
+Homepage = "https://github.com/dwgx/SmartCLI"
+Repository = "https://github.com/dwgx/SmartCLI"
+Changelog = "https://github.com/dwgx/SmartCLI/blob/main/CHANGELOG.md"
+Issues = "https://github.com/dwgx/SmartCLI/issues"
+PyPI = "https://pypi.org/project/smartcli-toolkit/"
 
 [project.optional-dependencies]
 # All guarded imports with pure-stdlib fallbacks — none required to run.

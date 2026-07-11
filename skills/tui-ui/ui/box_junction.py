@@ -173,3 +173,107 @@ class BoxGrid:
                 g = grid[y][x]
                 if g != " ":
                     canvas.set(ox + x, oy + y, g, fg=fg)
+
+
+# ==========================================================================
+# Self-test — run as a module: python -m ui.box_junction
+# (relative imports require -m; `python ui/box_junction.py` will NOT work.)
+# ==========================================================================
+def _selftest() -> None:
+    import sys
+
+    # Windows consoles default to a legacy codepage that can't encode box-
+    # drawing glyphs — force UTF-8 so the proof dump prints.
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
+    except Exception:
+        pass
+
+    _selftest.failed = False  # type: ignore[attr-defined]
+    _selftest.total = 0       # type: ignore[attr-defined]
+    _selftest.passed = 0      # type: ignore[attr-defined]
+
+    def ok(name: str, cond: bool, detail: str = "") -> None:
+        _selftest.total += 1  # type: ignore[attr-defined]
+        mark = "PASS" if cond else "FAIL"
+        if cond:
+            _selftest.passed += 1  # type: ignore[attr-defined]
+        else:
+            _selftest.failed = True  # type: ignore[attr-defined]
+        print(f"[{mark}] {name}" + (f"  {detail}" if detail else ""))
+
+    # --- plain rect: four corners resolve to ┌ ┐ └ ┘ ----------------------
+    g = BoxGrid(5, 3)
+    g.rect(0, 0, 5, 3)
+    r = g.resolve()
+    ok("rect: corners are ┌ ┐ └ ┘",
+       r[0][0] == "┌" and r[0][4] == "┐" and r[2][0] == "└" and r[2][4] == "┘",
+       f"got {r[0][0]}{r[0][4]}{r[2][0]}{r[2][4]}")
+
+    # --- plain rect: straight runs resolve to ─ (top/bottom) and │ (sides) -
+    ok("rect: horizontal run is ─, vertical run is │",
+       r[0][2] == "─" and r[2][2] == "─" and r[1][0] == "│" and r[1][4] == "│",
+       f"h={r[0][2]!r} v={r[1][0]!r}")
+
+    # --- interior vertical divider crossing a rect: top=┬, bottom=┴ --------
+    g2 = BoxGrid(5, 3)
+    g2.rect(0, 0, 5, 3)
+    g2.add_v_line(2, 0, 3)          # divider from top border to bottom border
+    r2 = g2.resolve()
+    ok("divider: top edge crossing is ┬", r2[0][2] == "┬", f"got {r2[0][2]!r}")
+    ok("divider: bottom edge crossing is ┴", r2[2][2] == "┴", f"got {r2[2][2]!r}")
+    ok("divider: interior span (no h-line) stays │", r2[1][2] == "│",
+       f"got {r2[1][2]!r}")
+
+    # --- full cross + T-into-sides: rect with an interior + inside ---------
+    g3 = BoxGrid(5, 5)
+    g3.rect(0, 0, 5, 5)
+    g3.add_v_line(2, 0, 5)          # vertical divider
+    g3.add_h_line(0, 2, 5)          # horizontal divider (touches both sides)
+    r3 = g3.resolve()
+    ok("cross: interior four-arm junction is ┼", r3[2][2] == "┼",
+       f"got {r3[2][2]!r}")
+    ok("tee: h-line into left edge is ├", r3[2][0] == "├", f"got {r3[2][0]!r}")
+    ok("tee: h-line into right edge is ┤", r3[2][4] == "┤", f"got {r3[2][4]!r}")
+
+    # --- weights: HEAVY vertical over THIN horizontal -> mixed cross ╂ -----
+    g4 = BoxGrid(3, 3)
+    g4.add_h_line(0, 1, 3, THIN)
+    g4.add_v_line(1, 0, 3, HEAVY)
+    r4 = g4.resolve()
+    ok("weight: heavy⇋thin cross resolves to mixed glyph ╂", r4[1][1] == "╂",
+       f"got {r4[1][1]!r}")
+    ok("weight: heavy straight run is ━ / ┃",
+       resolve_glyph(0, HEAVY, 0, HEAVY) == "━"
+       and resolve_glyph(HEAVY, 0, HEAVY, 0) == "┃")
+
+    # --- resolve_glyph exact mixed form where Unicode has one --------------
+    ok("resolve_glyph: exact thin⇋heavy cross is ┿", resolve_glyph(1, 2, 1, 2) == "┿",
+       f"got {resolve_glyph(1, 2, 1, 2)!r}")
+
+    # --- resolve_glyph fallback: heavy⇋double cross has NO mixed glyph, so it
+    # degrades to the nearest same-topology (heavy) glyph, NOT a literal "+" --
+    fb = resolve_glyph(HEAVY, DOUBLE, HEAVY, DOUBLE)
+    ok("resolve_glyph: heavy⇋double cross degrades to ╋ (not '+')",
+       fb == "╋" and fb != "+", f"got {fb!r}")
+
+    # --- empty cell resolves to a space -----------------------------------
+    ok("resolve_glyph: empty signature is a space", resolve_glyph(0, 0, 0, 0) == " ")
+
+    # --- visual proof dump: rect + interior cross -------------------------
+    print("\n  rect(5x5) with interior vertical + horizontal divider:")
+    for row in r3:
+        print("    " + "".join(row).rstrip())
+
+    print()
+    n_pass = _selftest.passed  # type: ignore[attr-defined]
+    n_tot = _selftest.total    # type: ignore[attr-defined]
+    print(f"box_junction self-test: {n_pass}/{n_tot} PASS")
+    if getattr(_selftest, "failed"):
+        print("SELF-TEST FAILED")
+        sys.exit(1)
+    print("SELF-TEST OK")
+
+
+if __name__ == "__main__":
+    _selftest()
