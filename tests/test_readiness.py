@@ -291,6 +291,60 @@ def test_wait_ready_stable_timing_floor():
           f"virt_t={clk.t:.3f}s (>=0.3)")
 
 
+def test_blank_gate_refuses_stable_on_never_painted_screen():
+    """With blank_hash set, a never-painted blank screen must NOT declare STABLE.
+
+    Regression lock for core bug #1: the readiness gate. read_fn never yields
+    bytes and the hash stays at the blank baseline → stability is withheld →
+    TIMEOUT, not a false STABLE on a screen the program hasn't drawn yet.
+    """
+    BLANK = 1000
+    # wait_until_stable form
+    clk = _install_clock()
+    ok = readiness.wait_until_stable(
+        read_fn=seq_reader([]), get_screen_hash_fn=seq_hashes([BLANK]),
+        quiet_ms=200, poll_ms=30, max_wait_ms=1000, grace_ms=40, min_wait_ms=50,
+        blank_hash=BLANK,
+    )
+    check(ok is False, "wait_until_stable: blank_hash gate withholds stable on blank screen", f"ret={ok}")
+    # wait_ready form
+    _install_clock()
+    reason, _ = readiness.wait_ready(
+        read_fn=seq_reader([]), get_screen_hash_fn=seq_hashes([BLANK]),
+        get_text_fn=seq_text([""]), get_snapshot_fn=lambda: "B",
+        marker=r">>> ", quiet_ms=200, poll_ms=30, max_wait_ms=1000,
+        min_wait_ms=50, grace_ms=40, blank_hash=BLANK,
+    )
+    check(reason == "TIMEOUT", "wait_ready: blank_hash gate → TIMEOUT not false STABLE", f"reason={reason}")
+
+
+def test_blank_gate_does_not_harm_drawn_static_screen():
+    """The gate must NOT harm a legitimately-drawn, static screen (hash != blank).
+
+    Regression lock: the naive first attempt broke this exact case. A drawn UI
+    whose hash differs from the blank baseline and then holds steady must still
+    settle to STABLE even with blank_hash supplied.
+    """
+    _install_clock()
+    reason, _ = readiness.wait_ready(
+        read_fn=seq_reader([]), get_screen_hash_fn=seq_hashes([5555]),  # != blank
+        get_text_fn=seq_text(["drawn UI"]), get_snapshot_fn=lambda: "S",
+        marker=None, quiet_ms=100, poll_ms=30, max_wait_ms=5000,
+        min_wait_ms=0, grace_ms=0, blank_hash=1000,
+    )
+    check(reason == "STABLE", "wait_ready: drawn static screen still settles under gate", f"reason={reason}")
+    # And once output has been seen, a return to the blank hash still settles.
+    _install_clock()
+    reads = iter([b"data", b"", b"", b"", b"", b"", b""])
+    reason2, _ = readiness.wait_ready(
+        read_fn=lambda: next(reads, b""), get_screen_hash_fn=seq_hashes([1000]),
+        get_text_fn=seq_text([""]), get_snapshot_fn=lambda: "S",
+        marker=None, quiet_ms=100, poll_ms=30, max_wait_ms=5000,
+        min_wait_ms=0, grace_ms=0, blank_hash=1000,
+    )
+    check(reason2 == "STABLE", "wait_ready: seen_any overrides blank gate", f"reason={reason2}")
+
+
 def test_wait_ready_timeout():
     """wait_ready returns TIMEOUT when marker never matches and screen churns."""
     clk = _install_clock()
@@ -323,6 +377,8 @@ def main() -> int:
         test_min_wait_guard, test_regex_match, test_regex_timeout_returns_snapshot,
         test_regex_min_wait, test_wait_ready_marker_beats_stability,
         test_wait_ready_stable, test_wait_ready_stable_timing_floor,
+        test_blank_gate_refuses_stable_on_never_painted_screen,
+        test_blank_gate_does_not_harm_drawn_static_screen,
         test_wait_ready_timeout,
     ):
         fn()

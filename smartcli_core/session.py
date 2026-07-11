@@ -6,10 +6,12 @@
 
     sess = PtySession(cols=100, rows=30)
     sess.start("python")
-    sess.wait_ready(marker=r">>> $")
+    # Use an unanchored marker: pyte space-pads every line, so r">>> $" never
+    # matches (use r">>> " or r">>> *$" with re.M).
+    sess.wait_ready(marker=r">>> ")
     sess.send_text("print('hi')")
     sess.send_keys(["Enter"])
-    snap = sess.wait_ready(marker=r">>> $")[1]
+    snap = sess.wait_ready(marker=r">>> ")[1]
     print(snap.to_text())
     sess.close()
 
@@ -113,6 +115,10 @@ class PtySession:
         self.rows = rows
         self.backend: PtyBackend = backend or get_default_backend()
         self.model = ScreenModel(cols, rows)
+        # Baseline hash of the freshly-constructed (all-blank) screen. Passed to
+        # the readiness waits so they never declare STABLE on a never-painted
+        # screen during a startup quiet-gap. Recomputed on resize.
+        self._blank_hash = self.model.content_hash()
         self._started = False
 
     # -- lifecycle ---------------------------------------------------------
@@ -142,6 +148,9 @@ class PtySession:
         self.rows = rows
         self.backend.resize(cols, rows)
         self.model.resize(cols, rows)
+        # Blank baseline for the new dimensions (only used by the readiness gate
+        # before any output has been seen).
+        self._blank_hash = ScreenModel(cols, rows).content_hash()
 
     # -- io ----------------------------------------------------------------
 
@@ -200,6 +209,7 @@ class PtySession:
             min_wait_ms=min_wait_ms,
             grace_ms=grace_ms,
             flags=flags,
+            blank_hash=self._blank_hash,
         )
         return reason, snap  # type: ignore[return-value]
 
@@ -220,6 +230,7 @@ class PtySession:
             max_wait_ms=max_wait_ms,
             grace_ms=grace_ms,
             min_wait_ms=min_wait_ms,
+            blank_hash=self._blank_hash,
         )
 
     def wait_for(

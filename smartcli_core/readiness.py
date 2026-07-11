@@ -41,6 +41,7 @@ def wait_until_stable(
     max_wait_ms: int = 8000,
     grace_ms: int = 40,
     min_wait_ms: int = 0,
+    blank_hash: Optional[int] = None,
 ) -> bool:
     """Pump reads until the screen hash is unchanged for ``quiet_ms``.
 
@@ -71,22 +72,32 @@ def wait_until_stable(
     deadline = start + (max_wait_ms / 1000.0)
     last_hash: Optional[int] = None
     stable_since: Optional[float] = None
+    # Readiness gate: never declare stable on a never-painted BLANK screen. Only
+    # engages when the caller passes ``blank_hash`` (the construct-time all-blank
+    # baseline) AND no output has been seen this wait AND the screen still equals
+    # that baseline. Default (blank_hash=None) is byte-for-byte the old behavior,
+    # so an already-drawn screen that is genuinely static still settles.
+    seen_any = False
 
     while True:
         now = time.monotonic()
         data = read_fn()
+        if data:
+            seen_any = True
         h = get_screen_hash_fn()
         elapsed = now - start
+        blank = (not seen_any and blank_hash is not None and h == blank_hash)
 
         if not data and h == last_hash:
             if stable_since is None:
                 stable_since = now
-            elif (now - stable_since) >= quiet and elapsed >= min_wait:
+            elif (now - stable_since) >= quiet and elapsed >= min_wait and not blank:
                 if grace > 0:
                     time.sleep(grace)
                 tail = read_fn()
                 if tail:
                     # late flush: resume waiting
+                    seen_any = True
                     stable_since = None
                     last_hash = get_screen_hash_fn()
                     continue
@@ -156,6 +167,7 @@ def wait_ready(
     min_wait_ms: int = 50,
     grace_ms: int = 40,
     flags: int = 0,
+    blank_hash: Optional[int] = None,
 ) -> Tuple[str, object]:
     """Unified wait: satisfy on ``marker`` OR screen stability, capped by max_wait.
 
@@ -177,10 +189,16 @@ def wait_ready(
     deadline = start + (max_wait_ms / 1000.0)
     last_hash: Optional[int] = None
     stable_since: Optional[float] = None
+    # Readiness gate (see wait_until_stable): a marker match is never gated —
+    # only the stability branch refuses to fire on a never-painted blank screen
+    # when the caller supplies the blank baseline. Default None = old behavior.
+    seen_any = False
 
     while True:
         now = time.monotonic()
         data = read_fn()
+        if data:
+            seen_any = True
         elapsed = now - start
 
         # 1) marker wins immediately (respect min_wait)
@@ -189,14 +207,16 @@ def wait_ready(
 
         # 2) stability
         h = get_screen_hash_fn()
+        blank = (not seen_any and blank_hash is not None and h == blank_hash)
         if not data and h == last_hash:
             if stable_since is None:
                 stable_since = now
-            elif (now - stable_since) >= quiet and elapsed >= min_wait:
+            elif (now - stable_since) >= quiet and elapsed >= min_wait and not blank:
                 if grace > 0:
                     time.sleep(grace)
                 tail = read_fn()
                 if tail:
+                    seen_any = True
                     stable_since = None
                     last_hash = get_screen_hash_fn()
                     continue

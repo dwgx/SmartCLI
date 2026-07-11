@@ -9,9 +9,13 @@ Quick start::
 
     with PtySession(cols=100, rows=30) as sess:
         sess.start("python")
-        sess.wait_ready(marker=r">>> $")
+        # NOTE: pyte right-pads every screen line with spaces, so an end-anchored
+        # marker like r">>> $" never matches. Use an unanchored marker (or r">>> *$"
+        # with re.M). wait_ready also races screen-stability, so pass a real marker
+        # for a known first prompt rather than relying on STABLE on startup.
+        sess.wait_ready(marker=r">>> ")
         sess.send_line("print('hello')")
-        reason, snap = sess.wait_ready(marker=r">>> $")
+        reason, snap = sess.wait_ready(marker=r">>> ")
         print(snap.to_text())
 """
 
