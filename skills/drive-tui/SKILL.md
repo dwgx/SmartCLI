@@ -1,6 +1,13 @@
 ---
 name: drive-tui
-description: Drive and observe interactive terminal (TUI) programs — CLIs, REPLs, installers, menu apps, agent CLIs like kiro-cli, and editors like vim — through a PTY with semantic screen snapshots, plus a pattern library that classifies a screen (REPL, menu, pager, fzf search, confirm dialog, form, progress spinner, multi-step wizard) and drives it with a ready recipe. Use when you must launch and interact with a program that expects a live terminal (arrow-key menus, prompts, spinners, password fields, curses UIs), when a plain piped command hangs or shows no output, when you need to know what paradigm a screen is, or when you want to auto-drive a menu selection / pager / search / yes-no / form / installer wizard. Keywords: TUI, interactive, PTY, terminal, REPL, prompt, menu, pager, less, fzf, fuzzy search, confirm, y/N, form, spinner, progress, wizard, installer, curses, keystrokes, snapshot, classify, kiro-cli.
+description: >-
+  Drive interactive terminal (TUI) programs — CLIs, REPLs, installers, menu
+  apps, agent CLIs, and editors like vim — through a PTY, reading semantic
+  screen snapshots. A pattern library classifies a screen (REPL, menu, pager,
+  fzf search, confirm dialog, form, spinner, wizard) and drives it with a ready
+  recipe. Use when a program expects a live terminal (arrow-key menus, prompts,
+  spinners, password fields, curses UIs), or when a piped command hangs or
+  prints nothing.
 allowed-tools: Bash, Read
 version: 0.1.0
 ---

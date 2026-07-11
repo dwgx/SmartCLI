@@ -2,12 +2,12 @@
 name: tui-ui
 description: >-
   Design web-like user interfaces in the terminal and inside tmux with a
-  cell-grid Canvas, CSS-like box model, flexbox/grid layout, and reusable
-  widgets such as Panel, Table, Card, ProgressBar, Meter, Tabs, Tree, Rule,
-  Badge, and Banner. Use when Codex needs a dashboard, panel, table, meter,
-  status page, terminal UI, TUI layout, tmux dashboard, screenshot-driven
-  CLI/TUI replica, ANSI frame, truecolor render, pyte PNG screenshot smoke
-  test, wide-character alignment, or a new terminal widget.
+  cell-grid Canvas, CSS-like box model, flexbox/grid layout, and 15 reusable
+  widgets such as Panel, Table, Card, ProgressBar, Meter, Tabs, Tree, Badge,
+  Banner, and a braille line chart. Use when an agent needs a dashboard, panel,
+  table, status page, TUI layout, tmux dashboard, screenshot-driven CLI/TUI
+  replica, ANSI frame, truecolor render, pyte PNG screenshot smoke test,
+  wide-character alignment, or a new terminal widget.
 allowed-tools: Bash, Read
 version: 0.1.0
 ---

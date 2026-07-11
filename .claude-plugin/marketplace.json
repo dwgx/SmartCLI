@@ -10,6 +10,20 @@
       "source": "./",
       "description": "Three terminal Agent Skills over one pluggable PTY+pyte core: drive-tui (drive interactive TUIs via perceive-decide-act-wait-confirm), cmd-art (design CMD/terminal visual effects and ASCII art with the fx engine), and tui-ui (web-like cell-accurate terminal layout engine + widgets emitting tmux-safe ANSI frames).",
       "version": "0.1.0",
+      "homepage": "https://github.com/dwgx/SmartCLI",
+      "repository": "https://github.com/dwgx/SmartCLI",
+      "license": "MIT",
+      "category": "developer-tools",
+      "keywords": [
+        "terminal",
+        "tui",
+        "pty",
+        "ansi",
+        "cli",
+        "ascii-art",
+        "effects",
+        "claude-skill"
+      ],
       "skills": [
         "./skills/cmd-art",
         "./skills/drive-tui",

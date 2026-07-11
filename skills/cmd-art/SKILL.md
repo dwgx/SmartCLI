@@ -1,6 +1,13 @@
 ---
 name: cmd-art
-description: Design and render CMD/terminal visual effects and ASCII art from a one-line request, using the pluggable `fx` living-template engine (18 effects, hot-swappable themes, scripted shows). Covers a spinning shaded 3D ball (sphere), THE donut torus, matrix digital rain, demoscene fire, Conway's Game of Life, a rotating wireframe cube, 3D block text banners, rainbow gradient / lolcat text, plasma interference fields, a warping starfield, a tunnel fly-through, image-to-ASCII, fireworks, boids flocking, sparkle, typewriter, and a decrypt reveal. Use when the user asks for a terminal animation, ANSI/CLI art, a "spinning ball", "matrix rain", "plasma", "fire", "donut", "game of life", "3D text", a rainbow/gradient ASCII banner, a starfield or tunnel, image-to-ASCII, or wants to invent a new console effect. Pure Python stdlib (optional pyfiglet/PIL); truecolor on Windows Terminal.
+description: >-
+  Design and render terminal/CMD visual effects and ASCII art from a one-line
+  request via the pluggable `fx` engine (18 hot-swappable, themeable effects
+  plus scripted shows). Effects include donut, matrix rain, plasma, fire, a
+  spinning 3D ball, Game of Life, wireframe cube, 3D text banners,
+  rainbow/lolcat gradient text, starfield, tunnel, fireworks, image-to-ASCII,
+  and more. Use when the request is for a terminal animation, ANSI/CLI art, or
+  a new console effect. Pure Python stdlib; truecolor.
 version: 0.1.0
 ---
 
