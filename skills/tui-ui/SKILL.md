@@ -207,7 +207,7 @@ shot.screen_to_png(screen, "out.png")     # faithful cell-grid render
 
 ## Knowledge base — look before you build
 Before recreating or inventing any effect, consult the SmartCLI knowledge graph at
-`D:/Project/SmartCLI/knowledge/INDEX.md` — 89 sourced concept notes + 27 case studies,
+`D:/Project/SmartCLI/knowledge/INDEX.md` — 95 sourced concept notes + 27 case studies,
 organized around one discipline: **pick your lane.**
 - **Replica** (reproduce a real, existing UI/animation/screenshot): measure ground truth
   first, never head-canon. Start at [[hard-lessons]] (mirrors `references/HARD-LESSONS.md`)

@@ -1,12 +1,36 @@
 # SmartCLI — Handoff (承上启下)
 
-*Written 2026-07-08. This is the single document a fresh AI reads first to pick up SmartCLI without re-deriving anything. It records what the project IS, what already WORKS (with the exact commands to see it), the brain (`knowledge/`), the hard-won rules that must never be re-lost, the environment, and the open tasks framed so you can start in one move. Two upstream count corrections are baked in: there are **THREE** skills (not two), and the live `fx` registry has **18** effects (not 19).*
+*Written 2026-07-08, last updated **2026-07-12** (v0.1.2 released). This is the single document a fresh AI reads first to pick up SmartCLI without re-deriving anything. It records the **current release state**, what the project IS, what already WORKS (with the exact commands to see it), the brain (`knowledge/`), the hard-won rules that must never be re-lost, the environment, and the open tasks framed so you can start in one move. Baked-in truths: there are **THREE** skills (not two), the live `fx` registry has **18** effects (not 19), and `tui-ui` has **15** widgets (not 14 — a `BrailleChart` was added).*
+
+---
+
+## 0. Release & current state (v0.1.2) — READ THIS FIRST
+
+SmartCLI is **published and public** as of 2026-07-12. This section is the authoritative current-state record; anything older in this doc that contradicts it is stale.
+
+**Where it lives:**
+- **PyPI:** `pip install smartcli-toolkit` → https://pypi.org/project/smartcli-toolkit/ . The dist name is **`smartcli-toolkit`**; the **import package stays `smartcli_core`** (`from smartcli_core import PtySession`).
+- **GitHub:** public repo **github.com/dwgx/SmartCLI**, branch `main`, tags **v0.1.0 / v0.1.1 / v0.1.2** each with a matching GitHub Release.
+- **Claude plugin marketplace:** `.claude-plugin/marketplace.json` is present → users run **`/plugin marketplace add dwgx/SmartCLI`**.
+- **skillhu.bz:** all 3 skills published — skillhu.bz/skill/cmd-art, skillhu.bz/skill/drive-tui, skillhu.bz/skill/tui-ui.
+
+**Version consistency (VERSION = 0.1.2, verified 2026-07-12 across):** `pyproject.toml`, `smartcli_core/__init__.py` `__version__`, `skills/cmd-art/fx/__init__.py` `__version__`, all 3 `skills/*/SKILL.md` `version:` fields, and `.claude-plugin/marketplace.json` plugin version. **When you bump the version, all six must move together.**
+
+**CI / publishing:**
+- `.github/workflows/ci.yml` — **Windows-only** CI on the deterministic tests.
+- `.github/workflows/publish.yml` — PyPI **Trusted Publishing (OIDC)**, tag-push triggered. ⚠️ **REQUIRES one-time human PyPI setup that is NOT yet done:** register a Trusted Publisher on PyPI (owner `dwgx`, repo `SmartCLI`, workflow `publish.yml`, environment `pypi`) **and** create a `pypi` GitHub Environment. **Until that is done, tag-push auto-publish will NOT work** — the v0.1.0/0.1.1/0.1.2 releases were done **manually with `twine`** (`python -m twine upload --disable-progress-bar` — twine's rich progress bar crashes on gbk).
+
+**Live counts (verified 2026-07-12):** cmd-art **18 effects / 8 themes**; drive-tui **8 recipes**; tui-ui **15 widgets** (11 core + 4 in `ui/widgets_ext/`, incl. `braille_chart.py`); knowledge **122-note graph** (**140 `.md` files**). Any doc that still says **14 widgets** is STALE.
+
+**Security note:** a PyPI API token's plaintext appeared in a prior session's chat. The owner chose **not** to revoke it. Recommended action still stands: revoke it and rely on the OIDC publish workflow (after the one-time Trusted-Publisher setup above).
+
+**Excluded from release (keep excluded):** `research/cc-decompiled/` and `research/real-frames/` are gitignored (0 tracked files, verified) and carry the project's internal reverse-engineering assets. All provenance wording in *shipping* files was neutralized per the owner's decision. Do **not** re-expose these dirs or reintroduce fresh provenance wording.
 
 ---
 
 ## 1. What SmartCLI IS
 
-**Shared core (`smartcli_core/`, DO-NOT-MODIFY).** A pluggable PTY backend + `pyte` screen model + semantic snapshot + readiness sync — modules `pty_backend / screen_model / snapshot / readiness / session`. The deliberate architecture call: the core is a **pluggable PTY layer, NOT tmux-bound**. Target programs may run in Linux containers (tmux there) while local dev runs on Windows (ConPTY via pywinpty). Screen perception uses `pyte` structured-text snapshots (chosen over screenshot/vision on purpose) so one screen model feeds both the agent (perceive, up) and rendering (down). The hard, valuable part is the ACI layer: readiness sync, compression of raw screen to a semantic tree, and action translation (intent → key sequence).
+**Shared core (`smartcli_core/`).** A pluggable PTY backend + `pyte` screen model + semantic snapshot + readiness sync — modules `pty_backend / screen_model / snapshot / readiness / session`. **⚠️ POLICY: DO-NOT-MODIFY except with real-run-path verification + independent adversarial review + no regression across the full recipe suite.** (It was DO-NOT-MODIFY outright; in v0.1.1/v0.1.2 it was deliberately modified under this exception with user authorization — see §2 core fixes #1/#2/#4.) The deliberate architecture call: the core is a **pluggable PTY layer, NOT tmux-bound**. Target programs may run in Linux containers (tmux there) while local dev runs on Windows (ConPTY via pywinpty). Screen perception uses `pyte` structured-text snapshots (chosen over screenshot/vision on purpose) so one screen model feeds both the agent (perceive, up) and rendering (down). The hard, valuable part is the ACI layer: readiness sync, compression of raw screen to a semantic tree, and action translation (intent → key sequence).
 
 **drive-tui skill (`skills/drive-tui/`).** Teaches an AI to DRIVE interactive terminal programs (REPLs, installers, vim, agent CLIs like kiro-cli, arrow-key menus, y/N prompts, password fields, curses UIs) through a PTY via a **perceive → decide → act → wait → confirm** loop — never blind-`sleep`, always re-snapshot after acting. The surface is a thin CLI `scripts/tui.py` with two modes: **A) persistent session** (a detached localhost-only daemon owns one live program; state survives across shell calls — `start/snapshot/send-text/send-line/keys/wait/wait-regex/alive/close/list`) and **B) one-shot `run`** (a JSON step list against a fresh process). On top sits an importable **pattern library** (`patterns/`) that `classify()`s a screen and `drive()`s it with one of **8 recipes**. Fault-isolated `@register` + pkgutil discovery; recipes fail loud on bad intent.
 
@@ -48,7 +72,7 @@ python skills\drive-tui\scripts\tui.py send-line --id <SID> "print(6*7)"
 python skills\drive-tui\scripts\tui.py snapshot --id <SID>
 python skills\drive-tui\scripts\tui.py close --id <SID>
 ```
-8 recipes live via `all_patterns()`: repl, menu_select, pager, search_filter, confirm, form, progress, wizard. Python API: `sys.path.insert(0,"skills/drive-tui"); from patterns import classify, explain, all_patterns, get, load_all; from smartcli_core import PtySession`. REPL drive confirmed (`run_line` → `['42']`); fault isolation verified (a crashing recipe module leaves the rest registered); probes `_drive_probe1..5.py` + `probe_pty_fx.py` PASS (`_drive_probe2.py` prints one warning **by design** — it's the fail-soft test).
+8 recipes live via `all_patterns()`: repl, menu_select, pager, search_filter, confirm, form, progress, wizard. Python API: `sys.path.insert(0,"skills/drive-tui"); from patterns import classify, explain, all_patterns, get, load_all; from smartcli_core import PtySession`. REPL drive confirmed (`run_line` → `['42']`); fault isolation verified (a crashing recipe module leaves the rest registered); probes `_drive_probe1..6.py` + `probe_pty_fx.py` PASS (`_drive_probe2.py` prints one warning **by design** — it's the fail-soft test). **New in v0.1.2:** `_drive_probe6.py` drives the **pager / form / wizard** recipes LIVE (against `tests/_pager_app.py` / `_form_app.py` / `_wizard_app.py`) — those three were never driven end-to-end before; `_tui_cli_probe.py` drives the drive-tui CLI + token-auth surface.
 
 **Screenshot harness — pyte→PIL→PNG (honestly labelled, not real tmux).**
 ```
@@ -75,12 +99,30 @@ python tools\agentcli\validate_agentcli.py --external # probe installed Codex/Ai
 ```
 Missing external tools = skipped, not failed. Six scenarios: repl/confirm/progress/menu_select/search_filter/subagents.
 
-**Regression set (all exit 0).**
+**v0.1.1 / v0.1.2 workstream — core & robustness fixes (authorized modification of `smartcli_core`, with independent adversarial verification).**
+
+*Core fixes (all verified on the real run path + adversarial review; the core exception in §1 applies):*
+- **FIXED #1 — false-STABLE on a blank startup screen.** `wait_ready` / `wait_until_stable` could declare STABLE on a never-painted blank screen during a ConPTY startup quiet-gap. Added an optional **`blank_hash` gate** (default `None` = byte-identical old behavior); `PtySession` passes its blank baseline so a still-blank screen is not treated as ready.
+- **FIXED #2 — quickstart marker could never match.** The docstring example marker `>>> $` can never match pyte's space-padded lines; examples now use the **unanchored `>>> `**.
+- **FIXED #4 — stale EOF on backend reuse.** `WinptyBackend.spawn` now **resets `queue` / `_eof` / `_reader`** so a re-used backend cannot inherit a stale EOF sentinel.
+- **NOT fixed (recorded as known, with reasons):** **#3** `content_hash` is blind to selection-only cursor movement (design tradeoff — fixing it risks false-*unstable*); **#5** arrows are always emitted CSI, never SS3 (pyte doesn't track DECCKM; POSIX/TUI concern, unverifiable on Windows); **#6** POSIX `terminate()` doesn't reap the child (POSIX-only, unverifiable on this host).
+
+*Skill-code degenerate-input fixes (all with regression locks in `tests/test_degenerate_inputs.py`):* `field.Ripple` (wavelength 0 / falloff 0 / empty palette), `SliderTrack` (empty positions list), `BrailleChart` (non-finite series), and `fx` **Param int coerce** (zero-padded `08`/`010` and `+`/`-` signed based literals now parse; clean error otherwise).
+
+**Regression set (all exit 0).** Unified runner: `python tests\run_all.py`.
 ```
-python tests\_readme_literal.py    python tests\verify_fx.py
-python tests\probe_pty_fx.py       python tests\_drive_probe1..5.py
+# deterministic / mutation-verified suite (all GENUINE, not false-green):
+python tests\test_readiness.py          # virtual-clock unit tests + blank-gate locks (#1)
+python tests\test_degenerate_inputs.py  # the degenerate-input regression locks above
+python tests\test_fx_contract.py        # 18 effects x 6 sizes, exact frame contract
+python tests\_drive_probe6.py           # pager/form/wizard driven LIVE
+python tests\_tui_cli_probe.py          # drive-tui CLI + token-auth
+python skills\tui-ui\ui\box_junction.py # box_junction _selftest (module-level)
+# standing regression gate (must stay exit-0):
+python tests\verify_fx.py               # 26/26; known random-seconds flake — rerun once
+python tests\_readme_literal.py         python tests\probe_pty_fx.py
 ```
-Plus: 3 external-AI fixes (2026-07-07) re-run exit 0 — README literal import-order crash, verify_fx dispatch, repl_session settle-loop (documented in `AUDIT-REPORT.md`; `smartcli_core` NOT touched).
+Plus: 3 external-AI fixes (2026-07-07) still exit 0 — README literal import-order crash, verify_fx dispatch, repl_session settle-loop (documented in `AUDIT-REPORT.md`; those did NOT touch `smartcli_core` — the authorized core changes above came later, in v0.1.1/v0.1.2).
 
 ---
 
@@ -92,7 +134,7 @@ Plus: 3 external-AI fixes (2026-07-07) re-run exit 0 — README literal import-o
 - **Replica task** (recreate a real program's look) → *measure ground truth first.* Start at **`[[hard-lessons]]`** (the 10 rules, §4 below) and **`[[effort-selector]]`** (the worked replica). Decompile / drive / capture the real thing before you write render code.
 - **Creative task** (design something new) → *compose the four primitives.* Start at **`[[rendering-model]]`**: field shaders (`field.py`), sub-cell raster (`raster.py`), box junctions (`box_junction.py`), honest color degrade (`color_model.py`). Most "new" effects are a composition of these plus a case study in `works/`.
 
-The **Works wing** (`works/`, 27 studied programs — cbonsai, no-more-secrets, sl, asciiquarium, cava, firework-rs, chafa, notcurses, neo …) is the design brain: each has a real source URL and the extracted algorithm. The six newest concept notes distilled from them are the ready building blocks: `effects/procedural-branching` (cbonsai recursion), `effects/decrypt-reveal` (nms 3-phase reveal), `effects/sprite-scroll` (sl/asciiquarium blit), `effects/color-mask-sprites` (parallel glyph/color layers), `effects/particle-system` (firework-rs float physics), `effects/spectrum-bars` (cava log-bins + eighth-blocks). `sources/` holds the 10 raw research digests behind the notes. Honest `*(verify)*` accuracy flags remain on `neo`/`sl`/`notcurses`/`chafa` (tech debt, not defects).
+The **Works wing** (`works/`, 27 studied programs — cbonsai, no-more-secrets, sl, asciiquarium, cava, firework-rs, chafa, notcurses, neo …) is the design brain: each has a real source URL and the extracted algorithm. The six newest concept notes distilled from them are the ready building blocks: `effects/procedural-branching` (cbonsai recursion), `effects/decrypt-reveal` (nms 3-phase reveal), `effects/sprite-scroll` (sl/asciiquarium blit), `effects/color-mask-sprites` (parallel glyph/color layers), `effects/particle-system` (firework-rs float physics), `effects/spectrum-bars` (cava log-bins + eighth-blocks). `sources/` holds the 10 raw research digests behind the notes. The `neo`/`sl`/`notcurses`/`chafa` notes were **corrected from primary source** (real algorithm constants) and **no longer carry `*(verify)*` flags** — all accuracy flags are resolved. (Note: `INDEX.md` and `works/README.md` may still *describe* these four as pending — that summary text is stale and should be reconciled.)
 
 ---
 
@@ -136,17 +178,30 @@ Reproducible ground-truth archive (INTERNAL-ONLY — gitignored, EXCLUDED from p
 
 ---
 
-## 6. OPEN TASKS (ready-to-run framing)
+## 6. OPEN TASKS — "reach A-grade" gaps (benchmarked vs pexpect / conch / Textual / TTE / terminal-bench)
 
-1. **Finalize effort_selector polish — the one truly-open replica item.** The `travel` parameter is the perennial trap: keep it **small (~λ×1..1.6, breathing)** so the ripple stays localized on the ultracode/max side; a large travel washes the whole panel purple (the frame the user rejected). Label distances from origin: ultracode 4, max 14, xhigh 25, high 34, medium 45, low 53 — keep travel < ~26 so low/medium/high/xhigh stay clean dim-gray. Verified in pyte; **eyeball the animation cadence in a REAL Windows Terminal** (rule 4 — a prior version's marker drifted in cmd.exe). Ready run: `python skills\tui-ui\examples\effort_selector.py` (interactive) and step frames with `--once --frame N`.
-2. **POSIX-verify drive-tui.** All verification is Windows/ConPTY. The POSIX daemon (`start_new_session`) and `C-c` interrupt path are coded but machine-unverified here. Run the drive-tui CLI + probes on a Linux/mac box and confirm `close`+interrupt behavior; the tmux launchers (`skills/cmd-art/tmux/*.sh`) also need a real tmux host.
-3. **Build new works using the learned techniques.** The six new concept notes are ready building blocks — e.g. a no-more-secrets **decrypt** effect (`[[decrypt-reveal]]`, `rand()%5000` per-cell timer, distance-driven churn), **cava eighth-block spectrum bars** (`[[spectrum-bars]]`, log-bins + gravity smoothing), **braille smooth graphs** (`raster.py` braille sub-cell), particle **fireworks** (`[[particle-system]]` float physics). Compose the four primitives; cite the `works/` case study. Add each as a new `fx` effect (pure frame producer) or tui-ui widget, and verify with the screenshot harness + on the real run path.
-4. **Wire knowledge into skills further.** The 3 SKILLs now link `knowledge/INDEX.md` (replica vs creative lanes). Deepen recipe↔`tui-patterns/` and effect↔`effects/` cross-links as new works land; keep the count/claim drift at zero (the last audit fixed 11→14 widgets, then a braille line-chart widget took it 14→15; 19→18 effects).
-5. **Author the remaining tech-debt items** as new works are studied: resolve the `*(verify)*` accuracy flags on `neo`/`sl`/`notcurses`/`chafa` by re-fetching their real constants.
-6. **Re-fund or replace codex, or keep relying on WebSearch.** The dispatcher is dead (§5). Either restore the gateway quota or continue using built-in WebSearch/WebFetch for live research — do not block on codex.
-7. **Standing re-verify-after-workflows:** confirm the 3 external fixes stay exit-0 after any Smoke-phase workflow that edits fx effects or recipe `matches()` (`external-ai-fixes.md`).
+Ranked by impact/effort. The v0.1.2 release, the deterministic/mutation-verified test suite, and the core #1/#2/#4 fixes are DONE — these are what's left.
 
-Non-issues, do not "fix": drive-tui's `description` has an unquoted `Keywords: TUI` colon that a strict YAML parser trips on but the shipping skill loader accepts (leave it or quote it — behavior-neutral); `_drive_probe2.py`'s one warning is by design; the screenshot harness labelling itself pyte-simulation is correct honesty.
+1. **[S] Ship a `py.typed` marker in `smartcli_core`.** Confirmed **absent** on disk (2026-07-12); add it so downstream type-checkers see the package as typed.
+2. **[S] Add a Linux CI matrix** running the deterministic tests — this validates the currently machine-**unverified POSIX pty backend** (relates to known-unfixed #5/#6). CI is Windows-only today.
+3. **[M] MCP-server wrapper over the drive-tui daemon's verb surface** (`start/snapshot/send-*/keys/wait*/alive/close/list`). Biggest adoption lever — usable by any MCP client.
+4. **[S] Pattern-list / multi-marker wait** (pexpect-style wait-any that returns *which* marker matched).
+5. **[M] Golden-frame snapshot regression test for tui-ui** — commit a baseline frame and diff, like `pytest-textual-snapshot`.
+6. **[M] Shared `easing.py` + `Gradient(stops, steps, direction)` builder for cmd-art** to de-duplicate effect math.
+7. **[S-M] Ship `spectrum-bars` + `cbonsai` effects** — the knowledge notes `[[spectrum-bars]]` / `[[procedural-branching]]` are ready building blocks. Add each as a pure-frame `fx` effect; verify with `test_fx_contract.py` + on the real run path.
+8. **[L] Docs site + contributor onramp:** mkdocs-material site, `CONTRIBUTING.md`, pytest/coverage badge.
+
+**Discoverability (0 stars today):** record a demo GIF/asciinema for the README top (asciinema + agg, or termsvg), then Show HN / r/commandline / `awesome-claude-code` + `awesome-cli-apps` PRs. A calibrated `/deep-research` prompt list exists (anchors: conch, terminal-bench, plotille, TTE, PyPI trusted publishing) — worth saving as `RESEARCH-PROMPTS.md`.
+
+**One-time release chore (blocks tag-push auto-publish):** complete the PyPI Trusted-Publisher setup + `pypi` GitHub Environment described in §0 so `publish.yml` works; until then keep releasing manually with `twine --disable-progress-bar`.
+
+**Still-open replica polish (unchanged from earlier rounds):** eyeball `effort_selector.py`'s animation cadence in a REAL Windows Terminal. Keep `field.Ripple` `travel` **small (~λ×1..1.6, breathing)** so the ripple stays localized on the ultracode/max side; `travel < ~26` keeps low/medium/high/xhigh clean dim-gray. Label distances: ultracode 4, max 14, xhigh 25, high 34, medium 45, low 53. It's bit-exact in pyte; the only gap is the real-terminal eyeball. **POSIX-verify drive-tui** (daemon `start_new_session` + `C-c` interrupt path coded but unverified off Windows; tmux launchers `skills/cmd-art/tmux/*.sh` need a real tmux host).
+
+**Standing re-verify-after-workflows:** confirm the 3 external fixes + full `tests/run_all.py` stay exit-0 after any workflow that edits fx effects or recipe `matches()` (`external-ai-fixes.md`).
+
+Non-issues, do not "fix": drive-tui's `description` has an unquoted `Keywords: TUI` colon that a strict YAML parser trips on but the shipping skill loader accepts (leave it or quote it — behavior-neutral); `_drive_probe2.py`'s one warning is by design; the screenshot harness labelling itself pyte-simulation is correct honesty; `verify_fx.py`'s random-seconds flake — rerun once.
+
+**Publish-tooling reality (not the project's fault):** LobeHub / agentskillhub publish CLIs have real bugs (`spawn 'start' ENOENT` / IPv6-only callback / server 401) — those channels could NOT be published to. skillhu.bz and PyPI/GitHub succeeded.
 
 ---
 
@@ -166,7 +221,9 @@ STANDING DIRECTIVES (non-negotiable):
   and open the result in a REAL terminal to show the user.
 - CONSULT knowledge\INDEX.md FIRST. The exact formulas, ANSI sequences, and constants
   are already measured on disk. Do not head-canon anything that a note already states.
-- smartcli_core\ is DO-NOT-MODIFY.
+- smartcli_core\ is DO-NOT-MODIFY *except* with real-run-path verification + independent
+  adversarial review + no regression across the full recipe suite (this is how the
+  v0.1.1/v0.1.2 core fixes #1/#2/#4 were made). Never touch it casually.
 
 WHAT SMARTCLI IS:
 Three Agent Skills over one pluggable PTY+pyte core (smartcli_core\ = pty_backend/
@@ -209,36 +266,41 @@ wait; raw Ctrl-C is unreliable on ConPTY — recover with close+start.
 The codex subagent dispatcher (192.168.11.4:8990) is QUOTA-EXHAUSTED / DEAD — do all live
 research with built-in WebSearch / WebFetch, do not block on codex.
 
-OPEN OBJECTIVES (each can only be improved, start immediately):
-1. Finalize effort_selector polish: eyeball its animation cadence in a REAL Windows
-   Terminal. Keep the field.Ripple `travel` SMALL (~lambda x1..1.6, breathing) so the
-   ripple stays localized on the ultracode/max side; travel < ~26 keeps low/medium/high/
-   xhigh clean dim-gray. Label distances: ultracode 4, max 14, xhigh 25, high 34,
-   medium 45, low 53. Run: python skills\tui-ui\examples\effort_selector.py
-   (interactive) and step with --once --frame N. It is bit-exact in pyte; the only gap
-   is the real-terminal eyeball.
-2. POSIX-verify drive-tui on a Linux/mac host: the daemon (start_new_session) and C-c
-   interrupt path are coded but unverified off Windows. Also exercise the tmux launchers
-   (skills\cmd-art\tmux\*.sh) on a real tmux host.
-3. Build NEW works by composing the four engine primitives + a works\ case study — e.g.
-   no-more-secrets decrypt ([[decrypt-reveal]], rand()%5000 per-cell timer), cava
-   eighth-block spectrum bars ([[spectrum-bars]], log-bins + gravity smoothing), braille
-   smooth graphs (raster.py braille sub-cell), firework-rs particle fireworks
-   ([[particle-system]] float physics). Add each as a pure-frame fx effect or tui-ui
-   widget; verify with the screenshot harness AND on the real run path.
-4. Deepen the knowledge<->skills wiring (recipe<->tui-patterns, effect<->effects notes);
-   keep count/claim drift at zero (widgets=15, effects=18).
-5. Resolve the *(verify)* accuracy flags on neo/sl/notcurses/chafa by re-fetching real
-   constants as you study them.
-6. Rely on WebSearch/WebFetch for research (codex is dead); optionally restore its quota.
+RELEASE STATE (2026-07-12): v0.1.2 is PUBLIC. PyPI `pip install smartcli-toolkit`
+(import stays smartcli_core); GitHub github.com/dwgx/SmartCLI (tags v0.1.0/0.1.1/0.1.2 +
+Releases); 3 skills on skillhu.bz; `/plugin marketplace add dwgx/SmartCLI`. VERSION 0.1.2
+must stay consistent across pyproject / smartcli_core __init__ / fx __init__ / 3 SKILL.md /
+marketplace.json. publish.yml (OIDC) NEEDS one-time PyPI Trusted-Publisher + `pypi` GitHub
+Environment setup before tag-push auto-publish works; until then release manually with
+`python -m twine upload --disable-progress-bar`. cc-decompiled/ stays gitignored/excluded.
+
+OPEN OBJECTIVES — "reach A-grade" gaps (ranked by impact/effort; start immediately):
+1. [S] Ship a py.typed marker in smartcli_core (confirmed ABSENT on disk).
+2. [S] Add a Linux CI matrix for the deterministic tests — validates the machine-unverified
+   POSIX pty backend (known-unfixed #5/#6). CI is Windows-only today.
+3. [M] MCP-server wrapper over the drive-tui daemon verb surface — biggest adoption lever.
+4. [S] Pattern-list / multi-marker wait (pexpect-style wait-any returning which matched).
+5. [M] Golden-frame snapshot regression test for tui-ui (baseline + diff).
+6. [M] Shared easing.py + Gradient(stops,steps,direction) builder for cmd-art.
+7. [S-M] Ship spectrum-bars + cbonsai fx effects ([[spectrum-bars]] / [[procedural-branching]]
+   are ready); verify with test_fx_contract.py + on the real run path.
+8. [L] mkdocs-material docs site + CONTRIBUTING.md + pytest/coverage badge.
+Discoverability (0 stars): record a demo GIF/asciinema for README top, then Show HN /
+r/commandline / awesome-claude-code + awesome-cli-apps PRs.
+Still-open replica polish: eyeball effort_selector cadence in a REAL Windows Terminal
+(keep field.Ripple travel SMALL, ~lambda x1..1.6; travel < ~26 keeps low/med/high/xhigh
+clean dim-gray; distances ultracode 4/max 14/xhigh 25/high 34/medium 45/low 53). POSIX-
+verify drive-tui (daemon start_new_session + C-c path) on Linux/mac; tmux launchers need a
+real tmux host. Rely on WebSearch/WebFetch (codex dispatcher is dead).
 
 VERIFY WHAT YOU SHIP (all should exit 0):
-  cd skills\cmd-art && python -m fx list && python -m fx gallery
+  python tests\run_all.py                # unified runner (readiness/degenerate/fx-contract/probes)
+  cd skills\cmd-art && python -m fx list && python -m fx gallery   # 18 effects
   python skills\tui-ui\examples\effort_selector.py --once --stage ultracode --frame 1
   python skills\drive-tui\scripts\tui.py start --cmd "python" --cols 80 --rows 24
     -> wait-regex --id <SID> ">>> " --timeout-ms 15000 -> send-line -> snapshot -> close
-  cd skills\tui-ui && python -m ui widgets && python self_test.py
-  python tools\screenshot\cli.py selftest
+  cd skills\tui-ui && python -m ui widgets && python self_test.py   # 15 widgets
+  python skills\tui-ui\ui\box_junction.py                          # box_junction _selftest
   python tests\verify_fx.py && python tests\_readme_literal.py && python tests\probe_pty_fx.py
 Then open the visual result in a real Windows Terminal and show the user before calling
 anything done.

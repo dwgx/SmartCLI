@@ -4,7 +4,7 @@
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Version 0.1.0](https://img.shields.io/badge/version-0.1.0-orange)](CHANGELOG.md)
+[![Version 0.1.2](https://img.shields.io/badge/version-0.1.2-orange)](CHANGELOG.md)
 [![Skills: 3](https://img.shields.io/badge/skills-3-purple)](#features)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20POSIX-lightgrey)](#install)
 
@@ -38,10 +38,18 @@ of these with `python -m fx play <name>` (see [Quickstart](#quickstart)).
 
 ## Install
 
-SmartCLI is **not on PyPI yet** — install from a source checkout. Every command below
-works today from a clean clone.
+**Primary — from PyPI:**
 
-**Primary — reproduce the full dev environment** (recommended):
+```bash
+pip install smartcli-toolkit
+```
+
+> **Distribution vs import name:** the PyPI distribution is `smartcli-toolkit`
+> (the names `smartcli` / `smart-cli` were taken or blocked), but the importable
+> package is `smartcli_core`. So after `pip install smartcli-toolkit` you still
+> write `from smartcli_core import PtySession`.
+
+**Alternative — reproduce the full dev environment from a source checkout:**
 
 ```bash
 git clone https://github.com/dwgx/SmartCLI SmartCLI
@@ -51,20 +59,10 @@ python -m pip install -r requirements.txt
 
 `requirements.txt` pulls only the two required runtime deps: `pyte` (everywhere) and
 `pywinpty` (Windows only — the marker skips it on POSIX, which uses the stdlib `pty`
-backend).
+backend). From the checkout, `pip install .` installs the same importable
+`smartcli_core` package.
 
-**Install the shared core package** (`smartcli_core`):
-
-```bash
-pip install .
-```
-
-> **Distribution vs import name:** the PyPI distribution is `smartcli-toolkit`
-> (the names `smartcli` / `smart-cli` were taken or blocked), but the importable
-> package is `smartcli_core`. So after `pip install smartcli-toolkit` you still
-> write `from smartcli_core import PtySession`.
-
-Honest scope note: `pip install .` installs the clean, importable `smartcli_core`
+Honest scope note: `pip install smartcli-toolkit` installs the clean, importable `smartcli_core`
 package plus its required deps. It does **not** relocate the three skills — those run
 in place via their own entry points (`python -m fx`, `python -m ui`,
 `skills/drive-tui/scripts/tui.py`), exactly as the Quickstart shows. This is by design;
