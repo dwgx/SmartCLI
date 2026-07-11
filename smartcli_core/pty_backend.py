@@ -75,6 +75,14 @@ class WinptyBackend(PtyBackend):
     def spawn(self, cmd: Union[str, Sequence[str]], cols: int, rows: int) -> None:
         import winpty  # imported lazily so non-Windows hosts don't require it
 
+        # Reset per-spawn state so a re-used backend (a second spawn on the same
+        # instance) does not inherit the previous child's EOF sentinel or latched
+        # _eof — otherwise read_nonblocking would stop draining at the stale None
+        # and consumers would see premature EOF. A fresh queue drops any leftover.
+        self._queue = queue.Queue()
+        self._eof = False
+        self._reader = None
+
         # winpty.spawn accepts a command string or an argv list; dimensions are
         # (rows, cols).
         self._proc = winpty.PtyProcess.spawn(cmd, dimensions=(rows, cols))

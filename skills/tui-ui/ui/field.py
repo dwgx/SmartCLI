@@ -209,16 +209,21 @@ class Ripple(CellField):
                  covered_fg: RGB = RIPPLE_WHITE, falloff_radius: Optional[float] = None,
                  phase: Optional[float] = None):
         self.ox, self.oy = origin
-        self.wl = float(wavelength)
+        # Clamp wavelength to a tiny positive so a degenerate 0 can't
+        # ZeroDivisionError in level_at (mirrors RadialGlow's radius clamp).
+        self.wl = max(1e-6, float(wavelength))
         self.travel = float(travel)
-        self.palette = tuple(parse_color(c) for c in palette)
+        # A non-empty palette is required (level_at indexes it); fall back to the
+        # trough color rather than IndexError on an empty palette.
+        self.palette = tuple(parse_color(c) for c in palette) or (RIPPLE_PALETTE[0],)
         self.text_over = text_over
         self.glyph = glyph
         self.covered_fg = covered_fg
         # Optional radial falloff: alpha fades 1->0 from origin out to
         # falloff_radius, so the bloom feathers into the background instead of a
-        # hard-edged opaque block. None = the opaque default.
-        self.falloff_radius = falloff_radius
+        # hard-edged opaque block. None = the opaque default. A 0 (or negative)
+        # radius is treated as "no falloff" so it can't divide by zero.
+        self.falloff_radius = falloff_radius if (falloff_radius or 0) > 0 else None
         # Optional band phase: distance offset of the cosine bands, decoupled from
         # the wavefront. None = the coupled default (bands ride the front, so the
         # subtracted term is `travel`).

@@ -60,7 +60,10 @@ class BrailleChart(Widget):
                  y_range: Optional[tuple[float, float]] = None,
                  gradient: bool = True, line_color=None, theme=None):
         super().__init__(theme)
-        self.series = [float(v) for v in series]
+        # Drop non-finite values (NaN/inf) — clamp01 can't neutralize NaN and it
+        # would crash int(round(...)) at plot time.
+        import math as _math
+        self.series = [float(v) for v in series if _math.isfinite(v)]
         self.width = width            # honoured by parent stacks when set
         self.height = height
         self.y_range = y_range

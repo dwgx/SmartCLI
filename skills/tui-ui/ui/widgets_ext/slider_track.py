@@ -65,7 +65,9 @@ class SliderTrack(Widget):
                  show_labels: bool = True, theme=None):
         super().__init__(theme)
         self.labels = list(labels)
-        self.positions = list(positions) if positions is not None else None
+        # Treat an empty list like None (auto-position): an empty explicit list
+        # would otherwise pass the None-check but crash max()/indexing downstream.
+        self.positions = list(positions) if positions else None
         self.selected = max(0, min(selected, len(self.labels) - 1)) if self.labels else 0
         self.width = width
         self.track_char = track_char[:1] or "─"

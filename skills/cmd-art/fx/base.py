@@ -59,7 +59,18 @@ class Param:
             return self.default
         v: Any
         if self.kind == "int":
-            v = int(str(raw), 0)
+            s = str(raw).strip()
+            # Accept 0x/0o/0b prefixed literals AND plain (possibly zero-padded)
+            # decimals like "08"/"010" — base 0 alone rejects the latter, which is
+            # a confusing footgun for a CLI user typing a leading-zero number.
+            try:
+                low = s.lower()
+                if low[:2] in ("0x", "0o", "0b") or low[:3] in ("-0x", "-0o", "-0b"):
+                    v = int(s, 0)
+                else:
+                    v = int(s, 10)
+            except ValueError:
+                raise ValueError(f"param {self.name!r}: not an integer: {raw!r}")
         elif self.kind == "float":
             v = float(raw)
         elif self.kind == "bool":

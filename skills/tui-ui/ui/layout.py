@@ -28,7 +28,9 @@ def resolve_tracks(total: int, specs: list, naturals: list[int],
                    gap: int = 0) -> list[int]:
     """Resolve a 1-D track layout to integer cell sizes summing to <= total.
 
-    ``specs`` entries are int (fixed), Fr (flexible), ('pct', p), or 'auto'.
+    ``specs`` entries are int (fixed), Fr (flexible), a percent string like
+    ``"33%"``, or 'auto'. (Percent strings are normalised by ``parse_dim``;
+    pass the ``"33%"`` string form, not a raw ``('pct', p)`` tuple.)
     ``naturals`` supplies the auto/content size per track. ``gap`` cells sit
     between adjacent tracks. Uses carry-remainder so fr tracks tile exactly.
     """
