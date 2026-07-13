@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_ROOT))  # smartcli_core
 sys.path.insert(0, str(_ROOT / "skills" / "tui-ui"))
 sys.path.insert(0, str(_ROOT / "skills" / "cmd-art"))
 
@@ -41,10 +42,38 @@ def main() -> int:
     from ui.widgets_ext.slider_track import SliderTrack
     from ui.widgets_ext.braille_chart import BrailleChart
     from fx.base import Param
+    from smartcli_core.screen_model import ScreenModel
 
     print("=" * 60)
     print("degenerate-input regression locks")
     print("=" * 60)
+
+    # smartcli_core perception hardening (found by tests/_sandbox_fuzz_core.py;
+    # both are pyte bugs reachable through the public ScreenModel API — a real
+    # program's malformed output could otherwise crash snapshot/to_text/to_json).
+    def _feed_malformed_csi():
+        # ESC[;@ — a CSI insert/delete op with an empty leading numeric param;
+        # pyte dispatches to insert_characters() with the wrong arity -> TypeError.
+        m = ScreenModel(cols=80, rows=24)
+        m.feed(b"before ")
+        m.feed(b"\x1b[;@")     # must NOT raise (swallowed; stream stays usable)
+        m.feed(b"after")
+        assert "before after" in m.text(), "stream unusable after malformed CSI"
+    check_no_raise(_feed_malformed_csi,
+                   "ScreenModel.feed swallows malformed CSI (ESC[;@) and stays usable")
+
+    def _display_empty_cell():
+        # A wide char + CR + invalid UTF-8 tail can leave an empty-data cell that
+        # makes pyte's display do wcwidth(char[0]) -> IndexError. Hardened display
+        # must render it as blank instead of crashing.
+        m = ScreenModel(cols=80, rows=1)
+        data = b'\xe4\xbd\xa0\xe5\xa5\xbd\xe4\xb8\x96\xe7\x95\x8cg\r\xdc\x9a\xef'
+        for i in range(len(data)):
+            m.feed(data[i:i + 1])
+        _ = m.display   # must NOT raise
+        _ = m.text()    # must NOT raise (protects content_hash + readiness)
+    check_no_raise(_display_empty_cell,
+                   "ScreenModel.display/text survive an empty-data cell (no IndexError)")
 
     # field.Ripple degenerate params (were ZeroDivisionError / IndexError)
     check_no_raise(lambda: Ripple(origin=(0, 0), wavelength=0.0, travel=10.0).sample(1, 1),

@@ -28,7 +28,7 @@ from .pty_backend import (
     get_default_backend,
 )
 from .readiness import wait_for_regex, wait_ready, wait_until_stable
-from .screen_model import CellAttrs, ScreenModel
+from .screen_model import CellAttrs, ScreenModel, safe_screen_display
 from .session import KEY_MAP, PtySession
 from .snapshot import Snapshot, Span, build_snapshot
 
@@ -41,6 +41,7 @@ __all__ = [
     # screen
     "ScreenModel",
     "CellAttrs",
+    "safe_screen_display",
     # snapshot
     "Snapshot",
     "Span",

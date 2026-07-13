@@ -31,6 +31,7 @@ if _HERE not in sys.path:
 import checks as checks_mod
 import matrix as matrix_mod
 import shot
+from smartcli_core.screen_model import safe_screen_display  # shot put repo root on path
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(_HERE))
 _CMD_ART = os.path.join(_REPO_ROOT, "skills", "cmd-art")
@@ -216,7 +217,7 @@ def run_selftest(out_dir: str) -> int:
     p1 = os.path.join(out_dir, "pty_hello.png")
     w1, h1 = shot.screen_to_png(screen, p1, cell_w=9, cell_h=19)
     sz1 = os.path.getsize(p1)
-    text = "\n".join(screen.display)
+    text = "\n".join(safe_screen_display(screen))
     hello_ok = "hello" in text
     r1 = checks_mod.run_stream_checks(data) + checks_mod.run_screen_checks(
         screen, source_has_color=checks_mod.stream_has_color(data))

@@ -19,10 +19,19 @@ helpers return a list of ``(name, ok, detail)`` triples.
 
 from __future__ import annotations
 
+import os
 import re
+import sys
 from typing import List, Tuple
 
 import pyte
+
+# Make smartcli_core importable when this file is used standalone.
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+
+from smartcli_core.screen_model import safe_screen_display  # noqa: E402
 
 Check = Tuple[bool, str]
 
@@ -196,7 +205,8 @@ def no_content_clipped_badly(screen: pyte.Screen) -> Check:
     clip within ``cols``, so this asserts the invariant holds.
     """
     cols = screen.columns
-    for row, line in enumerate(screen.display):
+    disp = safe_screen_display(screen)
+    for row, line in enumerate(disp):
         if len(line) > cols:
             return False, f"row {row} has {len(line)} cells > cols {cols}"
     return True, f"all rows within {cols} cols"
@@ -204,8 +214,9 @@ def no_content_clipped_badly(screen: pyte.Screen) -> Check:
 
 def wrap_overflow_sanity(screen: pyte.Screen) -> Check:
     """Alias-style sanity check: the buffer grid matches declared geometry."""
-    if len(screen.display) != screen.lines:
-        return False, f"{len(screen.display)} rows rendered vs {screen.lines} declared"
+    disp = safe_screen_display(screen)
+    if len(disp) != screen.lines:
+        return False, f"{len(disp)} rows rendered vs {screen.lines} declared"
     return no_content_clipped_badly(screen)
 
 
