@@ -51,8 +51,24 @@ def _reg_path(sid: str) -> Path:
 
 
 def _write_reg(sid: str, info: dict) -> None:
+    # The reg file holds the per-session capability token, so it must not be
+    # world-readable. On POSIX create the dir 0700 and the file 0600 (a shared
+    # /tmp is multi-user); on Windows the per-user temp dir already restricts it.
     REG_DIR.mkdir(parents=True, exist_ok=True)
-    _reg_path(sid).write_text(json.dumps(info), encoding="utf-8")
+    if os.name != "nt":
+        try:
+            os.chmod(REG_DIR, 0o700)
+        except OSError:
+            pass
+    p = _reg_path(sid)
+    if os.name != "nt":
+        # Create with 0600 from the start (O_CREAT|O_EXCL-style) so the token is
+        # never briefly world-readable between write and chmod.
+        fd = os.open(str(p), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps(info))
+    else:
+        p.write_text(json.dumps(info), encoding="utf-8")
 
 
 def _read_reg(sid: str) -> dict:
@@ -200,11 +216,19 @@ def _run_daemon(sid: str, cmd, cols: int, rows: int, token: str) -> None:
                 try:
                     conn.settimeout(60.0)
                     buf = bytearray()
+                    # Cap the pre-newline buffer: the transport runs before the
+                    # token check, so an unauthenticated peer must not be able to
+                    # exhaust memory by streaming bytes with no newline. 4 MiB is
+                    # far above any legitimate request (send-text payloads, step
+                    # lists) yet bounds the damage. Over the cap -> drop the conn.
+                    MAX_REQ = 4 * 1024 * 1024
                     while b"\n" not in buf:
                         chunk = conn.recv(65536)
                         if not chunk:
                             break
                         buf.extend(chunk)
+                        if len(buf) > MAX_REQ:
+                            raise ValueError("request exceeds max size")
                     if not buf:
                         continue
                     req = json.loads(bytes(buf).split(b"\n", 1)[0].decode("utf-8"))
@@ -295,15 +319,19 @@ def cmd_start(args) -> int:
         raise SystemExit(f"error: session '{sid}' already exists")
     # Mint a per-session capability token: only holders of this token (the
     # creator, who can read the per-user reg file where it is persisted) may
-    # drive the loopback daemon. Passed to the daemon via argv; the daemon
-    # writes it into the reg file so client subcommands can auto-load it.
+    # drive the loopback daemon. Passed to the daemon via an ENV VAR, NOT argv —
+    # argv is world-visible in `ps`/Task Manager, so a token on the command line
+    # would leak to any local user. The daemon writes it into the (0600) reg file
+    # so client subcommands can auto-load it.
     token = secrets.token_hex(16)
     # Re-exec this module as a detached daemon process.
     daemon = [sys.executable, os.path.abspath(__file__), "_daemon",
-              "--id", sid, "--cmd", args.cmd, "--token", token,
+              "--id", sid, "--cmd", args.cmd,
               "--cols", str(args.cols), "--rows", str(args.rows)]
+    daemon_env = {**os.environ, "SMARTCLI_TUI_TOKEN": token}
     popen_kwargs = dict(close_fds=True, stdin=subprocess.DEVNULL,
-                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                        env=daemon_env)
     if os.name == "nt":
         # CREATE_NO_WINDOW (0x08000000) | CREATE_NEW_PROCESS_GROUP.
         # We use CREATE_NO_WINDOW rather than the old DETACHED_PROCESS (0x08):
@@ -423,7 +451,12 @@ def cmd_run(args) -> int:
 
 
 def cmd__daemon(args) -> int:
-    _run_daemon(args.id, args.cmd, args.cols, args.rows, args.token)
+    # The token arrives via env (SMARTCLI_TUI_TOKEN), not argv, so it never shows
+    # up in `ps`/Task Manager. Fall back to --token only for backward compat.
+    token = os.environ.get("SMARTCLI_TUI_TOKEN") or getattr(args, "token", None)
+    if not token:
+        raise SystemExit("error: daemon started without a token")
+    _run_daemon(args.id, args.cmd, args.cols, args.rows, token)
     return 0
 
 
@@ -517,7 +550,9 @@ def build_parser() -> argparse.ArgumentParser:
     sp = sub.add_parser("_daemon", help=argparse.SUPPRESS)
     sp.add_argument("--id", required=True)
     sp.add_argument("--cmd", required=True)
-    sp.add_argument("--token", required=True)
+    # token now arrives via the SMARTCLI_TUI_TOKEN env var (not argv, which leaks
+    # in ps). Kept optional for backward compat only.
+    sp.add_argument("--token", default=None)
     sp.add_argument("--cols", type=int, default=100)
     sp.add_argument("--rows", type=int, default=30)
     sp.set_defaults(func=cmd__daemon)
