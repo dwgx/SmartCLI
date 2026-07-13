@@ -198,7 +198,7 @@ Ranked by impact/effort. The v0.1.2 release, the deterministic/mutation-verified
 
 **One-time release chore (blocks tag-push auto-publish):** complete the PyPI Trusted-Publisher setup + `pypi` GitHub Environment described in §0 so `publish.yml` works; until then keep releasing manually with `twine --disable-progress-bar`.
 
-**Still-open replica polish (unchanged from earlier rounds):** eyeball `effort_selector.py`'s animation cadence in a REAL Windows Terminal. Keep `field.Ripple` `travel` **small (~λ×1..1.6, breathing)** so the ripple stays localized on the ultracode/max side; `travel < ~26` keeps low/medium/high/xhigh clean dim-gray. Label distances: ultracode 4, max 14, xhigh 25, high 34, medium 45, low 53. It's bit-exact in pyte; the only gap is the real-terminal eyeball. **drive-tui is now POSIX-verified** (2026-07-13, Debian 13 over SSH: spawn/read/write/resize, DECCKM SS3 arrows, and zombie-free terminate all pass `tests/_sandbox_posix_backend.py`). Still unverified: macOS (BSD pty EOF path), and the tmux launchers `skills/cmd-art/tmux/*.sh` (need a real tmux host).
+**Still-open replica polish (unchanged from earlier rounds):** eyeball `effort_selector.py`'s animation cadence in a REAL Windows Terminal. Keep `field.Ripple` `travel` **small (~λ×1..1.6, breathing)** so the ripple stays localized on the ultracode/max side; `travel < ~26` keeps low/medium/high/xhigh clean dim-gray. Label distances: ultracode 4, max 14, xhigh 25, high 34, medium 45, low 53. It's bit-exact in pyte; the only gap is the real-terminal eyeball. **drive-tui is now POSIX-verified** (2026-07-13, Debian 13 over SSH: spawn/read/write/resize, DECCKM SS3 arrows, and zombie-free terminate all pass `tests/_sandbox_posix_backend.py`). **macOS: the POSIX backend core is now verified** (2026-07-13, GitHub Actions `macos-latest`: `tests/_sandbox_posix_backend.py` PASSed spawn/read/drive/resize + #6 zombie-free reap on the BSD pty path). The interactive curses DECCKM/SS3-arrow probe is SKIPPED on CI runners (no controllable terminal) — it still wants one real-Mac run over SSH (see `docs/MACOS-VERIFY.md`). Still unverified: the tmux launchers `skills/cmd-art/tmux/*.sh` (need a real tmux host).
 
 **Standing re-verify-after-workflows:** confirm the 3 external fixes + full `tests/run_all.py` stay exit-0 after any workflow that edits fx effects or recipe `matches()` (`external-ai-fixes.md`).
 
@@ -231,7 +231,10 @@ Python 3.13), using an **isolated sandbox** (venv + copied `smartcli_core`):
 - Verify script: `tests/_sandbox_posix_backend.py` (run it on any POSIX host).
   Windows path unchanged (CSI when no DECCKM); full drive-probe + tui_cli green;
   vendored copy re-synced. HANDOFF §2 #5/#6 now marked FIXED.
-- **STILL UNVERIFIED:** macOS (BSD pty EOF path) and real tmux. Do NOT claim them.
+- **macOS POSIX backend core: VERIFIED** (2026-07-13, CI `macos-latest` — BSD pty
+  spawn/read/drive/resize + zombie-free reap PASS). The curses DECCKM/SS3 probe is
+  SKIPPED on CI (no controllable terminal); one real-Mac SSH run still wanted (see
+  `docs/MACOS-VERIFY.md`). **STILL UNVERIFIED:** real tmux. Do NOT claim it.
 
 ### 7b. Drop-in self-configuration
 `smartcli_core` is now vendored into `skills/drive-tui/_vendor/` (kept

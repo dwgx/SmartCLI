@@ -39,7 +39,10 @@ can't perceive "which row is highlighted"; a screen model can.
   <img src="showcase/drive-lazygit.gif" alt="SmartCLI driving the real lazygit TUI: navigating panels, opening a commit diff, highlighting a branch" width="700">
 </p>
 
-> Honest scope: verified on Debian 13 + Windows/ConPTY. macOS and real tmux are
+> Honest scope: CI runs a Windows + Linux + macOS matrix. The POSIX pty backend
+> (spawn / read / drive / resize / zombie-free terminate) is verified on Linux
+> **and macOS** in CI; the interactive DECCKM/SS3-arrow probe is skipped on CI
+> runners (no controllable terminal) and still wants a real-host run. Real tmux is
 > not yet verified — known edges are listed in
 > [`skills/drive-tui/references/LIMITATIONS.md`](skills/drive-tui/references/LIMITATIONS.md).
 
