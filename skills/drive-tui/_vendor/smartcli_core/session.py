@@ -68,13 +68,35 @@ KEY_MAP: dict[str, bytes] = {
 }
 
 
-def _resolve_key(token: str) -> bytes:
+# SS3 (application-cursor) forms of the cursor/nav keys. When the target program
+# has enabled DECCKM (ESC[?1h) — as most full-screen/curses TUIs do — it expects
+# these SS3 sequences (ESC O x), NOT the CSI forms (ESC [ x). Sending CSI to a
+# DECCKM app moves nothing (verified on real Linux ncurses). send_keys picks the
+# right form from the live screen mode.
+KEY_MAP_SS3: dict[str, bytes] = {
+    "Up": b"\x1bOA",
+    "Down": b"\x1bOB",
+    "Right": b"\x1bOC",
+    "Left": b"\x1bOD",
+    "Home": b"\x1bOH",
+    "End": b"\x1bOF",
+}
+
+
+def _resolve_key(token: str, app_cursor: bool = False) -> bytes:
     """Map a single key token to bytes.
 
     Recognises :data:`KEY_MAP` names, ``C-x`` control combos (Ctrl+letter), and
     ``M-x`` meta/alt combos (ESC prefix). Unknown single characters are sent
     literally.
+
+    ``app_cursor`` — when True (the target program has DECCKM / application
+    cursor keys enabled), cursor/navigation keys are emitted in their SS3 form
+    (``ESC O x``) instead of CSI (``ESC [ x``); a curses app in that mode only
+    recognises SS3 arrows. Non-cursor keys are unaffected.
     """
+    if app_cursor and token in KEY_MAP_SS3:
+        return KEY_MAP_SS3[token]
     if token in KEY_MAP:
         return KEY_MAP[token]
 
@@ -166,9 +188,15 @@ class PtySession:
         self.backend.write(text.encode("utf-8"))
 
     def send_keys(self, keys: List[str]) -> None:
-        """Send a sequence of key tokens (see :data:`KEY_MAP` and ``C-x``/``M-x``)."""
+        """Send a sequence of key tokens (see :data:`KEY_MAP` and ``C-x``/``M-x``).
+
+        Cursor/nav keys adapt to the program's cursor-key mode: if the target has
+        enabled DECCKM (``model.app_cursor``), arrows are sent as SS3 (``ESC O A``)
+        so curses/full-screen apps actually receive them; otherwise CSI is used.
+        """
+        app_cursor = self.model.app_cursor
         for token in keys:
-            self.backend.write(_resolve_key(token))
+            self.backend.write(_resolve_key(token, app_cursor=app_cursor))
 
     def send_line(self, text: str) -> None:
         """Type ``text`` followed by Enter."""

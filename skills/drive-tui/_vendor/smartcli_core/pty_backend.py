@@ -242,12 +242,38 @@ class PosixPtyBackend(PtyBackend):
     def terminate(self) -> None:
         import os
         import signal
+        import time
 
-        if self._pid is not None:
+        pid = self._pid
+        if pid is not None:
             try:
-                os.kill(self._pid, signal.SIGTERM)
+                os.kill(pid, signal.SIGTERM)
             except OSError:
                 pass
+            # REAP the child so it does not linger as a zombie. SIGTERM alone
+            # (the old behavior) left a <defunct> process because nothing ever
+            # waitpid()'d it — verified on real Linux. Poll briefly for a clean
+            # exit, then SIGKILL as a fallback, then reap in both cases.
+            reaped = False
+            deadline = time.monotonic() + 1.0
+            while time.monotonic() < deadline:
+                try:
+                    wpid, _ = os.waitpid(pid, os.WNOHANG)
+                except ChildProcessError:
+                    reaped = True  # already reaped elsewhere
+                    break
+                except OSError:
+                    break
+                if wpid == pid:
+                    reaped = True
+                    break
+                time.sleep(0.02)
+            if not reaped:
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                    os.waitpid(pid, 0)  # blocking reap after SIGKILL
+                except OSError:
+                    pass
         if self._fd is not None:
             try:
                 os.close(self._fd)

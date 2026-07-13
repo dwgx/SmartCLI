@@ -117,6 +117,21 @@ class ScreenModel:
     def rows(self) -> int:
         return self.screen.lines
 
+    @property
+    def app_cursor(self) -> bool:
+        """True when the program has enabled DECCKM (application cursor keys).
+
+        A full-screen / curses program that has called ``keypad(True)`` puts the
+        terminal in DECCKM (``ESC[?1h``); pyte records this as private mode 1 in
+        ``screen.mode`` (the value ``32``). In that state the app expects SS3
+        cursor sequences (``ESC O A``) — sending CSI (``ESC [ A``) moves nothing.
+        :meth:`session.PtySession.send_keys` reads this to pick the right form.
+        """
+        try:
+            return 32 in self.screen.mode
+        except Exception:
+            return False
+
     # -- plain text --------------------------------------------------------
 
     @property
