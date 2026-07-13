@@ -28,17 +28,25 @@ Verified on Windows 11, Python 3.14.6, `pyte` + `pywinpty` / ConPTY. This machin
 no real `tmux`, so screenshot reports are honestly labelled `pyte-simulation`, not
 real tmux captures.
 
-## Screenshots
+## Live effects
 
-A small gallery of `cmd-art` effects, rendered through the `fx` engine. Reproduce any
-of these with `python -m fx play <name>` (see [Quickstart](#quickstart)).
+Real captures of the `cmd-art` `fx` engine — each GIF is the actual effect
+rendered frame-by-frame through the project's own pipeline (no screen recorder).
+Reproduce any with `python -m fx play <name>` (see [Quickstart](#quickstart)).
+
+<p align="center">
+  <img src="showcase/fx-solarsystem.gif" alt="ASCII solar system orrery — planets orbiting a pulsing sun" width="620"><br>
+  <sub><b>solarsystem</b> — an orrery: planets on elliptical orbits around a pulsing sun</sub>
+</p>
 
 | | | |
 |:---:|:---:|:---:|
-| ![donut](showcase/donut.png) | ![fire](showcase/fire.png) | ![plasma](showcase/plasma.png) |
-| **donut** | **fire** | **plasma** |
-| ![rain](showcase/rain.png) | ![starfield](showcase/starfield.png) | ![tunnel](showcase/tunnel.png) |
-| **rain** | **starfield** | **tunnel** |
+| ![donut](showcase/fx-donut.gif) | ![fire](showcase/fx-fire.gif) | ![rain](showcase/fx-rain.gif) |
+| **donut** — the classic ASCII torus | **fire** — demoscene heat field | **rain** — Matrix digital rain |
+
+> 🌐 **[Explore the live showcase →](https://dwgx.github.io/SmartCLI/)** — play with
+> the effect engine, drive a menu with arrow keys, and poke the widgets, right in
+> your browser.
 
 ## Install
 
@@ -100,7 +108,7 @@ Verified dep versions on the dev box (Windows 11, CPython 3.14.6): `pyte` 0.8.2,
 
 ```bash
 cd skills/cmd-art
-python -m fx list                          # list all 18 effects
+python -m fx list                          # list all 19 effects
 python -m fx play donut --seconds 5        # play one effect (bounded)
 python -m fx gallery                       # one frame of each effect
 python -m fx show --seq "donut:fire:3,plasma::3"
@@ -148,8 +156,8 @@ suite, see **[`README-USAGE.md`](README-USAGE.md)**.
 ## Features
 
 **`cmd-art`** (`skills/cmd-art`) — a "living-template" effect engine: an `Effect` ABC +
-`@register` decorator + auto-discovery. **18 effects** (donut, fire, plasma, rain,
-starfield, tunnel, text3d, cube, sphere, boids, life, fireworks, sparkle, decrypt,
+`@register` decorator + auto-discovery. **19 effects** (donut, solarsystem, fire, plasma,
+rain, starfield, tunnel, text3d, cube, sphere, boids, life, fireworks, sparkle, decrypt,
 gradient_text, banner_scroll, image2ascii, typewriter) across **8 themes** (mono, fire,
 ocean, synthwave, viridis, pastel, matrix-green, rainbow). Effects are pure frame
 producers; `play` is bounded by default and always restores the terminal.
@@ -182,7 +190,7 @@ cross-links. See [`knowledge/INDEX.md`](knowledge/INDEX.md).
 ```text
 SmartCLI/
   smartcli_core/           shared PTY + pyte engine (importable package)
-  skills/cmd-art/          fx effect package and CLI (18 effects, 8 themes)
+  skills/cmd-art/          fx effect package and CLI (19 effects, 8 themes)
   skills/drive-tui/        TUI pattern library and PTY driver CLI (8 recipes)
   skills/tui-ui/           terminal UI layout engine and widgets (15 widgets)
   tools/screenshot/        pyte -> PNG smoke-test harness
