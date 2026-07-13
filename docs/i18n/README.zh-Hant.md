@@ -6,17 +6,37 @@
 
 **驅動、感知並渲染終端機的本地 Python 工具組 — 三個 agent 技能，建構於單一可插拔的 PTY + `pyte` 核心之上。**
 
-[![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green)](../../LICENSE)
-[![Version 0.1.2](https://img.shields.io/badge/version-0.1.2-orange)](../../CHANGELOG.md)
+[![PyPI](https://img.shields.io/pypi/v/smartcli-toolkit?color=orange)](https://pypi.org/project/smartcli-toolkit/)
+[![Python](https://img.shields.io/pypi/pyversions/smartcli-toolkit?color=blue)](https://pypi.org/project/smartcli-toolkit/)
+[![CI](https://github.com/dwgx/SmartCLI/actions/workflows/ci.yml/badge.svg)](https://github.com/dwgx/SmartCLI/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/pypi/l/smartcli-toolkit?color=green)](../../LICENSE)
+[![Downloads](https://img.shields.io/pypi/dm/smartcli-toolkit?color=blueviolet)](https://pypi.org/project/smartcli-toolkit/)
 [![Skills: 3](https://img.shields.io/badge/skills-3-purple)](#features)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20POSIX-lightgrey)](#install)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](#安裝)
 
 ## 是什麼、為什麼
 
 SmartCLI 是一個為終端機工作打造的工作區，而這些工作 agent 與人都會做：**驅動**互動式終端機程式、**感知**畫面實際顯示的內容，以及把視覺與版面**渲染**回終端機。它建構於單一共用、可插拔的 PTY 後端，再加上 `pyte` 畫面模型 — 之所以選這個做法而非截圖／視覺辨識，是為了讓單一的結構化畫面模型能同時餵給感知（讀取畫面）與渲染（繪製畫面）兩端。PTY 這一層刻意**不**綁定 tmux：本地開發在 Windows 上透過 ConPTY（`pywinpty`）執行，而目標程式則可在別處跑在 POSIX pty 或 tmux 之下。三個技能座落在這個核心之上，每一個都是能從 checkout 原地執行的獨立工具。
 
-已在 Windows 11、Python 3.14.6、`pyte` + `pywinpty` / ConPTY 上驗證。這台機器沒有真正的 `tmux`，因此截圖報告會誠實地標記為 `pyte-simulation`，而非真正的 tmux 擷取。
+CI 會跑 Windows + Linux + macOS 三平台矩陣：POSIX pty 後端在 Linux 與 macOS 上皆已驗證，本地開發則在 Windows 11、Python 3.14.6、`pyte` + `pywinpty` / ConPTY 上驗證。尚未接上真正的 `tmux`，因此截圖報告會誠實地標記為 `pyte-simulation`，而非真正的 tmux 擷取。
+
+## 驅動真實的 TUI
+
+SmartCLI 驅動 **lazygit** —— 一個真正的全螢幕 curses 程式 —— 走過它的
+感知 → 行動 → 確認迴圈：它讀取 `pyte` 的儲存格網格（哪一列被選取、alt-screen
+的差異），用方向鍵移動、打開某次 commit 的 diff，並將某個分支高亮。這是在
+Linux 容器裡驅動實際程式所擷取的，而非腳本模擬。像 pexpect 那樣的位元組串流
+比對器無法感知「哪一列被高亮」；畫面模型可以。
+
+<p align="center">
+  <img src="../../showcase/drive-lazygit.gif" alt="SmartCLI 驅動 lazygit" width="700">
+</p>
+
+> 誠實的範圍說明：CI 會跑 Windows + Linux + macOS 三平台矩陣。POSIX pty 後端
+> （spawn／read／drive／resize／zombie-free terminate）在 CI 中已於 Linux 與 macOS
+> 上驗證；互動式的 DECCKM/SS3 方向鍵探針在 CI runner 上會被略過，仍需在真實主機上
+> 跑一次。真正的 tmux 尚未驗證 —— 參見
+> [`skills/drive-tui/references/LIMITATIONS.md`](../../skills/drive-tui/references/LIMITATIONS.md)。
 
 ## 螢幕截圖
 

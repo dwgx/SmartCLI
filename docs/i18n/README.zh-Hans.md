@@ -6,17 +6,33 @@
 
 **一个用于驱动、感知与渲染终端的本地 Python 工具箱 —— 在一套可插拔的 PTY + `pyte` 内核之上构建的三个 agent skill。**
 
-[![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green)](../../LICENSE)
-[![Version 0.1.2](https://img.shields.io/badge/version-0.1.2-orange)](../../CHANGELOG.md)
+[![PyPI](https://img.shields.io/pypi/v/smartcli-toolkit?color=orange)](https://pypi.org/project/smartcli-toolkit/)
+[![Python](https://img.shields.io/pypi/pyversions/smartcli-toolkit?color=blue)](https://pypi.org/project/smartcli-toolkit/)
+[![CI](https://github.com/dwgx/SmartCLI/actions/workflows/ci.yml/badge.svg)](https://github.com/dwgx/SmartCLI/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/pypi/l/smartcli-toolkit?color=green)](../../LICENSE)
+[![Downloads](https://img.shields.io/pypi/dm/smartcli-toolkit?color=blueviolet)](https://pypi.org/project/smartcli-toolkit/)
 [![Skills: 3](https://img.shields.io/badge/skills-3-purple)](#功能特性)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20POSIX-lightgrey)](#安装)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](#安装)
 
 ## 是什么，为什么
 
 SmartCLI 是一个面向终端工作的工作区，agent 和人类都会用到它：**驱动**交互式终端程序、**感知**屏幕上真正显示的内容，以及将视觉效果与布局**渲染**输出。它构建在一套共享、可插拔的 PTY 后端加上 `pyte` 屏幕模型之上 —— 之所以选择这种方案而非截图/视觉方案，是为了让同一个结构化的屏幕模型同时服务于感知（读取屏幕）和渲染（绘制屏幕）。PTY 层刻意**不**与 tmux 绑定：本地开发在 Windows 上通过 ConPTY（`pywinpty`）运行，而目标程序可以在别处的 POSIX pty 或 tmux 下运行。三个 skill 都坐落在这套内核之上，每一个都是自成一体的工具，直接在代码检出目录中就地运行。
 
-已在 Windows 11、Python 3.14.6、`pyte` + `pywinpty` / ConPTY 上验证。这台机器没有真正的 `tmux`，因此截图报告如实标注为 `pyte-simulation`，而非真实的 tmux 抓取。
+CI 跑 Windows + Linux + macOS 三平台矩阵，POSIX pty 后端（spawn/read/drive/resize/无僵尸进程 terminate）已在 CI 的 Linux 和 macOS 上验证。本地开发在 Windows 11、Python 3.14.6、`pyte` + `pywinpty` / ConPTY 上运行。这台机器没有真正的 `tmux`，因此截图报告如实标注为 `pyte-simulation`，而非真实的 tmux 抓取。
+
+## 驱动真实 TUI
+
+SmartCLI 通过它的感知 → 行动 → 确认循环驱动 **lazygit** —— 一个真正的全屏 curses 应用：它读取 `pyte` 单元格网格（哪一行被选中、alt-screen 的差异），用方向键移动光标，打开某次提交的 diff，并高亮一个分支。这是在 Linux 容器里驱动真实程序抓取的，并非脚本或 mock。像 pexpect 这样的字节流匹配器无法感知“哪一行被高亮”；而一个屏幕模型可以。
+
+<p align="center">
+  <img src="../../showcase/drive-lazygit.gif" alt="SmartCLI 驱动真实的 lazygit TUI" width="700">
+</p>
+
+> 诚实范围:CI 跑 Windows + Linux + macOS 三平台矩阵。POSIX pty 后端(spawn/read/
+> drive/resize/无僵尸进程 terminate)已在 CI 的 Linux **和 macOS** 上验证;交互式
+> DECCKM/SS3 方向键探针在 CI runner 上跳过(无可控终端),仍需真机运行一次。真实
+> tmux 尚未验证 —— 已知边界见
+> [`skills/drive-tui/references/LIMITATIONS.md`](../../skills/drive-tui/references/LIMITATIONS.md)。
 
 ## 截图
 

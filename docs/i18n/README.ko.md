@@ -6,17 +6,39 @@
 
 **터미널을 조작하고, 인식하고, 렌더링하기 위한 로컬 Python 툴킷 — 플러그인 방식의 PTY + `pyte` 코어 위에 얹은 3개의 에이전트 스킬.**
 
-[![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green)](../../LICENSE)
-[![Version 0.1.2](https://img.shields.io/badge/version-0.1.2-orange)](../../CHANGELOG.md)
+[![PyPI](https://img.shields.io/pypi/v/smartcli-toolkit?color=orange)](https://pypi.org/project/smartcli-toolkit/)
+[![Python](https://img.shields.io/pypi/pyversions/smartcli-toolkit?color=blue)](https://pypi.org/project/smartcli-toolkit/)
+[![CI](https://github.com/dwgx/SmartCLI/actions/workflows/ci.yml/badge.svg)](https://github.com/dwgx/SmartCLI/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/pypi/l/smartcli-toolkit?color=green)](../../LICENSE)
+[![Downloads](https://img.shields.io/pypi/dm/smartcli-toolkit?color=blueviolet)](https://pypi.org/project/smartcli-toolkit/)
 [![Skills: 3](https://img.shields.io/badge/skills-3-purple)](#기능)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20POSIX-lightgrey)](#설치)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](#설치)
 
 ## 개요와 목적
 
 SmartCLI는 에이전트와 사람이 함께 수행하는 터미널 작업을 위한 워크스페이스입니다: 대화형 터미널 프로그램을 **조작하고**, 화면이 실제로 무엇을 보여 주는지 **인식하고**, 시각 요소와 레이아웃을 다시 **렌더링**하는 작업이죠. 이 툴킷은 하나의 공유 가능한 플러그인 방식 PTY 백엔드와 `pyte` 화면 모델 위에 구축되었습니다 — 스크린샷/비전 방식 대신 이 방식을 택한 이유는, 단일한 구조적 화면 모델이 인식(화면 읽기)과 렌더링(화면 그리기)을 모두 뒷받침하도록 하기 위해서입니다. PTY 계층은 의도적으로 tmux에 묶여 있지 **않습니다**: 로컬 개발은 Windows에서 ConPTY(`pywinpty`)를 통해 이뤄지며, 대상 프로그램은 다른 환경의 POSIX pty나 tmux 위에서 실행될 수 있습니다. 이 코어 위에 3개의 스킬이 놓이며, 각각은 체크아웃한 위치에서 그대로 실행하는 독립형 도구입니다.
 
-Windows 11, Python 3.14.6, `pyte` + `pywinpty` / ConPTY 환경에서 검증했습니다. 이 머신에는 실제 `tmux`가 없으므로, 스크린샷 리포트는 실제 tmux 캡처가 아니라 정직하게 `pyte-simulation`으로 표기됩니다.
+로컬 개발은 Windows 11, Python 3.14.6, `pyte` + `pywinpty` / ConPTY 환경에서 이뤄지며, CI 는 Windows + Linux + macOS 매트릭스에서 검증합니다. 실제 `tmux` 는 아직 검증되지 않았으므로, 스크린샷 리포트는 실제 tmux 캡처가 아니라 정직하게 `pyte-simulation`으로 표기됩니다.
+
+## 실제 TUI 조작하기
+
+SmartCLI가 **lazygit** — 실제 전체 화면 curses 앱 — 을 인식 → 조작 → 확인
+루프를 통해 조작하는 모습입니다: `pyte` 셀 그리드를 읽고, 방향키로 이동하며,
+커밋의 diff 를 열고, 브랜치를 하이라이트합니다. 스크립트로 흉내 낸 것이 아니라
+Linux 컨테이너에서 실제 프로그램을 직접 조작해 캡처했습니다. pexpect 같은
+바이트 스트림 매처는 "어느 행이 하이라이트되어 있는지"를 인식할 수 없지만,
+화면 모델은 할 수 있습니다.
+
+<p align="center">
+  <img src="../../showcase/drive-lazygit.gif" alt="SmartCLI가 lazygit 을 조작하는 모습" width="700">
+</p>
+
+> 정직한 범위 안내: CI 는 Windows + Linux + macOS 매트릭스를 실행합니다. POSIX pty
+> 백엔드(spawn/read/drive/resize/좀비 없는 종료)는 CI 에서 Linux 와 macOS 모두에서
+> 검증됩니다. 대화형 DECCKM/SS3 방향키 프로브는 CI 러너에서는 건너뛰며 여전히
+> 실제 머신에서의 실행이 필요합니다. 실제 tmux 는 아직 검증되지 않았습니다 —
+> [`skills/drive-tui/references/LIMITATIONS.md`](../../skills/drive-tui/references/LIMITATIONS.md)를
+> 참고하세요.
 
 ## 스크린샷
 

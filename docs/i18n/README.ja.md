@@ -6,17 +6,39 @@
 
 **ターミナルを駆動・認識・描画するためのローカル Python ツールキット。1 つの差し替え可能な PTY + `pyte` コアの上に、3 つのエージェントスキルを構築しています。**
 
-[![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green)](../../LICENSE)
-[![Version 0.1.2](https://img.shields.io/badge/version-0.1.2-orange)](../../CHANGELOG.md)
+[![PyPI](https://img.shields.io/pypi/v/smartcli-toolkit?color=orange)](https://pypi.org/project/smartcli-toolkit/)
+[![Python](https://img.shields.io/pypi/pyversions/smartcli-toolkit?color=blue)](https://pypi.org/project/smartcli-toolkit/)
+[![CI](https://github.com/dwgx/SmartCLI/actions/workflows/ci.yml/badge.svg)](https://github.com/dwgx/SmartCLI/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/pypi/l/smartcli-toolkit?color=green)](../../LICENSE)
+[![Downloads](https://img.shields.io/pypi/dm/smartcli-toolkit?color=blueviolet)](https://pypi.org/project/smartcli-toolkit/)
 [![Skills: 3](https://img.shields.io/badge/skills-3-purple)](#features)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20POSIX-lightgrey)](#install)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](#install)
 
 ## 何を・なぜ
 
 SmartCLI は、エージェントと人間の双方が行うターミナル作業のためのワークスペースです。対話型のターミナルプログラムを**駆動**し、画面に実際に表示されている内容を**認識**し、ビジュアルやレイアウトを**描画**して返します。共有された差し替え可能な 1 つの PTY バックエンドと `pyte` のスクリーンモデルの上に構築されています。スクリーンショットやビジョンではなくこの方式を選んだのは、構造化された単一のスクリーンモデルが、認識（画面を読む）と描画（画面を描く）の両方を同時に支えられるからです。PTY レイヤーは意図的に tmux に**縛られていません**。ローカル開発は Windows 上で ConPTY（`pywinpty`）を介して動作し、対象プログラムは別環境の POSIX pty や tmux 上で動かすこともできます。このコアの上に 3 つのスキルが載っており、いずれもチェックアウトからその場で実行できる自己完結型のツールです。
 
-Windows 11、Python 3.14.6、`pyte` + `pywinpty` / ConPTY 上で検証済みです。このマシンには実際の `tmux` が存在しないため、スクリーンショットのレポートは実際の tmux キャプチャではなく、正直に `pyte-simulation` とラベル付けされています。
+ローカル開発は Windows 11、Python 3.14.6、`pyte` + `pywinpty` / ConPTY 上で行っており、CI は Windows + Linux + macOS のマトリクスで検証しています。ただし本物の `tmux` はまだ検証できていないため、スクリーンショットのレポートは実際の tmux キャプチャではなく、正直に `pyte-simulation` とラベル付けされています。
+
+## Driving a real TUI
+
+SmartCLI が **lazygit**（本物のフルスクリーン curses アプリ）を、認識 → 実行 → 確認
+のループで駆動している様子です。`pyte` のセルグリッドを読み取り、矢印キーで移動し、
+コミットの diff を開き、ブランチをハイライトします。スクリプト化された録画ではなく、
+Linux コンテナ内で実際のプログラムを駆動してキャプチャしたものです。pexpect のような
+バイトストリームのマッチャでは「どの行がハイライトされているか」を認識できません。
+スクリーンモデルならそれができます。
+
+<p align="center">
+  <img src="../../showcase/drive-lazygit.gif" alt="SmartCLI が lazygit を駆動" width="700">
+</p>
+
+> 率直なスコープ: CI は Windows + Linux + macOS のマトリクスで実行します。POSIX pty
+> バックエンド（spawn / read / drive / resize / ゾンビフリーな終了）は CI 上で Linux と
+> macOS の両方で検証済みですが、対話的な DECCKM/SS3 矢印キープローブは CI ランナーでは
+> スキップされており、依然として実機での実行が必要です。本物の tmux はまだ未検証です —
+> [`skills/drive-tui/references/LIMITATIONS.md`](../../skills/drive-tui/references/LIMITATIONS.md)
+> を参照してください。
 
 ## スクリーンショット
 
