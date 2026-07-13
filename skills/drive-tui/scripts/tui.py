@@ -305,8 +305,18 @@ def cmd_start(args) -> int:
     popen_kwargs = dict(close_fds=True, stdin=subprocess.DEVNULL,
                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if os.name == "nt":
-        # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
-        popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP | 0x00000008
+        # CREATE_NO_WINDOW (0x08000000) | CREATE_NEW_PROCESS_GROUP.
+        # We use CREATE_NO_WINDOW rather than the old DETACHED_PROCESS (0x08):
+        # DETACHED_PROCESS only means "don't inherit the parent console" — it does
+        # NOT stop a console window from being created, so when winpty/ConPTY
+        # allocates its pseudo-console to spawn the target program, a conhost
+        # window can flash up and STEAL FOCUS from whatever the user is doing.
+        # CREATE_NO_WINDOW explicitly runs the console child with no window, which
+        # is the correct "silent, never grab focus" disposition and still gives a
+        # fully detached process (its own group, no inherited console, DEVNULL io).
+        popen_kwargs["creationflags"] = (
+            subprocess.CREATE_NEW_PROCESS_GROUP | 0x08000000  # CREATE_NO_WINDOW
+        )
     else:
         # Detach from the launching shell's session so a SIGHUP on shell exit
         # (or Ctrl-C to the process group) does not kill the daemon — this is

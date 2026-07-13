@@ -86,7 +86,14 @@ Step objects (executed in order; each `wait_*`/`snapshot` prints a snapshot):
 1. **Silent (default).** Just drive it. The AI reads snapshots itself and reports a summary to the user in chat. The user never sees the raw TUI. This is the normal mode and needs nothing special — it is what every example above does.
 2. **Show the user what you saw.** Because a snapshot is plain text/ANSI, you can surface it on demand: paste `snapshot` output into the reply, or render it to a PNG with `tools/screenshot` (`shot.render_bytes_to_screen` → `screen_to_png`) and show that. The program still runs headless; you are only *echoing* what the AI perceived, when the user asks.
 
-**Guidance for choosing:** default to **silent** — drive, perceive, and summarise; only surface the raw screen when the user explicitly wants to see it (e.g. "show me what the menu looks like"), or when a decision needs their eyes. Never open a visible terminal window to "let the user watch" — that is exactly the intrusion the PTY model avoids; echo a snapshot instead.
+**How to decide (default hidden; you judge the scenario).** The default is **silent** — drive, perceive, summarise; the user does not see the raw TUI. Whether to surface a snapshot is a judgment call *you* make each time, in this priority order:
+
+1. **User asked to see it** → show it. ("show me the menu", "what does it look like", "paste the screen".) Explicit request always wins.
+2. **The user must choose / the screen is the point** → show it. A menu they need to pick from, a diff/preview they should eyeball, an error you can't resolve alone, or when the TUI's *appearance* is what they care about.
+3. **It's a means to an end** → stay silent, report the outcome. If the user wanted a *result* ("switch the model to Opus", "answer the installer's prompts"), just do it and say what happened — the intermediate screens are noise to them.
+4. **Unsure and it's cheap to show** → lean toward a short snapshot; seeing is reassuring. **Unsure and it's long/noisy** → summarise, and offer ("want to see the raw screen?").
+
+Never open a visible terminal window to "let the user watch" — that is the intrusion the PTY model avoids (and would steal their focus). Echo a snapshot (text or a `tools/screenshot` PNG) instead.
 
 **One real caveat (be honest about it):** a few programs behave differently with no real TTY — e.g. ConPTY may delay the first prompt ~3s (use `wait-regex` with a 15s timeout, never a bare `wait` on startup), and a bare Ctrl-C can be unreliable under ConPTY (close + re-open instead). These are noted in *Constraints / gotchas* below.
 
