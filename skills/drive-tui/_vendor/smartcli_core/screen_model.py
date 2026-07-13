@@ -127,8 +127,11 @@ class ScreenModel:
         cursor sequences (``ESC O A``) — sending CSI (``ESC [ A``) moves nothing.
         :meth:`session.PtySession.send_keys` reads this to pick the right form.
         """
+        # pyte stores private modes as (mode << 5); DECCKM is private mode 1,
+        # so it lands as 1<<5 = 32 in screen.mode (no named constant is exported).
+        _DECCKM = 1 << 5
         try:
-            return 32 in self.screen.mode
+            return _DECCKM in self.screen.mode
         except Exception:
             return False
 

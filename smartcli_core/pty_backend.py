@@ -271,9 +271,22 @@ class PosixPtyBackend(PtyBackend):
             if not reaped:
                 try:
                     os.kill(pid, signal.SIGKILL)
-                    os.waitpid(pid, 0)  # blocking reap after SIGKILL
                 except OSError:
                     pass
+                # Bounded reap after SIGKILL — do NOT block forever. A child stuck
+                # in uninterruptible sleep (D state: wedged NFS/FUSE/driver) will
+                # not process even SIGKILL until its syscall returns, so a plain
+                # blocking waitpid could hang teardown. Poll briefly and give up;
+                # the kernel reaps it once it unwedges (we've closed the fd).
+                kill_deadline = time.monotonic() + 1.0
+                while time.monotonic() < kill_deadline:
+                    try:
+                        wpid, _ = os.waitpid(pid, os.WNOHANG)
+                    except OSError:
+                        break
+                    if wpid == pid:
+                        break
+                    time.sleep(0.02)
         if self._fd is not None:
             try:
                 os.close(self._fd)
