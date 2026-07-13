@@ -51,7 +51,26 @@
     var FIRE_COL = [[24,23,21],[90,20,0],[160,45,0],[220,90,0],[240,150,30],[255,220,120]];
 
     var GLYPH = "01ｱｲｳｴｵｶｷ<>[]{}#$%&*+=".split("");
-    function frame() {
+    // Perf guards: cap to ~30fps, and only run while the canvas is on-screen and
+    // the tab is visible. Without these the loop burns a core forever (even in a
+    // background tab or scrolled far away) — the kind of thing that overheats
+    // phones and slow laptops.
+    var FRAME_MS = 1000 / 30;
+    var lastDraw = 0;
+    var onScreen = true, tabVisible = !document.hidden, running = false, raf = 0;
+    function frame(now) {
+      raf = 0;
+      if (!onScreen || !tabVisible) { running = false; return; }  // pause: no rAF re-arm
+      raf = requestAnimationFrame(frame);
+      if (now - lastDraw < FRAME_MS) return;   // throttle to ~30fps
+      lastDraw = now;
+      draw();
+    }
+    function ensureRunning() {
+      if (running || !onScreen || !tabVisible) return;
+      running = true; lastDraw = 0; raf = requestAnimationFrame(frame);
+    }
+    function draw() {
       ctx.fillStyle = INK; ctx.fillRect(0, 0, W, H);
       ctx.font = Math.round(cellH * 0.9) + "px 'JetBrains Mono',monospace";
       var baseY = cellH * 0.78;   // text baseline within a cell
@@ -121,7 +140,6 @@
           }
         }
       }
-      raf = requestAnimationFrame(frame);
     }
     function step() {
       var ng = [];
@@ -136,7 +154,25 @@
       } }
       grid = ng;
     }
-    var raf = requestAnimationFrame(frame);
+
+    // Respect prefers-reduced-motion: draw a single static frame, never loop.
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      draw();
+    } else {
+      // pause when scrolled out of view
+      if ("IntersectionObserver" in window) {
+        new IntersectionObserver(function (es) {
+          onScreen = es[0].isIntersecting;
+          if (onScreen) ensureRunning();
+        }, { threshold: 0.01 }).observe(cv);
+      }
+      // pause when the tab is hidden
+      document.addEventListener("visibilitychange", function () {
+        tabVisible = !document.hidden;
+        if (tabVisible) ensureRunning();
+      });
+      ensureRunning();
+    }
 
     var tabs = document.getElementById("fx-tabs");
     tabs.addEventListener("click", function (e) {
@@ -145,6 +181,7 @@
       [].forEach.call(tabs.children, function (b) { b.classList.remove("on"); });
       e.target.classList.add("on");
       reset();  // fresh state for life/fire/starfield
+      ensureRunning();
     });
   }
 

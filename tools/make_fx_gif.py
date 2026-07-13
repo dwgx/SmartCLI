@@ -82,8 +82,8 @@ def render_gif(name: str, out: Path, frames: int = 60, w: int = 76, h: int = 22,
     # Quantize every frame to ONE shared adaptive palette (64 colors is plenty
     # for these ASCII gradients) so the GIF stays small and the palette does not
     # flicker between frames.
-    pal_src = imgs[0].quantize(colors=64, method=Image.MEDIANCUT)
-    q = [im.quantize(colors=64, palette=pal_src, dither=Image.NONE) for im in imgs]
+    pal_src = imgs[0].quantize(colors=40, method=Image.MEDIANCUT)
+    q = [im.quantize(colors=40, palette=pal_src, dither=Image.NONE) for im in imgs]
     dur = int(1000 / fps)
     # optimize=False: keep EVERY frame. optimize drops "duplicate" frames, which
     # corrupts exact-timing seamless loops (the loop window must contain exactly
@@ -111,10 +111,11 @@ def _frames(loop, fps):
 
 
 CURATED = [
-    # donut: speed 1.309 -> B rate 0.7854 -> loop = EXACTLY 8.0s (A: 2 turns,
-    # B: 1 turn). 8.0·24 = 192 whole frames -> frame-exact seamless (verified).
-    ("donut",  dict(_BASE, theme="ocean", params={"speed": 1.309},
-                    frames=_frames(8.0, 24))),
+    # donut: speed 2.618 -> B rate 1.5708 -> loop = EXACTLY 4.0s (A: 2 turns,
+    # B: 1 turn). 4.0·24 = 96 whole frames -> frame-exact seamless, half the
+    # weight of the 8s version.
+    ("donut",  dict(_BASE, theme="ocean", params={"speed": 2.618},
+                    frames=_frames(4.0, 24))),
     # tunnel: texture wraps every TEX; speed=1,twist=1 -> loop EXACTLY 4.0s.
     # 4.0·24 = 96 whole frames -> frame-exact seamless. Fills the whole frame.
     ("tunnel", dict(_BASE, theme="synthwave", params={"speed": 1.0, "twist": 1.0},
