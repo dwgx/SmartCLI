@@ -73,6 +73,23 @@ Step objects (executed in order; each `wait_*`/`snapshot` prints a snapshot):
 - `{"action":"wait_regex","pattern":"regex","timeout_ms":10000}` — wait strictly for the regex.
 - `{"action":"snapshot"}` — print the current screen.
 
+## Silent / background operation — driving without disturbing the user
+
+**By design, driving a CLI here is already headless and non-intrusive — there is no window to hide, and the user's focus is never stolen.** This is a property of the PTY model, not an extra feature:
+
+- The program runs inside a **pseudo-terminal**: an in-memory character grid (ConPTY via `pywinpty` on Windows, the stdlib `pty` on POSIX). The CLI believes it has a real terminal — so it still draws menus, the cursor, colours — but that "terminal" **exists only in memory**. There is **no GUI window, no console window, nothing painted on screen** for the user to see or lose focus to.
+- The persistent-session daemon is launched **fully detached**: on Windows with `DETACHED_PROCESS` (no console window, no focus change); on POSIX with `start_new_session=True` (no controlling terminal). Its stdin/stdout/stderr are all `DEVNULL`, so it never prints into the user's shell.
+- So the loop is invisible: the AI `start`s a program, `snapshot`s the in-memory screen, `send-keys`, `wait`, `snapshot` again — all while the user keeps typing in their editor, undisturbed. Nothing pops up, nothing grabs the cursor.
+
+**Two intents, both already supported — this is a choice you make, not code you write:**
+
+1. **Silent (default).** Just drive it. The AI reads snapshots itself and reports a summary to the user in chat. The user never sees the raw TUI. This is the normal mode and needs nothing special — it is what every example above does.
+2. **Show the user what you saw.** Because a snapshot is plain text/ANSI, you can surface it on demand: paste `snapshot` output into the reply, or render it to a PNG with `tools/screenshot` (`shot.render_bytes_to_screen` → `screen_to_png`) and show that. The program still runs headless; you are only *echoing* what the AI perceived, when the user asks.
+
+**Guidance for choosing:** default to **silent** — drive, perceive, and summarise; only surface the raw screen when the user explicitly wants to see it (e.g. "show me what the menu looks like"), or when a decision needs their eyes. Never open a visible terminal window to "let the user watch" — that is exactly the intrusion the PTY model avoids; echo a snapshot instead.
+
+**One real caveat (be honest about it):** a few programs behave differently with no real TTY — e.g. ConPTY may delay the first prompt ~3s (use `wait-regex` with a 15s timeout, never a bare `wait` on startup), and a bare Ctrl-C can be unreliable under ConPTY (close + re-open instead). These are noted in *Constraints / gotchas* below.
+
 ## Reading a snapshot
 
 `to_text()` output = one header line + row-numbered body:
