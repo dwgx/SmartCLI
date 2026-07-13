@@ -101,3 +101,8 @@ all = ["pyfiglet>=1.0.0", "Pillow>=10.0.0", "wcwidth>=0.2.0"]
 # Only the shared core is a clean installable package (see HONEST NOTE above).
 # The skills are intentionally left out — they run in place from the checkout.
 packages = ["smartcli_core"]
+
+[tool.setuptools.package-data]
+# PEP 561: ship the py.typed marker inside the wheel so downstream type
+# checkers (mypy/pyright) treat smartcli_core's public API as typed.
+smartcli_core = ["py.typed"]
