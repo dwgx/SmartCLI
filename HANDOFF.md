@@ -1,6 +1,6 @@
 # SmartCLI — Handoff (承上启下)
 
-*Written 2026-07-08, last updated **2026-07-12** (v0.1.2 released). This is the single document a fresh AI reads first to pick up SmartCLI without re-deriving anything. It records the **current release state**, what the project IS, what already WORKS (with the exact commands to see it), the brain (`knowledge/`), the hard-won rules that must never be re-lost, the environment, and the open tasks framed so you can start in one move. Baked-in truths: there are **THREE** skills (not two), the live `fx` registry has **18** effects (not 19), and `tui-ui` has **15** widgets (not 14 — a `BrailleChart` was added).*
+*Written 2026-07-08, last updated **2026-07-13**. This is the single document a fresh AI reads first to pick up SmartCLI without re-deriving anything. It records the **current release state**, what the project IS, what already WORKS (with the exact commands to see it), the brain (`knowledge/`), the hard-won rules that must never be re-lost, the environment, and the open tasks framed so you can start in one move. Baked-in truths (re-verified against code 2026-07-13): there are **THREE** skills, the live `fx` registry has **19** effects (a 3D `solarsystem` orrery was added), and `tui-ui` has **15** widgets. **Read §7 (2026-07-13 session) first for the most recent work — website, POSIX real-Linux fixes, and the launch plan.***
 
 ---
 
@@ -204,6 +204,106 @@ Ranked by impact/effort. The v0.1.2 release, the deterministic/mutation-verified
 Non-issues, do not "fix": drive-tui's `description` has an unquoted `Keywords: TUI` colon that a strict YAML parser trips on but the shipping skill loader accepts (leave it or quote it — behavior-neutral); `_drive_probe2.py`'s one warning is by design; the screenshot harness labelling itself pyte-simulation is correct honesty; `verify_fx.py`'s random-seconds flake — rerun once.
 
 **Publish-tooling reality (not the project's fault):** LobeHub / agentskillhub publish CLIs have real bugs (`spawn 'start' ENOENT` / IPv6-only callback / server 401) — those channels could NOT be published to. skillhu.bz and PyPI/GitHub succeeded.
+
+---
+
+## 7. 2026-07-13 SESSION — what this long session did (承上启下)
+
+A single long session. Everything below is on `main`, pushed, working tree clean,
+all gates green (re-verified against code at handoff). Ordered by durability.
+
+### 7a. Core POSIX fixes — VERIFIED ON REAL LINUX (the highest-value work)
+Two issues that were "known but unverifiable on Windows" (#5/#6) were reproduced,
+fixed, and re-verified on a real Debian 13 box over SSH (`ssh dwgx-home-cloud`,
+Python 3.13), using an **isolated sandbox** (venv + copied `smartcli_core`):
+- **#6 zombie reap** (`smartcli_core/pty_backend.py` `PosixPtyBackend.terminate`):
+  was SIGTERM with no `waitpid` → `<defunct>` zombie. Now polls `waitpid(WNOHANG)`
+  ~1s, SIGKILL fallback, **bounded** post-SIGKILL reap (no infinite block on
+  D-state children — adversarial-review fix A1).
+- **#5 adaptive arrows** (`session.py` `KEY_MAP_SS3` + `_resolve_key(app_cursor=)`
+  + `send_keys`; `screen_model.py` `app_cursor` prop reading pyte DECCKM = mode
+  `1<<5`): arrows now emit SS3 (`ESC O A`) when the app enabled DECCKM, CSI else.
+  A real ncurses `keypad(True)` probe read our `Up` as `KEY_UP`.
+- Verify script: `tests/_sandbox_posix_backend.py` (run it on any POSIX host).
+  Windows path unchanged (CSI when no DECCKM); full drive-probe + tui_cli green;
+  vendored copy re-synced. HANDOFF §2 #5/#6 now marked FIXED.
+- **STILL UNVERIFIED:** macOS (BSD pty EOF path) and real tmux. Do NOT claim them.
+
+### 7b. Drop-in self-configuration
+`smartcli_core` is now vendored into `skills/drive-tui/_vendor/` (kept
+byte-identical by `tools/sync_vendor.py` + `tests/test_vendor_sync.py`), so a lone
+drive-tui folder is self-contained. `skills/drive-tui/scripts/smartcli_bootstrap.py`
+locates the core robustly ($SMARTCLI_ROOT → walk-up → _vendor → pip). New
+`tui.py doctor` subcommand + `--install-deps`. `.claude-plugin/plugin.json` +
+`INSTALL.md` added. Also: daemon launch switched `DETACHED_PROCESS` →
+`CREATE_NO_WINDOW` so it **no longer steals focus** on Windows.
+
+### 7c. py.typed — DONE
+`smartcli_core/py.typed` + `[tool.setuptools.package-data]`; verified inside the
+built wheel. NOT version-bumped/published (bump all six sites together at release).
+
+### 7d. Showcase website — `docs/site/`, live at https://dwgx.github.io/SmartCLI/
+Anthropic warm-editorial aesthetic (cream `#faf9f5` + coral `#cc785c` + serif
+display; the palette + fonts were researched from Anthropic's real brand tokens —
+the earlier synthwave version was rejected by the owner). Hand-written single page,
+no framework. Has: a JS live-terminal hero that types a **randomized** model×CLI
+scenario each load (`assets/app.js`); an interactive **playground** (`assets/toys.js`)
+— canvas fx (rain/fire/plasma/stars/life, perf-guarded: 30fps cap + pause when
+off-screen/tab-hidden + reduced-motion), a **custom slider** (not native), and a
+**DRIVE-TUI toy** (`assets/ccmenu.js`) that is a faithful nested reproduction of the
+REAL Claude Code 2.1.207 `/model` menu (captured by driving the actual CLI), with
+fixed-size frame + cached selection; a "Driving a real TUI" GIF gallery; a
+seamless-loop fx GIF gallery; custom themed scrollbar; OpenGraph/Twitter cards.
+**Full 5-language localization**: `index.zh-Hans/zh-Hant/ja/ko.html` + a nav
+switcher (translated by a workflow, structure-preserving). Deploy is automatic via
+`.github/workflows/pages.yml` on push to `docs/site/**`.
+
+### 7e. Real-TUI proof GIFs (the launch assets)
+Driven for real in a **throwaway Docker container** on the Linux box (Docker
+29.6.1 available; `docker run` a debian:trixie-slim, drive, `docker rm` — host
+untouched), captured to color GIFs via `tests/_demo_lazygit.py` /
+`tests/_demo_drive.py` + `tools/make_lazygit_gif.py` (takes `--src/--out/--cols/
+--rows`): **lazygit** (hero), **htop**, **ncdu**, **nano**. In `showcase/` +
+`docs/site/assets/drive-*.gif`. `_demo_drive.py` is reusable — add a target to its
+`SCRIPTS` dict.
+
+### 7f. Launch plan + self-improvement mechanism
+- **Two-phase launch plan** in `NEXT-STEPS.md §C` (seed → ignite, 3 audiences).
+  **Ready-to-paste copy** for every channel in `docs/LAUNCH-COPY.md` (Show HN,
+  Reddit, X, awesome-list PRs, skill-community) — numbers fact-checked. C1 (proof
+  reel) + C3 (SEO/OG/repo-homepage) DONE by AI. **C2/C4/C5 are HUMAN-post steps**
+  (open the PRs, post to HN/Reddit/X) — copy is written, owner posts on their timing.
+- **`skills/drive-tui/references/LIMITATIONS.md`** — a living log the AI reads first
+  and appends to; SKILL.md documents the self-improvement loop (reproduce →
+  research → verify on the REAL path → record → continue).
+- **Competitive reality (from deep research):** the "pyte semantic snapshot + wait
+  for stable" pattern is now a CROWDED category (pilotty, ht, termscope, termwright,
+  conch, virtui). SmartCLI's genuinely defensible edges are **native Windows+POSIX
+  in one library** and **adaptive DECCKM arrows** — NOT "semantic not vision" (that's
+  table stakes now). Lead with the Windows-parity + input-correctness angle, not the
+  screen-model angle, on HN. 1Panel was REJECTED as a demo (it's a web panel, not a
+  TUI). Full research in the launch-copy positioning section.
+
+### 7g. Also done
+Fuzz sandbox (`tests/_sandbox_fuzz_core.py`, zero-process) found + fixed real
+pyte-crash edges in the perception chain (see §2). CLAUDE.md at repo root has the
+**spawn red-line** (2026-07-13 incident: dense concurrent PTY spawns can overload
+the machine — verify serially, never fan out real processes).
+
+### NEXT STEPS for the next AI
+1. **More real-TUI proof GIFs** (owner wants "震撼"): `nmtui` (network wizard form),
+   `vim`, `aptitude`, or drive a real agent CLI (grok/codex) — back to the "AI drives
+   AI" narrative. Use `tests/_demo_drive.py` + a throwaway container. Verify serially.
+2. **Owner-gated launch**: C2 awesome-list PRs, C4 Show HN/Reddit/X, C5 skill
+   community — copy is in `docs/LAUNCH-COPY.md`; the owner posts.
+3. **macOS / tmux verification** if a host becomes available (the only unverified
+   platforms; would let us drop the caveats).
+4. **Optional**: MCP-server wrapper over the drive-tui daemon (biggest adoption
+   lever per §6/competitive research); Linux CI leg running `_sandbox_posix_backend.py`.
+
+**Sandbox note:** the Docker demo container is torn down at session end; recreate
+per §7e when needed. SSH target is `dwgx-home-cloud` (Debian 13). Never fan out
+concurrent real-PTY spawns (CLAUDE.md red-line).
 
 ---
 
