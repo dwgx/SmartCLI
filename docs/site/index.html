@@ -180,12 +180,23 @@
   .lt-body{white-space:pre;overflow-x:auto}
   .lt-line{min-height:1.7em}
 
-  /* playground toys */
-  .toys{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
-  @media(max-width:900px){.toys{grid-template-columns:1fr}}
-  /* the 4th toy spans the full width below the first three */
-  .toy.wide{grid-column:1/-1}
-  @media(max-width:900px){.toy.wide{grid-column:auto}}
+  /* playground toys — CMD-ART + TUI-UI side by side (DRIVE-TUI has its own row) */
+  .toys{display:grid;grid-template-columns:repeat(2,1fr);gap:22px}
+  @media(max-width:760px){.toys{grid-template-columns:1fr}}
+
+  /* DRIVE-TUI feature: a FIXED-SIZE stage that never resizes when you navigate
+     — the menu content scrolls/clips inside it, the frame stays put. */
+  .drive-feature{margin-top:22px}
+  .drive-head{display:flex;align-items:center;justify-content:space-between;
+    gap:12px;flex-wrap:wrap;margin-bottom:12px}
+  .drive-frame{width:100%;max-width:620px;height:340px;   /* fixed h — no reflow */
+    margin:0 auto;background:#0d0c0a;border:1px solid #3a352e;border-radius:12px;
+    overflow:hidden}
+  .drive-frame .cc-menu{height:100%;max-width:none}
+  .drive-cap{max-width:620px;margin:12px auto 0;text-align:center;
+    font-family:var(--mono);font-size:12px;color:var(--on-dark-soft);
+    height:2lh;min-height:32px;overflow:hidden}
+  .drive-cap b{color:var(--teal);font-weight:500}
   /* toys are equal-height and NEVER reflow: the interactive middle is a fixed
      height, and the variable caption reserves a fixed 2-line box. */
   .toy{background:var(--dark-elev);border:1px solid #3a352e;border-radius:12px;
@@ -419,13 +430,6 @@
       <div class="toy-stage"><canvas id="fx-canvas"></canvas></div>
       <div class="toy-cap">A pure frame producer, 30fps — the fx engine idea.</div>
     </div>
-    <!-- toy 2: drive the real Claude Code slash-command menu (nested) -->
-    <div class="toy">
-      <div class="toy-head"><span class="toy-k">DRIVE-TUI</span>
-        <span class="toy-hint">↑↓ · Enter/→ open · Esc/← back</span></div>
-      <div class="toy-stage"><div class="cc-menu" id="drive-menu" tabindex="0"></div></div>
-      <div class="toy-cap" id="drive-log">A real Claude Code menu — drive it like the AI does.</div>
-    </div>
     <!-- toy 3: tui-ui widgets, sub-cell precision -->
     <div class="toy">
       <div class="toy-head"><span class="toy-k">TUI-UI</span>
@@ -442,6 +446,20 @@
       </div></div>
       <div class="toy-cap">1/8-cell precision bars &amp; braille — no desync.</div>
     </div>
+  </div>
+
+  <!-- DRIVE-TUI gets its own fixed-size stage — a faithful, drivable
+       reproduction of the real Claude Code slash-command menu -->
+  <div class="drive-feature">
+    <div class="drive-head">
+      <span class="toy-k">DRIVE-TUI · live Claude Code menu</span>
+      <span class="toy-hint">↑↓ navigate · Enter/→ open · Esc/← back · 1–9 jump</span>
+    </div>
+    <div class="drive-frame">
+      <div class="cc-menu" id="drive-menu" tabindex="0"></div>
+    </div>
+    <div class="drive-cap" id="drive-log">A real Claude Code menu, captured from the
+      live CLI with drive-tui — navigate it the way the AI does.</div>
   </div>
 </div></section>
 
