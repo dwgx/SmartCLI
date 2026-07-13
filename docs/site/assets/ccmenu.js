@@ -258,10 +258,14 @@ const MENU = {
       for (var i = start; i < Math.min(its.length, start + MAXV); i++) {
         var it = its[i], on = i === sel;
         var isCmd = !!it.cmd;
+        // label without any baked-in "✔" — the tick is now dynamic (cached choice)
+        var label = (it.label || "").replace(/\s*✔\s*$/, "");
+        var chosen = node.chosen === i;   // this is the remembered selection
         html += '<div class="cc-row' + (on ? ' sel' : '') + '" data-i="' + i + '">';
         html += '<span class="cc-mk">' + (on ? "❯" : " ") + '</span>';
         if (isCmd) html += '<span class="cc-cmd">' + esc(it.cmd) + '</span>';
-        else html += '<span class="cc-label">' + esc(it.label) + '</span>';
+        else html += '<span class="cc-label">' + esc(label) + '</span>';
+        if (chosen) html += '<span class="cc-tick">✔</span>';
         html += '<span class="cc-desc">' + esc(it.desc || "") + '</span>';
         if (it.value != null) html += '<span class="cc-val">' + esc(it.value) + '</span>';
         if (it.children) html += '<span class="cc-caret">›</span>';
@@ -294,15 +298,45 @@ const MENU = {
       if (resultView) { back(); return; }
       var it = cur();
       if (it.children) {                     // descend into submenu
-        stack.push({ node: it.children, sel: 0 });
+        var child = it.children;
+        // seed the initial selection at the REMEMBERED choice (cached), so
+        // re-opening /model lands on the model you last picked.
+        if (child.chosen == null) child.chosen = firstTicked(child);
+        stack.push({ node: child, sel: child.chosen != null ? child.chosen : 0 });
         render();
         setCap("act → opened <b>" + esc(it.cmd || it.label) + "</b> submenu");
-      } else if (it.result != null) {        // run a leaf -> result panel
-        resultView = { title: it.cmd || it.label,
-                       text: it.result, warn: /WARNING/.test(it.result) };
-        render();
-        setCap("confirm → ran <b>" + esc(it.cmd || it.label) + "</b> ✓");
+      } else {                               // a leaf item
+        var parent = top().node;
+        var idx = top().sel;
+        // /config-style toggle: flip the value in place, remember it
+        if (it.value != null && !it.children) {
+          it.value = flipValue(it);
+        }
+        // cache the choice: the ✔ moves to this row and persists
+        parent.chosen = idx;
+        if (it.result != null) {
+          resultView = { title: it.cmd || it.label,
+                         text: it.result, warn: /WARNING/.test(it.result) };
+          render();
+          setCap("confirm → selected <b>" + esc((it.label || it.cmd || "").replace(/\s*✔\s*$/, "")) + "</b> ✓ (remembered)");
+        } else { render(); }
       }
+    }
+    // find a label pre-marked with ✔ (the source's current default), else null
+    function firstTicked(node) {
+      for (var i = 0; i < node.items.length; i++)
+        if (/✔/.test(node.items[i].label || "")) return i;
+      return null;
+    }
+    // toggle On<->Off, or cycle a fixed options list, for /config rows
+    function flipValue(it) {
+      if (it.options && it.options.length) {
+        var j = it.options.indexOf(it.value);
+        return it.options[(j + 1) % it.options.length];
+      }
+      if (it.value === "On") return "Off";
+      if (it.value === "Off") return "On";
+      return it.value;
     }
     function back() {
       if (resultView) { resultView = null; render();

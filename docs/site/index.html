@@ -244,16 +244,23 @@
   .cc-sub{color:var(--cc-inactive);font-size:11px;margin-bottom:8px;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .cc-rows{flex:1 1 auto;overflow:hidden}
-  .cc-row{display:flex;align-items:baseline;gap:7px;padding:1px 5px;
-    border-radius:4px;white-space:nowrap;transition:background .1s}
+  .cc-row{display:flex;align-items:baseline;gap:7px;padding:2px 6px;
+    border-radius:5px;white-space:nowrap}
   .cc-mk{flex:0 0 auto;width:1ch;color:transparent}
-  .cc-row.sel{background:rgba(78,186,101,.12)}
-  .cc-row.sel .cc-mk{color:var(--cc-success)}
-  .cc-row.sel .cc-label{color:var(--cc-success)}
+  /* selection: the whole row brightens (like real Claude Code) — a subtle
+     left accent bar + brighter text, NOT a heavy green block. */
+  .cc-row.sel{background:rgba(255,255,255,.05);
+    box-shadow:inset 2px 0 0 var(--cc-suggestion)}
+  .cc-row.sel .cc-mk{color:var(--cc-suggestion)}
+  .cc-row.sel .cc-cmd{color:var(--cc-claude)}
+  .cc-row.sel .cc-label{color:#fff}
+  .cc-row.sel .cc-desc{color:#e8e6f6}
   .cc-cmd{flex:0 0 auto;color:var(--cc-claude)}
   .cc-label{flex:0 0 auto;color:var(--on-dark)}
-  .cc-desc{flex:1 1 auto;color:var(--cc-suggestion);overflow:hidden;
+  .cc-desc{flex:1 1 auto;color:var(--cc-inactive);overflow:hidden;
     text-overflow:ellipsis;font-size:12px}
+  /* the ✔ current-selection tick (persists / caches the choice) */
+  .cc-tick{flex:0 0 auto;color:var(--cc-success);margin-left:4px}
   .cc-val{flex:0 0 auto;margin-left:auto;padding-left:10px;color:var(--cc-inactive);
     font-variant-numeric:tabular-nums}
   .cc-caret{flex:0 0 auto;color:var(--cc-inactive)}
