@@ -260,7 +260,7 @@
   .gif-hero{margin:0 0 22px;border-radius:12px;overflow:hidden;
     border:1px solid var(--hairline);background:var(--dark);max-width:720px;
     margin-left:auto;margin-right:auto}
-  .gif-hero img{width:100%;height:auto;display:block}
+  .gif-hero img,.gif-hero video{width:100%;height:auto;display:block}
   .gif-hero figcaption{font-family:var(--mono);font-size:12px;color:var(--on-dark-soft);
     padding:12px 16px;background:var(--dark-elev);border-top:1px solid #3a352e;
     text-align:center}
@@ -269,7 +269,7 @@
   .gifs figure{margin:0;border-radius:12px;overflow:hidden;
     border:1px solid var(--hairline);background:var(--dark);
     display:flex;flex-direction:column}
-  .gifs img{width:100%;aspect-ratio:3/2;object-fit:cover;display:block}
+  .gifs img,.gifs video{width:100%;height:auto;object-fit:contain;display:block}
   .gifs figcaption{font-family:var(--mono);font-size:12px;color:var(--on-dark-soft);
     padding:12px 16px;background:var(--dark-elev);border-top:1px solid #3a352e}
   /* STYLE-END */
@@ -437,12 +437,12 @@
       流水线渲染而成——没有用屏幕录制工具。任意一个都可用
       <code>python -m fx play &lt;name&gt;</code> 复现。</p>
   </div>
-  <figure class="gif-hero"><img src="assets/fx-solarsystem.gif" alt="ASCII solar system orrery: planets orbiting a pulsing sun" loading="lazy"><figcaption>solarsystem — 一台天体仪：行星沿开普勒椭圆轨道绕着一颗脉动的太阳运行</figcaption></figure>
+  <figure class="gif-hero"><video autoplay muted loop playsinline preload="metadata" poster="assets/fx-solarsystem.gif" aria-label="ASCII solar system orrery: planets orbiting a pulsing sun"><source src="assets/fx-solarsystem.webm" type="video/webm"><source src="assets/fx-solarsystem.mp4" type="video/mp4"><img src="assets/fx-solarsystem.gif" alt="ASCII solar system orrery: planets orbiting a pulsing sun"></video><figcaption>solarsystem — 一台天体仪：行星沿开普勒椭圆轨道绕着一颗脉动的太阳运行</figcaption></figure>
   <div class="gifs">
-    <figure><img src="assets/fx-donut.gif" alt="spinning ASCII donut" loading="lazy"><figcaption>donut — 经典的 ASCII 甜甜圈</figcaption></figure>
-    <figure><img src="assets/fx-tunnel.gif" alt="demoscene tunnel fly-through" loading="lazy"><figcaption>tunnel — demoscene 隧道穿越（无缝循环）</figcaption></figure>
-    <figure><img src="assets/fx-fire.gif" alt="demoscene fire" loading="lazy"><figcaption>fire — 热力缓冲的火焰场</figcaption></figure>
-    <figure><img src="assets/fx-rain.gif" alt="matrix digital rain" loading="lazy"><figcaption>rain — 黑客帝国式数字雨</figcaption></figure>
+    <figure><video autoplay muted loop playsinline preload="metadata" aria-label="spinning ASCII donut"><source src="assets/fx-donut.webm" type="video/webm"><source src="assets/fx-donut.mp4" type="video/mp4"><img src="assets/fx-donut.gif" alt="spinning ASCII donut"></video><figcaption>donut — 经典的 ASCII 甜甜圈</figcaption></figure>
+    <figure><video autoplay muted loop playsinline preload="metadata" aria-label="demoscene tunnel fly-through"><source src="assets/fx-tunnel.webm" type="video/webm"><source src="assets/fx-tunnel.mp4" type="video/mp4"><img src="assets/fx-tunnel.gif" alt="demoscene tunnel fly-through"></video><figcaption>tunnel — demoscene 隧道穿越（无缝循环）</figcaption></figure>
+    <figure><video autoplay muted loop playsinline preload="metadata" aria-label="demoscene fire"><source src="assets/fx-fire.webm" type="video/webm"><source src="assets/fx-fire.mp4" type="video/mp4"><img src="assets/fx-fire.gif" alt="demoscene fire"></video><figcaption>fire — 热力缓冲的火焰场</figcaption></figure>
+    <figure><video autoplay muted loop playsinline preload="metadata" aria-label="matrix digital rain"><source src="assets/fx-rain.webm" type="video/webm"><source src="assets/fx-rain.mp4" type="video/mp4"><img src="assets/fx-rain.gif" alt="matrix digital rain"></video><figcaption>rain — 黑客帝国式数字雨</figcaption></figure>
   </div>
 </div></section>
 
@@ -494,5 +494,6 @@
 </div></footer>
 <script src="assets/app.js"></script>
 <script src="assets/toys.js"></script>
+<script src="assets/lightbox.js"></script>
 </body>
 </html>

@@ -260,7 +260,7 @@
   .gif-hero{margin:0 0 22px;border-radius:12px;overflow:hidden;
     border:1px solid var(--hairline);background:var(--dark);max-width:720px;
     margin-left:auto;margin-right:auto}
-  .gif-hero img{width:100%;height:auto;display:block}
+  .gif-hero img,.gif-hero video{width:100%;height:auto;display:block}
   .gif-hero figcaption{font-family:var(--mono);font-size:12px;color:var(--on-dark-soft);
     padding:12px 16px;background:var(--dark-elev);border-top:1px solid #3a352e;
     text-align:center}
@@ -269,7 +269,7 @@
   .gifs figure{margin:0;border-radius:12px;overflow:hidden;
     border:1px solid var(--hairline);background:var(--dark);
     display:flex;flex-direction:column}
-  .gifs img{width:100%;aspect-ratio:3/2;object-fit:cover;display:block}
+  .gifs img,.gifs video{width:100%;height:auto;object-fit:contain;display:block}
   .gifs figcaption{font-family:var(--mono);font-size:12px;color:var(--on-dark-soft);
     padding:12px 16px;background:var(--dark-elev);border-top:1px solid #3a352e}
   /* STYLE-END */
@@ -436,12 +436,12 @@
       フレーム単位で描画された本物のエフェクトです — 画面録画ではありません。どれも
       <code>python -m fx play &lt;name&gt;</code> で再現できます。</p>
   </div>
-  <figure class="gif-hero"><img src="assets/fx-solarsystem.gif" alt="ASCII の太陽系オーラリー: 脈打つ太陽の周りを公転する惑星たち" loading="lazy"><figcaption>solarsystem — オーラリー: 脈打つ太陽の周りをケプラーの楕円軌道で回る惑星たち</figcaption></figure>
+  <figure class="gif-hero"><video autoplay muted loop playsinline preload="metadata" poster="assets/fx-solarsystem.gif" aria-label="ASCII の太陽系オーラリー: 脈打つ太陽の周りを公転する惑星たち"><source src="assets/fx-solarsystem.webm" type="video/webm"><source src="assets/fx-solarsystem.mp4" type="video/mp4"><img src="assets/fx-solarsystem.gif" alt="ASCII の太陽系オーラリー: 脈打つ太陽の周りを公転する惑星たち"></video><figcaption>solarsystem — オーラリー: 脈打つ太陽の周りをケプラーの楕円軌道で回る惑星たち</figcaption></figure>
   <div class="gifs">
-    <figure><img src="assets/fx-donut.gif" alt="回転する ASCII ドーナツ" loading="lazy"><figcaption>donut — おなじみの ASCII トーラス</figcaption></figure>
-    <figure><img src="assets/fx-tunnel.gif" alt="デモシーン風のトンネル飛行" loading="lazy"><figcaption>tunnel — デモシーン風の飛行 (シームレスループ)</figcaption></figure>
-    <figure><img src="assets/fx-fire.gif" alt="デモシーン風の炎" loading="lazy"><figcaption>fire — ヒートバッファによる炎のフィールド</figcaption></figure>
-    <figure><img src="assets/fx-rain.gif" alt="マトリックス風のデジタルレイン" loading="lazy"><figcaption>rain — マトリックス風のデジタルレイン</figcaption></figure>
+    <figure><video autoplay muted loop playsinline preload="metadata" aria-label="回転する ASCII ドーナツ"><source src="assets/fx-donut.webm" type="video/webm"><source src="assets/fx-donut.mp4" type="video/mp4"><img src="assets/fx-donut.gif" alt="回転する ASCII ドーナツ"></video><figcaption>donut — おなじみの ASCII トーラス</figcaption></figure>
+    <figure><video autoplay muted loop playsinline preload="metadata" aria-label="デモシーン風のトンネル飛行"><source src="assets/fx-tunnel.webm" type="video/webm"><source src="assets/fx-tunnel.mp4" type="video/mp4"><img src="assets/fx-tunnel.gif" alt="デモシーン風のトンネル飛行"></video><figcaption>tunnel — デモシーン風の飛行 (シームレスループ)</figcaption></figure>
+    <figure><video autoplay muted loop playsinline preload="metadata" aria-label="デモシーン風の炎"><source src="assets/fx-fire.webm" type="video/webm"><source src="assets/fx-fire.mp4" type="video/mp4"><img src="assets/fx-fire.gif" alt="デモシーン風の炎"></video><figcaption>fire — ヒートバッファによる炎のフィールド</figcaption></figure>
+    <figure><video autoplay muted loop playsinline preload="metadata" aria-label="マトリックス風のデジタルレイン"><source src="assets/fx-rain.webm" type="video/webm"><source src="assets/fx-rain.mp4" type="video/mp4"><img src="assets/fx-rain.gif" alt="マトリックス風のデジタルレイン"></video><figcaption>rain — マトリックス風のデジタルレイン</figcaption></figure>
   </div>
 </div></section>
 
@@ -493,5 +493,6 @@
 </div></footer>
 <script src="assets/app.js"></script>
 <script src="assets/toys.js"></script>
+<script src="assets/lightbox.js"></script>
 </body>
 </html>
