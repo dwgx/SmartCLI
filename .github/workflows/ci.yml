@@ -6,15 +6,19 @@ on:
   pull_request:
 
 jobs:
-  # Windows matches the dev/target environment (ConPTY via pywinpty). We run only
-  # the deterministic, non-interactive checks here — the drive-tui PTY probes and
-  # the effort_selector interactive path need a live TTY and are flaky/hang-prone
-  # under CI ConPTY, so they are intentionally excluded.
-  windows-tests:
-    runs-on: windows-latest
+  # Deterministic, non-interactive checks across all three OSes. Windows matches
+  # the primary dev/target environment (ConPTY via pywinpty); Linux + macOS
+  # exercise the stdlib POSIX pty backend that was previously only hand-verified
+  # over SSH. The interactive drive-tui PTY probes and the effort_selector path
+  # need a live TTY and are flaky/hang-prone under CI, so they stay excluded here
+  # — the POSIX backend sandbox below covers the pty code path deterministically.
+  tests:
+    name: ${{ matrix.os }} · py${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
         python-version: ["3.11", "3.12"]
     env:
       PYTHONIOENCODING: utf-8
@@ -46,3 +50,12 @@ jobs:
       - name: tui-ui widget catalog renders
         working-directory: skills/tui-ui
         run: python -m ui widgets
+
+      # POSIX-only: the stdlib pty.fork() backend + perceive stack + the two
+      # recorded POSIX fixes (#5 SS3 arrows, #6 zombie reap). This is the code
+      # path that was previously only hand-verified on Debian over SSH; running
+      # it on ubuntu + macos keeps it green automatically and finally covers the
+      # macOS BSD-pty EOF path.
+      - name: POSIX pty backend sandbox
+        if: runner.os != 'Windows'
+        run: python tests/_sandbox_posix_backend.py

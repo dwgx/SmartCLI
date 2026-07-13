@@ -6,11 +6,13 @@
 
 **A local Python toolkit for driving, perceiving, and rendering the terminal — three agent skills over one pluggable PTY + `pyte` core.**
 
-[![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Version 0.1.2](https://img.shields.io/badge/version-0.1.2-orange)](CHANGELOG.md)
+[![PyPI](https://img.shields.io/pypi/v/smartcli-toolkit?color=orange)](https://pypi.org/project/smartcli-toolkit/)
+[![Python](https://img.shields.io/pypi/pyversions/smartcli-toolkit?color=blue)](https://pypi.org/project/smartcli-toolkit/)
+[![CI](https://github.com/dwgx/SmartCLI/actions/workflows/ci.yml/badge.svg)](https://github.com/dwgx/SmartCLI/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/pypi/l/smartcli-toolkit?color=green)](LICENSE)
+[![Downloads](https://img.shields.io/pypi/dm/smartcli-toolkit?color=blueviolet)](https://pypi.org/project/smartcli-toolkit/)
 [![Skills: 3](https://img.shields.io/badge/skills-3-purple)](#features)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20POSIX-lightgrey)](#install)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](#install)
 
 ## What & why
 

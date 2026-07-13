@@ -1,0 +1,31 @@
+# Release Drafter — assembles a draft GitHub Release from merged PRs, grouped by
+# label. It only DRAFTS; a human publishes. https://github.com/release-drafter/release-drafter
+name-template: "v$RESOLVED_VERSION"
+tag-template: "v$RESOLVED_VERSION"
+categories:
+  - title: "✨ Features"
+    labels: ["enhancement", "feature"]
+  - title: "🐛 Fixes"
+    labels: ["bug", "fix"]
+  - title: "🧱 Core / PTY"
+    labels: ["core"]
+  - title: "📦 Packaging / CI"
+    labels: ["ci", "dependencies", "packaging"]
+  - title: "📝 Docs"
+    labels: ["docs", "documentation"]
+change-template: "- $TITLE (#$NUMBER) @$AUTHOR"
+change-title-escapes: '\<*_&'
+version-resolver:
+  major:
+    labels: ["major", "breaking"]
+  minor:
+    labels: ["minor", "enhancement", "feature"]
+  patch:
+    labels: ["patch", "bug", "fix", "ci", "docs", "dependencies"]
+  default: patch
+template: |
+  ## What's changed
+
+  $CHANGES
+
+  **Install:** `pip install smartcli-toolkit` · **Plugin:** `/plugin marketplace add dwgx/SmartCLI`

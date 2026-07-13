@@ -106,3 +106,29 @@ packages = ["smartcli_core"]
 # PEP 561: ship the py.typed marker inside the wheel so downstream type
 # checkers (mypy/pyright) treat smartcli_core's public API as typed.
 smartcli_core = ["py.typed"]
+
+[tool.ruff]
+# Lint the shared core strictly; the skills run in place and lean on runtime
+# discovery, so they're linted more leniently (see per-file ignores). The CI
+# lint job is advisory (continue-on-error) — it reports, it doesn't block.
+line-length = 100
+target-version = "py39"
+extend-exclude = ["research", "_refs", "docs/site/assets", "**/_vendor/**"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = [
+  "E501", # line length is handled by the formatter; don't fail on long lines
+  "B008", # function-call default args appear in some effect signatures by design
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["E402", "F401"]        # tests do sys.path juggling before imports
+"skills/**" = ["E402"]               # skills insert paths before importing core
+
+[tool.mypy]
+python_version = "3.9"
+# Only the shared core ships as a typed package; check it, ignore the rest.
+files = ["smartcli_core"]
+ignore_missing_imports = true
+warn_unused_ignores = true

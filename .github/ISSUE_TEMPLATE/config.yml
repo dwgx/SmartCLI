@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://github.com/dwgx/SmartCLI#readme
+    about: README, README-USAGE, and the per-skill SKILL.md files.
+  - name: Knowledge graph
+    url: https://github.com/dwgx/SmartCLI/blob/main/knowledge/INDEX.md
+    about: The formulas / ANSI sequences / constants behind the effects and drivers.

@@ -1,0 +1,33 @@
+name: Lint
+
+# Advisory quality gate: ruff (lint + format check) and mypy on the typed core.
+# These steps are continue-on-error so they SURFACE issues in the Actions summary
+# without blocking merges on pre-existing style — tighten later by removing
+# continue-on-error once the tree is clean.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install tooling
+        run: python -m pip install --upgrade pip ruff mypy
+
+      - name: ruff check
+        continue-on-error: true
+        run: ruff check .
+
+      - name: ruff format --check
+        continue-on-error: true
+        run: ruff format --check .
+
+      - name: mypy (smartcli_core)
+        continue-on-error: true
+        run: mypy
