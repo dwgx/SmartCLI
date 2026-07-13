@@ -191,17 +191,15 @@ POSIX backend — that is exactly the class of false-green the standing method f
 - **Verify:** push, confirm the Linux leg is green in Actions (it should match the SSH run).
 - **Effort:** S (needs the cloud runner, hence Section B)
 
-### B-PyPI. One-time PyPI Trusted-Publisher setup  [S] (needs human with PyPI login)
-- **Goal:** make tag-push auto-publish actually work via OIDC.
-- **Why it matters:** publish.yml exists but is inert until this is done; v0.1.0–0.1.2
-  were published manually with twine.
-- **First step (human):** on PyPI register a Trusted Publisher — owner `dwgx`, repo
-  `SmartCLI`, workflow `publish.yml`, environment `pypi`; then create a `pypi`
-  Environment in GitHub repo settings.
-- **Verify:** push a throwaway pre-release tag and confirm publish.yml uploads without a
-  stored token. Until then keep using `python -m twine upload --disable-progress-bar`
-  (twine's rich progress bar crashes on gbk).
-- **Effort:** S
+### B-PyPI. PyPI Trusted-Publisher setup  [DONE 2026-07-13]
+- **Status:** DONE and verified. Trusted Publisher registered on PyPI (owner `dwgx`,
+  **repo `SmartCLI`** — GitHub repo name, not the `smartcli-toolkit` dist name; that
+  mismatch was the original `invalid-publisher` failure) + `pypi` GitHub Environment
+  created. A `workflow_dispatch` run (29245353129) went green: OIDC handshake succeeded,
+  publish ran against `upload.pypi.org`. `skip-existing:true` added so re-runs are no-ops.
+- **Releasing now:** bump the version everywhere, `git tag vX.Y.Z && git push origin vX.Y.Z`
+  — publish.yml auto-uploads via OIDC, no stored token. (twine no longer needed; the old
+  `--disable-progress-bar` note was only because twine's rich bar crashes on gbk.)
 
 ### B-SEC. Revoke the leaked PyPI API token  [S] (needs human; owner previously declined)
 - **Goal:** revoke the plaintext PyPI token that appeared in a prior session's chat.
