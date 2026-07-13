@@ -131,6 +131,9 @@ def build_suite():
     suite.append(Test("test_fx_contract (19 fx x sizes)",
                       [PY, str(TESTS / "test_fx_contract.py")], ROOT, 120,
                       optional=True))
+    suite.append(Test("test_doc_counts (docs match code, anti-drift)",
+                      [PY, str(TESTS / "test_doc_counts.py")], ROOT, 60,
+                      optional=True))
     suite.append(Test("_sandbox_fuzz_core (pure-memory fuzz)",
                       [PY, str(TESTS / "_sandbox_fuzz_core.py")], ROOT, 180,
                       optional=True))
