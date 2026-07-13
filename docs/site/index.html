@@ -219,17 +219,39 @@
     60%{opacity:1;transform:translateY(0) scale(1.06)}
     100%{opacity:1;transform:translateY(0) scale(1)}}
 
-  /* drive-tui menu toy — fills the fixed stage */
-  .menu{font-family:var(--mono);font-size:14px;padding:14px 16px;outline:none;
-    cursor:pointer;height:100%}
-  .menu:focus{box-shadow:inset 0 0 0 2px var(--coral)}
-  .mtitle{color:var(--on-dark-soft);font-size:12px;margin-bottom:10px}
-  .mrow{color:var(--on-dark-soft);padding:3px 0;transition:color .18s ease}
-  .mrow .arrow{opacity:0;color:var(--teal);margin-right:8px;
-    transition:opacity .18s ease}
-  .mrow.sel{color:var(--fg)}
-  .mrow.sel .arrow{opacity:1}
-  .mrow.done{color:var(--grn)}
+  /* drive-tui menu toy — faithful Claude Code slash-command menu (nested).
+     Colors are Claude Code's real dark-theme tokens. */
+  .cc-menu{--cc-suggestion:rgb(177,185,249);--cc-success:rgb(78,186,101);
+    --cc-inactive:rgb(153,153,153);--cc-claude:rgb(215,119,87);
+    --cc-warning:rgb(255,193,7);--cc-error:rgb(255,107,128);
+    height:100%;padding:12px 14px;outline:none;font-family:var(--mono);
+    font-size:13px;line-height:1.55;color:var(--on-dark);cursor:pointer;
+    display:flex;flex-direction:column;overflow:hidden}
+  .cc-menu:focus{box-shadow:inset 0 0 0 2px var(--coral)}
+  .cc-title{color:var(--cc-claude);font-weight:600;margin-bottom:2px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cc-sub{color:var(--cc-inactive);font-size:11px;margin-bottom:8px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cc-rows{flex:1 1 auto;overflow:hidden}
+  .cc-row{display:flex;align-items:baseline;gap:7px;padding:1px 5px;
+    border-radius:4px;white-space:nowrap;transition:background .1s}
+  .cc-mk{flex:0 0 auto;width:1ch;color:transparent}
+  .cc-row.sel{background:rgba(78,186,101,.12)}
+  .cc-row.sel .cc-mk{color:var(--cc-success)}
+  .cc-row.sel .cc-label{color:var(--cc-success)}
+  .cc-cmd{flex:0 0 auto;color:var(--cc-claude)}
+  .cc-label{flex:0 0 auto;color:var(--on-dark)}
+  .cc-desc{flex:1 1 auto;color:var(--cc-suggestion);overflow:hidden;
+    text-overflow:ellipsis;font-size:12px}
+  .cc-val{flex:0 0 auto;margin-left:auto;padding-left:10px;color:var(--cc-inactive);
+    font-variant-numeric:tabular-nums}
+  .cc-caret{flex:0 0 auto;color:var(--cc-inactive)}
+  .cc-foot{margin-top:8px;padding-top:7px;border-top:1px solid #2a2622;
+    color:var(--cc-inactive);font-size:11px;white-space:nowrap;overflow:hidden}
+  .cc-result{flex:1 1 auto;white-space:pre-wrap;color:var(--cc-success);
+    font-size:12.5px;padding:4px 2px}
+  .cc-result .cc-warn{color:var(--cc-warning)}
+  .cc-effort{color:var(--cc-inactive);font-size:11px;margin-left:2ch}
 
   /* tui-ui widgets toy — fixed-width mono cells so bars never shift siblings */
   .widgets{font-family:var(--mono);font-size:13px;padding:16px;height:100%;
@@ -397,18 +419,12 @@
       <div class="toy-stage"><canvas id="fx-canvas"></canvas></div>
       <div class="toy-cap">A pure frame producer, 30fps — the fx engine idea.</div>
     </div>
-    <!-- toy 2: drive a menu with real keys -->
+    <!-- toy 2: drive the real Claude Code slash-command menu (nested) -->
     <div class="toy">
       <div class="toy-head"><span class="toy-k">DRIVE-TUI</span>
-        <span class="toy-hint">↑ ↓ Enter — or click</span></div>
-      <div class="toy-stage"><div class="menu" id="drive-menu" tabindex="0">
-        <div class="mtitle">Select a deploy target</div>
-        <div class="mrow"><span class="arrow">❯</span> production</div>
-        <div class="mrow"><span class="arrow">❯</span> staging</div>
-        <div class="mrow"><span class="arrow">❯</span> preview</div>
-        <div class="mrow"><span class="arrow">❯</span> local</div>
-      </div></div>
-      <div class="toy-cap" id="drive-log">perceive → the highlighted row is <b>production</b></div>
+        <span class="toy-hint">↑↓ · Enter/→ open · Esc/← back</span></div>
+      <div class="toy-stage"><div class="cc-menu" id="drive-menu" tabindex="0"></div></div>
+      <div class="toy-cap" id="drive-log">A real Claude Code menu — drive it like the AI does.</div>
     </div>
     <!-- toy 3: tui-ui widgets, sub-cell precision -->
     <div class="toy">
@@ -494,5 +510,6 @@
 </div></footer>
 <script src="assets/app.js"></script>
 <script src="assets/toys.js"></script>
+<script src="assets/ccmenu.js"></script>
 </body>
 </html>

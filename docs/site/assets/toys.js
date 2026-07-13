@@ -185,53 +185,6 @@
     });
   }
 
-  // ============ TOY 2: drive-tui menu ============
-  window._initDrive = function () {
-    var menu = document.getElementById("drive-menu");
-    var log = document.getElementById("drive-log");
-    if (!menu) return;
-    var rows = [].slice.call(menu.querySelectorAll(".mrow"));
-    var labels = rows.map(function (r) { return r.textContent.trim(); });
-    var sel = 0;
-    // Only the changed word (wrapped in <b>) animates — the CSS wordPop keyframe
-    // fires whenever the <b> element is re-created here. Static text stays put.
-    var lastHtml = "";
-    function setLog(html) {
-      if (html === lastHtml) return;
-      lastHtml = html;
-      log.innerHTML = html;
-    }
-    function render() {
-      rows.forEach(function (r, i) {
-        r.classList.toggle("sel", i === sel);
-        r.classList.remove("done");
-      });
-      setLog("perceive → the highlighted row is <b>" + labels[sel] + "</b>");
-    }
-    function move(d) {
-      sel = (sel + d + rows.length) % rows.length;
-      rows.forEach(function (r, i) { r.classList.toggle("sel", i === sel); r.classList.remove("done"); });
-      setLog("act → sent <b>" + (d < 0 ? "Up" : "Down")
-        + "</b> · highlight on <b>" + labels[sel] + "</b>");
-    }
-    function commit() {
-      rows[sel].classList.add("done");
-      setLog("confirm → deploying to <b>" + labels[sel] + "</b> ✓");
-    }
-    render();
-    menu.addEventListener("keydown", function (e) {
-      if (e.key === "ArrowDown") { move(1); e.preventDefault(); }
-      else if (e.key === "ArrowUp") { move(-1); e.preventDefault(); }
-      else if (e.key === "Enter") { commit(); e.preventDefault(); }
-    });
-    rows.forEach(function (r, i) {
-      r.addEventListener("click", function () { sel = i; render(); commit(); });
-    });
-    menu.addEventListener("focus", function () {
-      setLog("focused — press <b>↑ ↓</b> then <b>Enter</b>");
-    });
-  };
-
   // ============ TOY 3: tui-ui sub-cell widgets ============
   window._initWidgets = function () {
     var slider = document.getElementById("w-slider");
@@ -314,7 +267,6 @@
   // TOYS-CONTINUE
   window.addEventListener("DOMContentLoaded", function () {
     initFx();
-    if (window._initDrive) window._initDrive();
     if (window._initWidgets) window._initWidgets();
   });
 })();
