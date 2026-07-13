@@ -292,7 +292,8 @@
     padding:12px 16px;background:var(--dark-elev);border-top:1px solid #3a352e;
     text-align:center}
   .gifs{display:grid;grid-template-columns:repeat(2,1fr);gap:22px}
-  @media(max-width:760px){.gifs{grid-template-columns:1fr}}
+  .gifs.gifs-3{grid-template-columns:repeat(3,1fr)}
+  @media(max-width:760px){.gifs,.gifs.gifs-3{grid-template-columns:1fr}}
   .gifs figure{margin:0;border-radius:12px;overflow:hidden;
     border:1px solid var(--hairline);background:var(--dark);
     display:flex;flex-direction:column}
@@ -317,7 +318,7 @@
 </div></nav>
 
 <header class="hero"><div class="wrap">
-  <div class="kicker"><span class="p">ai&gt;</span> grok를 조작해 인사하고 최저 등급으로 전환</div>
+  <div class="kicker"><span class="p">ai&gt;</span> agent CLI를 조작하고 메뉴를 탐색하고 결과를 확인</div>
   <h1>어떤 터미널 프로그램이든<br><em>사람처럼</em> 조작.</h1>
   <p class="lede">사람이 AI에게 할 일을 지시합니다. 하지만 메뉴, 스피너, 비밀번호
     입력란, 에이전트 CLI는 단순한 파이프에는 보이지 않습니다. <b>SmartCLI는 모델이
@@ -329,8 +330,8 @@
   </div>
   <div class="meta">pip install smartcli-toolkit &nbsp;·&nbsp; Windows · POSIX &nbsp;·&nbsp; MIT</div>
   <div class="demo"><div id="live-term">
-    <noscript><img src="assets/demo.svg" alt="SmartCLI driving the grok TUI: perceive, act, navigate, confirm"></noscript>
-    <img src="assets/demo.svg" alt="SmartCLI driving the grok TUI" class="lt-fallback">
+    <noscript><img src="assets/demo.svg" alt="SmartCLI가 agent CLI의 TUI를 조작: 인식, 조작, 탐색, 확인"></noscript>
+    <img src="assets/demo.svg" alt="SmartCLI driving an agent CLI TUI" class="lt-fallback">
   </div></div>
 </div></header>
 
@@ -345,7 +346,7 @@
   <div class="cmp">
     <div class="term bad">
       <div class="bar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span>&nbsp; 일반 서브프로세스 / 파이프</div>
-      <div class="body"><span class="k-dim">$ grok | cat</span>
+      <div class="body"><span class="k-dim">$ agent-cli | cat</span>
 <span class="k-dim">  (대기 중…)</span>
 
 
@@ -359,11 +360,11 @@
       <div class="bar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span>&nbsp; drive-tui — 인식 → 조작</div>
       <div class="body"><span class="k-dim">[screen 30x100] cursor=r25c6 [stable]</span>
   <span class="k-cor">╭─────────────────────────╮</span>
-  <span class="k-cor">│</span> <span class="k-teal">Grok Build Beta  0.2.99</span> <span class="k-cor">│</span>
+  <span class="k-cor">│</span> <span class="k-teal">Agent CLI  Beta 0.2</span> <span class="k-cor">│</span>
   <span class="k-cor">│</span> New worktree     ctrl+w <span class="k-cor">│</span>
   <span class="k-cor">╰─────────────────────────╯</span>
   <span class="k-teal">❯</span> keys: Down Down <span class="k-grn">✓</span>
-  <span class="k-amb">Grok 4.5 (low)</span> · switched <span class="k-grn">✓</span></div>
+  <span class="k-amb">model tier: low</span> · switched <span class="k-grn">✓</span></div>
     </div>
   </div>
   <div class="verdict"><span class="x">✗ 앞을 못 보고 멈춤</span> &nbsp;→&nbsp;

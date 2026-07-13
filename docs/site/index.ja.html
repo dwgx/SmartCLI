@@ -292,7 +292,8 @@
     padding:12px 16px;background:var(--dark-elev);border-top:1px solid #3a352e;
     text-align:center}
   .gifs{display:grid;grid-template-columns:repeat(2,1fr);gap:22px}
-  @media(max-width:760px){.gifs{grid-template-columns:1fr}}
+  .gifs.gifs-3{grid-template-columns:repeat(3,1fr)}
+  @media(max-width:760px){.gifs,.gifs.gifs-3{grid-template-columns:1fr}}
   .gifs figure{margin:0;border-radius:12px;overflow:hidden;
     border:1px solid var(--hairline);background:var(--dark);
     display:flex;flex-direction:column}
@@ -317,7 +318,7 @@
 </div></nav>
 
 <header class="hero"><div class="wrap">
-  <div class="kicker"><span class="p">ai&gt;</span> grok を操作し、あいさつして、最下位のティアに切り替える</div>
+  <div class="kicker"><span class="p">ai&gt;</span> agent CLI を操作し、メニューをたどり、結果を確認する</div>
   <h1>あらゆるターミナル<br>プログラムを<em>人間のように</em>操作する。</h1>
   <p class="lede">人が AI に指示を出す。けれどメニューやスピナー、パスワード入力欄、
     そしてエージェント CLI は、素のパイプからは見えません。<b>SmartCLI はモデルが
@@ -328,8 +329,8 @@
   </div>
   <div class="meta">pip install smartcli-toolkit &nbsp;·&nbsp; Windows · POSIX &nbsp;·&nbsp; MIT</div>
   <div class="demo"><div id="live-term">
-    <noscript><img src="assets/demo.svg" alt="SmartCLI が grok の TUI を操作する様子: 認識、実行、ナビゲート、確認"></noscript>
-    <img src="assets/demo.svg" alt="SmartCLI が grok の TUI を操作する様子" class="lt-fallback">
+    <noscript><img src="assets/demo.svg" alt="SmartCLI が agent CLI の TUI を操作する様子: 認識、実行、ナビゲート、確認"></noscript>
+    <img src="assets/demo.svg" alt="SmartCLI が agent CLI の TUI を操作する様子" class="lt-fallback">
   </div></div>
 </div></header>
 
@@ -344,7 +345,7 @@
   <div class="cmp">
     <div class="term bad">
       <div class="bar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span>&nbsp; 素の subprocess / pipe</div>
-      <div class="body"><span class="k-dim">$ grok | cat</span>
+      <div class="body"><span class="k-dim">$ agent-cli | cat</span>
 <span class="k-dim">  (待機中…)</span>
 
 
@@ -358,11 +359,11 @@
       <div class="bar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span>&nbsp; drive-tui — 認識 → 実行</div>
       <div class="body"><span class="k-dim">[screen 30x100] cursor=r25c6 [stable]</span>
   <span class="k-cor">╭─────────────────────────╮</span>
-  <span class="k-cor">│</span> <span class="k-teal">Grok Build Beta  0.2.99</span> <span class="k-cor">│</span>
+  <span class="k-cor">│</span> <span class="k-teal">Agent CLI  Beta 0.2</span> <span class="k-cor">│</span>
   <span class="k-cor">│</span> New worktree     ctrl+w <span class="k-cor">│</span>
   <span class="k-cor">╰─────────────────────────╯</span>
   <span class="k-teal">❯</span> keys: Down Down <span class="k-grn">✓</span>
-  <span class="k-amb">Grok 4.5 (low)</span> · 切替済み <span class="k-grn">✓</span></div>
+  <span class="k-amb">model tier: low</span> · 切替済み <span class="k-grn">✓</span></div>
     </div>
   </div>
   <div class="verdict"><span class="x">✗ 目が見えず、ハング</span> &nbsp;→&nbsp;

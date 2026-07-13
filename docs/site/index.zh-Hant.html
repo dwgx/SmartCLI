@@ -293,7 +293,8 @@
     padding:12px 16px;background:var(--dark-elev);border-top:1px solid #3a352e;
     text-align:center}
   .gifs{display:grid;grid-template-columns:repeat(2,1fr);gap:22px}
-  @media(max-width:760px){.gifs{grid-template-columns:1fr}}
+  .gifs.gifs-3{grid-template-columns:repeat(3,1fr)}
+  @media(max-width:760px){.gifs,.gifs.gifs-3{grid-template-columns:1fr}}
   .gifs figure{margin:0;border-radius:12px;overflow:hidden;
     border:1px solid var(--hairline);background:var(--dark);
     display:flex;flex-direction:column}
@@ -318,7 +319,7 @@
 </div></nav>
 
 <header class="hero"><div class="wrap">
-  <div class="kicker"><span class="p">ai&gt;</span> 操控 grok,打聲招呼,切換到最低階層</div>
+  <div class="kicker"><span class="p">ai&gt;</span> 操控 agent CLI,操作它的選單,確認結果</div>
   <h1>操控任何終端機程式<br><em>像真人一樣</em>。</h1>
   <p class="lede">人告訴 AI 該做什麼。但選單、載入動畫、密碼
     欄位與各種 agent CLI,對一條單純的管線來說全都是看不見的。<b>SmartCLI 讓
@@ -330,8 +331,8 @@
   </div>
   <div class="meta">pip install smartcli-toolkit &nbsp;·&nbsp; Windows · POSIX &nbsp;·&nbsp; MIT</div>
   <div class="demo"><div id="live-term">
-    <noscript><img src="assets/demo.svg" alt="SmartCLI driving the grok TUI: perceive, act, navigate, confirm"></noscript>
-    <img src="assets/demo.svg" alt="SmartCLI driving the grok TUI" class="lt-fallback">
+    <noscript><img src="assets/demo.svg" alt="SmartCLI 操控 agent CLI 的 TUI:感知、行動、導覽、確認"></noscript>
+    <img src="assets/demo.svg" alt="SmartCLI driving an agent CLI TUI" class="lt-fallback">
   </div></div>
 </div></header>
 
@@ -346,7 +347,7 @@
   <div class="cmp">
     <div class="term bad">
       <div class="bar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span>&nbsp; 一般子行程 / 管線</div>
-      <div class="body"><span class="k-dim">$ grok | cat</span>
+      <div class="body"><span class="k-dim">$ agent-cli | cat</span>
 <span class="k-dim">  (waiting…)</span>
 
 
@@ -360,11 +361,11 @@
       <div class="bar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span>&nbsp; drive-tui —— 感知 → 行動</div>
       <div class="body"><span class="k-dim">[screen 30x100] cursor=r25c6 [stable]</span>
   <span class="k-cor">╭─────────────────────────╮</span>
-  <span class="k-cor">│</span> <span class="k-teal">Grok Build Beta  0.2.99</span> <span class="k-cor">│</span>
+  <span class="k-cor">│</span> <span class="k-teal">Agent CLI  Beta 0.2</span> <span class="k-cor">│</span>
   <span class="k-cor">│</span> New worktree     ctrl+w <span class="k-cor">│</span>
   <span class="k-cor">╰─────────────────────────╯</span>
   <span class="k-teal">❯</span> keys: Down Down <span class="k-grn">✓</span>
-  <span class="k-amb">Grok 4.5 (low)</span> · switched <span class="k-grn">✓</span></div>
+  <span class="k-amb">model tier: low</span> · switched <span class="k-grn">✓</span></div>
     </div>
   </div>
   <div class="verdict"><span class="x">✗ 看不見又卡住</span> &nbsp;→&nbsp;
