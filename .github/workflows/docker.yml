@@ -33,6 +33,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Buildx
+        # The default docker driver can't export a gha cache; buildx's
+        # docker-container driver can. Required for the cache-to/from below.
+        uses: docker/setup-buildx-action@v3
+
       - name: Log in to GHCR
         # Skip login (and push) on pull_request — the token is read-only there.
         if: github.event_name != 'pull_request'
