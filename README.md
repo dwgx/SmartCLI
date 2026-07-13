@@ -1,4 +1,8 @@
+<!-- Language: English | [简体中文](docs/i18n/README.zh-Hans.md) | [繁體中文](docs/i18n/README.zh-Hant.md) | [日本語](docs/i18n/README.ja.md) | [한국어](docs/i18n/README.ko.md) -->
+
 # SmartCLI
+
+*Read this in: **English** · [简体中文](docs/i18n/README.zh-Hans.md) · [繁體中文](docs/i18n/README.zh-Hant.md) · [日本語](docs/i18n/README.ja.md) · [한국어](docs/i18n/README.ko.md)*
 
 **A local Python toolkit for driving, perceiving, and rendering the terminal — three agent skills over one pluggable PTY + `pyte` core.**
 
