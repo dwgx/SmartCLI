@@ -81,3 +81,10 @@ jobs:
         # No username/password/token: authentication is handled entirely by OIDC
         # Trusted Publishing (see the one-time setup comment at the top).
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # Skip files already on PyPI instead of erroring. This makes a
+          # workflow_dispatch re-run on an already-published version succeed
+          # (it verifies the OIDC handshake without failing on duplicate files),
+          # and is harmless for a real release (a new version's files don't exist
+          # yet, so nothing is skipped).
+          skip-existing: true
