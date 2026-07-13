@@ -28,12 +28,14 @@ import tempfile
 import time
 from pathlib import Path
 
-# --- make smartcli_core importable from the repo root regardless of cwd ------
-_REPO_ROOT = Path(__file__).resolve().parents[3]
-_env_root = os.environ.get("SMARTCLI_ROOT")
-for _p in ([_env_root] if _env_root else []) + [str(_REPO_ROOT)]:
-    if _p and _p not in sys.path:
-        sys.path.insert(0, _p)
+# --- locate smartcli_core wherever this skill folder ended up ----------------
+# Robust discovery (repo checkout / standalone skill / plugin drop-in / pip):
+# see smartcli_bootstrap.locate_core. Makes "drop the folder in and it works"
+# real instead of assuming a fixed repo-root depth.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import smartcli_bootstrap  # noqa: E402
+
+smartcli_bootstrap.locate_core()
 
 from smartcli_core import PtySession  # noqa: E402
 
@@ -404,6 +406,10 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="tui.py",
         description="Drive interactive TUI programs via smartcli_core.")
+    p.add_argument("--install-deps", action="store_true",
+                   help="pip-install any missing runtime deps (pyte/pywinpty) "
+                        "now, then continue; otherwise missing deps are only "
+                        "reported. Same as SMARTCLI_AUTO_INSTALL=1.")
     sub = p.add_subparsers(dest="command", required=True)
 
     sp = sub.add_parser("start", help="spawn a program in a detached persistent session")
@@ -465,6 +471,9 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--rows", type=int, default=30)
     sp.set_defaults(func=cmd_run)
 
+    sp = sub.add_parser("doctor", help="report smartcli_core location + dependency status")
+    sp.set_defaults(func=cmd_doctor)
+
     sp = sub.add_parser("_daemon", help=argparse.SUPPRESS)
     sp.add_argument("--id", required=True)
     sp.add_argument("--cmd", required=True)
@@ -476,8 +485,30 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
+def cmd_doctor(args) -> int:
+    """Print where smartcli_core resolved from and whether deps are present."""
+    try:
+        where = smartcli_bootstrap.locate_core()
+    except ImportError as exc:
+        print(f"smartcli_core: NOT FOUND\n  {exc}")
+        return 1
+    print(f"smartcli_core: {where or 'installed (pip)'}")
+    missing = smartcli_bootstrap._missing_deps()
+    if missing:
+        print(f"missing deps: {', '.join(missing)}")
+        print(f"  install: {smartcli_bootstrap._install_cmd(missing)}")
+        return 1
+    print("dependencies: all present")
+    return 0
+
+
 def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
+    # Offer to install missing runtime deps before doing work that needs them.
+    # 'doctor' reports on its own; '_daemon' inherits the parent's environment.
+    if getattr(args, "command", None) not in ("doctor", "_daemon"):
+        smartcli_bootstrap.ensure_deps(
+            auto_install=True if getattr(args, "install_deps", False) else None)
     return args.func(args)
 
 

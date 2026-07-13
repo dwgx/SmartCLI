@@ -121,6 +121,23 @@ def build_suite():
                       [PY, str(TESTS / "test_readiness.py")], ROOT, 120,
                       optional=True))
 
+    # --- deterministic pure-memory gates (fast, zero-process) -------------
+    suite.append(Test("test_vendor_sync (drive-tui _vendor == canonical)",
+                      [PY, str(TESTS / "test_vendor_sync.py")], ROOT, 60,
+                      optional=True))
+    suite.append(Test("test_degenerate_inputs (regression locks)",
+                      [PY, str(TESTS / "test_degenerate_inputs.py")], ROOT, 60,
+                      optional=True))
+    suite.append(Test("test_fx_contract (18 fx x sizes)",
+                      [PY, str(TESTS / "test_fx_contract.py")], ROOT, 120,
+                      optional=True))
+    suite.append(Test("_sandbox_fuzz_core (pure-memory fuzz)",
+                      [PY, str(TESTS / "_sandbox_fuzz_core.py")], ROOT, 180,
+                      optional=True))
+    suite.append(Test("_sandbox_daemon_robustness (daemon transport)",
+                      [PY, str(TESTS / "_sandbox_daemon_robustness.py")], ROOT, 90,
+                      optional=True))
+
     return suite
 
 
