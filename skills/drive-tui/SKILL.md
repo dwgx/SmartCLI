@@ -138,10 +138,25 @@ Combos: `C-c` / `^C` (Ctrl+C), `M-x` (Alt+x). Anything else is sent literally.
 ## Constraints / gotchas
 - Never blind-`sleep` to wait for output — use `wait` / `wait-regex`; they pump the PTY and have hard timeouts.
 - Always re-snapshot after acting; the snapshot before your keystroke is stale.
-- Navigation sequences are standard xterm/VT100 (normal cursor mode). An app in application-cursor-keys mode may need different Up/Down bytes — if arrows don't move the selection, re-snapshot and try `keys Down` once more or use the app's letter/number shortcuts.
+- Arrow/nav keys are **adaptive**: `send_keys` reads the live screen's cursor-key mode and emits SS3 (`ESC O A`) when the program has enabled DECCKM (application cursor keys — most full-screen/curses TUIs), else CSI (`ESC [ A`). This is auto — you just send `keys Up`. (Verified on real Linux ncurses; before this, CSI-only arrows silently did nothing in DECCKM apps.) If a rare app still ignores arrows, re-snapshot and fall back to its letter/number shortcuts.
 - The daemon binds `127.0.0.1` only — local process control, no network exposure.
 - Paths above are relative to this skill's folder; run the script by its path from the repo root.
 - Deeper API details: read `references/core_api.md` only when you need field-level specifics.
+
+## Known limitations & self-improvement (read when something doesn't work)
+
+This skill is honest about its gaps, and it is **built to be extended by the AI using it**. If you hit a wall, don't just work around it silently — research it, fix it if you can verify the fix, and record what you learned so the next run benefits.
+
+**Where the gaps are tracked:** `references/LIMITATIONS.md` — a short, living log of known-unfixed edges, environment caveats, and fixes that have already landed (with how each was verified). **Read it first when a program misbehaves** — your problem may already be solved or explained there.
+
+**The self-improvement loop (when you hit a genuine limitation):**
+1. **Reproduce narrowly.** Drive the failing case with the smallest command + snapshot that shows the wrong behavior. Capture the exact bytes/screen, not a guess.
+2. **Research the mechanism.** Check `references/LIMITATIONS.md` and the knowledge graph (`knowledge/INDEX.md`) first. If it's a terminal-protocol issue, the cause is usually a mode (DECCKM, bracketed paste, alt-screen) or a timing gap — verify with a tiny probe, don't assume.
+3. **Verify on the real path — never head-canon.** A fix is only real if you drove the actual program and saw it work (a green preview or a mocked backend proves nothing). If the fix touches `smartcli_core`, it is DO-NOT-MODIFY-except-under-verification: prove it on the real run path, and re-run the drive-probe suite (`tests/_drive_probe*.py`, `tests/_tui_cli_probe.py`) to show zero regression. On a non-Windows host, also run `tests/_sandbox_posix_backend.py`.
+4. **Record it.** Append a dated entry to `references/LIMITATIONS.md`: the symptom, the root cause, the fix (or "still open, with reason"), and exactly how you verified it. One honest paragraph beats a vague TODO.
+5. **Then continue using the skill** with the fix in place.
+
+The point: the skill should get *more* capable each time it's pushed against a new program, and every future run inherits that — the AI's findings are written back into the tool, not lost in one conversation.
 
 ## Knowledge base — look before you build
 Before scripting a new interaction or pattern, consult the SmartCLI knowledge graph at
