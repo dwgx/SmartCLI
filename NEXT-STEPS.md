@@ -52,9 +52,18 @@ non-negotiable and overrides any shortcut that looks faster.
 
 These are fully executable and verifiable on the current Windows machine.
 
-### A1. Ship a `py.typed` marker in smartcli_core  [S]
-- **Goal:** make smartcli_core a PEP 561 typed package so downstream users get type
-  checking against the public API.
+### ~~A1. Ship a `py.typed` marker in smartcli_core~~  [S] — DONE 2026-07-13
+- **Result:** created `smartcli_core/py.typed` (empty PEP 561 marker) + added
+  `[tool.setuptools.package-data] smartcli_core = ["py.typed"]` to pyproject.toml.
+  Verified on the REAL build path: `python -m build --wheel` then inspected the wheel
+  zip — `smartcli_core/py.typed` IS inside the built wheel (not just the source tree).
+  mypy not installed on this box so the optional downstream check was skipped; the
+  wheel-contents proof is the authoritative PEP 561 check. run_all.py still 15/15.
+  Build artifacts cleaned. **NOT version-bumped / NOT published** — bump all six
+  version sites together to 0.1.3 only when the user cuts the next release (bumping
+  the repo ahead of PyPI would break the "six sites == what's on PyPI" invariant).
+- *(original task, for reference)* **Goal:** make smartcli_core a PEP 561 typed
+  package so downstream users get type checking against the public API.
 - **Why it matters:** cheapest A-grade signal; every serious library ships it. VERIFIED
   MISSING today (no smartcli_core/py.typed, no package-data in pyproject.toml).
 - **First step:** create empty file `smartcli_core/py.typed`; add package-data to
