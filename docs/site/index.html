@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SmartCLI — drive any terminal program as a human</title>
+<meta name="description" content="Three agent skills over one pluggable PTY + pyte core: drive interactive TUIs, design terminal visual effects, and render cell-accurate terminal UIs.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* Anthropic warm-editorial palette (authoritative brand tokens) */
+    --canvas:#faf9f5; --surface-soft:#f5f0e8; --surface-card:#efe9de;
+    --cream-strong:#e8e0d2; --dark:#181715; --dark-elev:#252320;
+    --hairline:#e6dfd8; --hairline-soft:#ebe6df;
+    --coral:#cc785c; --coral-active:#a9583e; --teal:#5db8a6; --amber:#e8a55a;
+    --ink:#141413; --body-strong:#252523; --body:#3d3d3a;
+    --muted:#6c6a64; --muted-soft:#8e8b82; --on-dark:#faf9f5; --on-dark-soft:#a09d96;
+    --serif:'Cormorant Garamond',Georgia,serif;
+    --sans:'Inter',-apple-system,'Segoe UI',sans-serif;
+    --mono:'JetBrains Mono','SF Mono',Consolas,monospace;
+    --maxw:1080px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:var(--canvas);color:var(--body);font-family:var(--sans);
+    font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased}
+  /* custom themed scrollbar (page + any overflow), matching the warm palette */
+  html{scrollbar-width:thin;scrollbar-color:var(--coral) var(--surface-soft)}
+  ::-webkit-scrollbar{width:12px;height:12px}
+  ::-webkit-scrollbar-track{background:var(--surface-soft)}
+  ::-webkit-scrollbar-thumb{background:var(--cream-strong);border-radius:8px;
+    border:3px solid var(--surface-soft);background-clip:padding-box}
+  ::-webkit-scrollbar-thumb:hover{background:var(--coral);background-clip:padding-box}
+  ::-webkit-scrollbar-corner{background:var(--surface-soft)}
+  /* dark bands get a dark-tinted scrollbar for local overflow */
+  .band-dark ::-webkit-scrollbar-track{background:var(--dark-elev)}
+  .band-dark ::-webkit-scrollbar-thumb{background:#3a352e;
+    border:3px solid var(--dark-elev);background-clip:padding-box}
+  .band-dark ::-webkit-scrollbar-thumb:hover{background:var(--coral);
+    background-clip:padding-box}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 32px}
+  a{color:var(--coral);text-decoration:none}
+  a:hover{color:var(--coral-active)}
+
+  /* serif display — always weight 400/500, negative tracking, never bold */
+  h1,h2,h3{font-family:var(--serif);font-weight:400;color:var(--ink);
+    letter-spacing:-0.5px;line-height:1.1}
+  h1{font-size:clamp(44px,7vw,76px);letter-spacing:-1.5px;line-height:1.04}
+  h1 em,h2 em{font-style:italic;color:var(--coral)}
+  h2{font-size:clamp(30px,4.5vw,46px);letter-spacing:-1px}
+  h3{font-size:22px;letter-spacing:-0.3px}
+  .eyebrow{font-family:var(--sans);font-size:12px;font-weight:500;
+    letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)}
+
+  /* nav */
+  nav{position:sticky;top:0;z-index:50;background:rgba(250,249,245,.82);
+    backdrop-filter:blur(10px);border-bottom:1px solid var(--hairline)}
+  nav .wrap{display:flex;align-items:center;justify-content:space-between;height:64px}
+  .brand{font-family:var(--serif);font-size:23px;color:var(--ink);letter-spacing:-.5px}
+  .brand b{font-weight:500;color:var(--coral)}
+  .navlinks{display:flex;gap:4px;align-items:center;font-size:14px;flex-wrap:wrap}
+  .navlinks a{padding:6px 11px;border-radius:6px;color:var(--muted);font-weight:500}
+  .navlinks a.active{color:var(--ink);background:var(--surface-card)}
+  .navlinks a:hover{color:var(--ink);background:var(--surface-soft)}
+
+  /* hero */
+  header.hero{padding:88px 0 56px;text-align:center}
+  .kicker{font-family:var(--mono);font-size:13px;color:var(--muted-soft);
+    margin-bottom:26px}
+  .kicker .p{color:var(--coral)}
+  h1{margin-bottom:26px}
+  .lede{font-size:20px;line-height:1.55;color:var(--body);max-width:660px;
+    margin:0 auto 34px}
+  .lede b{color:var(--ink);font-weight:600}
+  .cta{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+  .btn{padding:13px 24px;border-radius:8px;font-family:var(--sans);font-size:14px;
+    font-weight:500;transition:.15s;border:1px solid transparent}
+  .btn.primary{background:var(--coral);color:#fff}
+  .btn.primary:hover{background:var(--coral-active);color:#fff}
+  .btn.ghost{border-color:var(--hairline);color:var(--body-strong);background:var(--canvas)}
+  .btn.ghost:hover{border-color:var(--muted);background:var(--surface-soft)}
+  .meta{margin-top:22px;font-size:13px;color:var(--muted-soft);font-family:var(--mono)}
+
+  .demo{margin:52px auto 0;max-width:720px}
+  .demo img{width:100%;height:auto;border-radius:14px;display:block;
+    border:1px solid var(--hairline);box-shadow:0 24px 60px #18171512}
+
+  /* sections + banded surfaces (alternate cream / soft / dark) */
+  section{padding:84px 0}
+  .band-soft{background:var(--surface-soft);border-top:1px solid var(--hairline);
+    border-bottom:1px solid var(--hairline)}
+  .band-dark{background:var(--dark);color:var(--on-dark)}
+  .band-dark h2,.band-dark h3{color:var(--on-dark)}
+  .band-dark .eyebrow{color:var(--on-dark-soft)}
+  .center{text-align:center}
+  .sub{font-size:17px;color:var(--muted);max-width:600px;margin:12px auto 0}
+  .band-dark .sub{color:var(--on-dark-soft)}
+  .sec-head{margin-bottom:44px}
+  .sec-head .eyebrow{display:block;margin-bottom:12px}
+
+  /* before / with — two terminal cards */
+  .cmp{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+  @media(max-width:760px){.cmp{grid-template-columns:1fr}}
+  .term{border-radius:12px;overflow:hidden;border:1px solid var(--hairline);
+    background:var(--dark)}
+  .term .bar{display:flex;align-items:center;gap:7px;padding:11px 15px;
+    background:var(--dark-elev);font-size:12px;color:var(--on-dark-soft);
+    font-family:var(--mono)}
+  .dot{width:11px;height:11px;border-radius:50%}
+  .d1{background:#e06c60}.d2{background:#e8a55a}.d3{background:#5db872}
+  .term .body{padding:18px 20px;font-family:var(--mono);font-size:13px;
+    line-height:1.65;min-height:220px;white-space:pre;color:var(--on-dark);
+    overflow-x:auto}
+  .term.bad{opacity:.96}
+  .term.good{border-color:var(--teal)}
+  .k-dim{color:var(--on-dark-soft)}.k-cor{color:var(--coral)}
+  .k-teal{color:var(--teal)}.k-grn{color:#7bd88f}.k-amb{color:var(--amber)}
+  .k-fg{color:var(--on-dark)}
+  .verdict{text-align:center;margin-top:22px;font-size:15px;color:var(--muted);
+    font-family:var(--mono)}
+  .verdict .x{color:#c64545}.verdict .ok{color:#5db872}
+
+  /* skill cards */
+  .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+  @media(max-width:820px){.cards{grid-template-columns:1fr}}
+  .card{background:var(--canvas);border:1px solid var(--hairline);
+    border-radius:12px;padding:28px;transition:.16s}
+  .card:hover{border-color:var(--coral);box-shadow:0 12px 32px #cc785c14}
+  .card .k{font-family:var(--mono);font-size:11px;color:var(--coral);
+    font-weight:500;letter-spacing:1px}
+  .card h3{margin:10px 0 12px}
+  .card p{font-size:14.5px;color:var(--muted);margin-bottom:16px;line-height:1.6}
+  .card .stat{font-family:var(--mono);font-size:12px;color:var(--body);
+    border-top:1px solid var(--hairline);padding-top:14px}
+
+  /* coral callout — full-bleed (Anthropic uses coral generously here) */
+  .callout{background:var(--coral);color:#fff;border-radius:16px;
+    padding:56px 40px;text-align:center}
+  .callout h2{color:#fff}
+  .callout .sub{color:#fff;opacity:.9}
+  .chiprow{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:24px}
+  .chip{font-family:var(--mono);font-size:13px;padding:8px 15px;border-radius:8px;
+    background:#ffffff1a;border:1px solid #ffffff33;color:#fff}
+  .chip b{font-weight:500}
+
+  /* install — dark band code */
+  .code{background:var(--dark-elev);border:1px solid #3a352e;border-radius:12px;
+    padding:22px 24px;font-family:var(--mono);font-size:14px;line-height:1.9;
+    color:var(--on-dark);overflow-x:auto;max-width:640px;margin:0 auto;text-align:left}
+  .code .cm{color:var(--on-dark-soft)}.code .cor{color:var(--coral)}
+  .code .teal{color:var(--teal)}
+
+  footer{border-top:1px solid var(--hairline);padding:44px 0 64px;
+    color:var(--muted);font-size:14px;text-align:center}
+  footer .brand{display:inline}
+  footer a{color:var(--body-strong);font-weight:500}
+  footer .fine{margin-top:12px;font-family:var(--mono);font-size:12px;color:var(--muted-soft)}
+
+  /* live terminal (JS-driven hero demo) */
+  #live-term{border-radius:14px;overflow:hidden;border:1px solid var(--hairline);
+    background:var(--dark);box-shadow:0 24px 60px #18171512;text-align:left}
+  .lt-fallback{width:100%;height:auto;display:block}
+  #live-term:has(.lt-bar) .lt-fallback{display:none}
+  .lt-bar{display:flex;align-items:center;gap:7px;padding:12px 16px;
+    background:var(--dark-elev);font-family:var(--mono);font-size:12px;
+    color:var(--on-dark-soft)}
+  .lt-dot{width:11px;height:11px;border-radius:50%}
+  .lt-dot.d1{background:#e06c60}.lt-dot.d2{background:#e8a55a}.lt-dot.d3{background:#5db872}
+  .lt-title{margin-left:6px}
+  .lt-screen{padding:20px 22px;font-family:var(--mono);font-size:13.5px;
+    line-height:1.7;color:var(--on-dark);min-height:266px}
+  .lt-cmd{color:var(--on-dark);margin-bottom:14px}
+  .lt-p{color:var(--coral)}
+  .lt-cursor{color:var(--coral);animation:blink 1.05s steps(1) infinite}
+  @keyframes blink{50%{opacity:0}}
+  .lt-cap{color:var(--teal);font-weight:500;margin-bottom:12px;min-height:20px;
+    padding-bottom:10px;border-bottom:1px solid #ffffff12}
+  .lt-body{white-space:pre;overflow-x:auto}
+  .lt-line{min-height:1.7em}
+
+  /* playground toys */
+  .toys{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+  @media(max-width:900px){.toys{grid-template-columns:1fr}}
+  /* the 4th toy spans the full width below the first three */
+  .toy.wide{grid-column:1/-1}
+  @media(max-width:900px){.toy.wide{grid-column:auto}}
+  /* toys are equal-height and NEVER reflow: the interactive middle is a fixed
+     height, and the variable caption reserves a fixed 2-line box. */
+  .toy{background:var(--dark-elev);border:1px solid #3a352e;border-radius:12px;
+    padding:18px;display:flex;flex-direction:column;
+    -webkit-user-select:none;user-select:none}
+  .toy-head{display:flex;align-items:center;justify-content:space-between;
+    gap:10px;margin-bottom:14px;min-height:26px;flex:none}
+  .toy-k{font-family:var(--mono);font-size:11px;letter-spacing:1px;color:var(--coral);
+    white-space:nowrap;flex:none}
+  .toy-hint{font-family:var(--mono);font-size:11px;color:var(--on-dark-soft);
+    white-space:nowrap}
+  .toy-tabs{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+  .toy-tabs button{font-family:var(--mono);font-size:11px;padding:3px 8px;
+    border-radius:6px;border:1px solid #3a352e;background:transparent;
+    color:var(--on-dark-soft);cursor:pointer;transition:.12s;white-space:nowrap}
+  .toy-tabs button.on,.toy-tabs button:hover{color:var(--dark);background:var(--amber);
+    border-color:var(--amber)}
+  /* the interactive stage: one fixed height across all three toys */
+  .toy-stage{height:198px;flex:none;border-radius:8px;background:#0d0c0a;
+    overflow:hidden}
+  #fx-canvas{width:100%;height:100%;display:block}
+  /* caption reserves two lines so a one/two-line swap can't move the layout */
+  .toy-cap{font-family:var(--mono);font-size:11.5px;color:var(--on-dark-soft);
+    margin-top:14px;line-height:1.5;height:2lh;min-height:34px;
+    display:block;overflow:hidden}
+  /* ONLY the changed word animates — a quick pop-in, the rest stays put */
+  .toy-cap b{display:inline-block;color:var(--teal);font-weight:500;
+    animation:wordPop .32s cubic-bezier(.2,.9,.25,1) both}
+  @keyframes wordPop{
+    0%{opacity:0;transform:translateY(-6px) scale(.9);filter:blur(1px)}
+    60%{opacity:1;transform:translateY(0) scale(1.06)}
+    100%{opacity:1;transform:translateY(0) scale(1)}}
+
+  /* drive-tui menu toy — fills the fixed stage */
+  .menu{font-family:var(--mono);font-size:14px;padding:14px 16px;outline:none;
+    cursor:pointer;height:100%}
+  .menu:focus{box-shadow:inset 0 0 0 2px var(--coral)}
+  .mtitle{color:var(--on-dark-soft);font-size:12px;margin-bottom:10px}
+  .mrow{color:var(--on-dark-soft);padding:3px 0;transition:color .18s ease}
+  .mrow .arrow{opacity:0;color:var(--teal);margin-right:8px;
+    transition:opacity .18s ease}
+  .mrow.sel{color:var(--fg)}
+  .mrow.sel .arrow{opacity:1}
+  .mrow.done{color:var(--grn)}
+
+  /* tui-ui widgets toy — fixed-width mono cells so bars never shift siblings */
+  .widgets{font-family:var(--mono);font-size:13px;padding:16px;height:100%;
+    display:flex;flex-direction:column;gap:14px;justify-content:center}
+  .w-row{display:flex;align-items:center;gap:10px}
+  .w-lbl{color:var(--on-dark-soft);width:58px;font-size:12px;flex:none}
+  .w-bar,.w-meter,.w-spark{color:var(--teal);white-space:pre;flex:none;
+    letter-spacing:0;font-variant-numeric:tabular-nums}
+  .w-pct{color:var(--amber);width:40px;text-align:right;flex:none;
+    font-variant-numeric:tabular-nums}
+  /* custom slider — mirrors SmartCLI's slider_track widget (rail + fill + ▲) */
+  .w-slider{position:relative;height:22px;margin-top:8px;cursor:pointer;
+    outline:none;touch-action:none;-webkit-user-select:none;user-select:none}
+  .w-slider::before{content:"";position:absolute;left:0;right:0;top:10px;height:3px;
+    border-radius:3px;background:#3a352e}
+  .w-slider-fill{position:absolute;left:0;top:10px;height:3px;border-radius:3px;
+    background:linear-gradient(90deg,var(--teal),var(--coral));width:62%;
+    transition:width .06s linear}
+  .w-slider-thumb{position:absolute;top:-1px;left:62%;transform:translateX(-50%);
+    color:var(--coral);font-size:13px;line-height:22px;
+    transition:left .06s linear,transform .12s ease,color .12s ease;
+    text-shadow:0 0 8px #cc785c88}
+  .w-slider:focus .w-slider-thumb,.w-slider.drag .w-slider-thumb{
+    transform:translateX(-50%) scale(1.35);color:var(--amber)}
+  .w-slider:focus::before{box-shadow:0 0 0 3px #cc785c22}
+
+  /* real-captures GIF gallery */
+  .gif-hero{margin:0 0 22px;border-radius:12px;overflow:hidden;
+    border:1px solid var(--hairline);background:var(--dark);max-width:720px;
+    margin-left:auto;margin-right:auto}
+  .gif-hero img{width:100%;height:auto;display:block}
+  .gif-hero figcaption{font-family:var(--mono);font-size:12px;color:var(--on-dark-soft);
+    padding:12px 16px;background:var(--dark-elev);border-top:1px solid #3a352e;
+    text-align:center}
+  .gifs{display:grid;grid-template-columns:repeat(2,1fr);gap:22px}
+  @media(max-width:760px){.gifs{grid-template-columns:1fr}}
+  .gifs figure{margin:0;border-radius:12px;overflow:hidden;
+    border:1px solid var(--hairline);background:var(--dark);
+    display:flex;flex-direction:column}
+  .gifs img{width:100%;aspect-ratio:3/2;object-fit:cover;display:block}
+  .gifs figcaption{font-family:var(--mono);font-size:12px;color:var(--on-dark-soft);
+    padding:12px 16px;background:var(--dark-elev);border-top:1px solid #3a352e}
+  /* STYLE-END */
+</style>
+</head>
+<body>
+
+<nav><div class="wrap">
+  <div class="brand">Smart<b>CLI</b></div>
+  <div class="navlinks">
+    <a class="active" href="index.html">EN</a>
+    <a href="index.zh-Hans.html">简体</a>
+    <a href="index.zh-Hant.html">繁體</a>
+    <a href="index.ja.html">日本語</a>
+    <a href="index.ko.html">한국어</a>
+    <a href="https://github.com/dwgx/SmartCLI">GitHub ↗</a>
+  </div>
+</div></nav>
+
+<header class="hero"><div class="wrap">
+  <div class="kicker"><span class="p">ai&gt;</span> drive grok, say hi, switch to the lowest tier</div>
+  <h1>Drive any terminal<br>program <em>as a human</em>.</h1>
+  <p class="lede">A person tells an AI what to do. But menus, spinners, password
+    fields, and agent CLIs are invisible to a plain pipe. <b>SmartCLI lets the
+    model perceive the screen, press keys, and confirm the result</b> — the way
+    a human would.</p>
+  <div class="cta">
+    <a class="btn primary" href="#install">Get started</a>
+    <a class="btn ghost" href="https://github.com/dwgx/SmartCLI">View on GitHub</a>
+  </div>
+  <div class="meta">pip install smartcli-toolkit &nbsp;·&nbsp; Windows · POSIX &nbsp;·&nbsp; MIT</div>
+  <div class="demo"><div id="live-term">
+    <noscript><img src="assets/demo.svg" alt="SmartCLI driving the grok TUI: perceive, act, navigate, confirm"></noscript>
+    <img src="assets/demo.svg" alt="SmartCLI driving the grok TUI" class="lt-fallback">
+  </div></div>
+</div></header>
+
+<section class="band-soft"><div class="wrap">
+  <div class="sec-head center">
+    <span class="eyebrow">The problem</span>
+    <h2>Your AI is <em>blind</em> in the terminal.</h2>
+    <p class="sub">Pipe a fullscreen program and you get nothing, or a hang.
+      Drive it through SmartCLI and the model reads a semantic snapshot, moves
+      with arrow keys, and verifies every step.</p>
+  </div>
+  <div class="cmp">
+    <div class="term bad">
+      <div class="bar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span>&nbsp; plain subprocess / pipe</div>
+      <div class="body"><span class="k-dim">$ grok | cat</span>
+<span class="k-dim">  (waiting…)</span>
+
+
+<span class="k-dim">  nothing. the TUI needs a real</span>
+<span class="k-dim">  terminal — it never draws,</span>
+<span class="k-dim">  or it just hangs.</span>
+
+<span class="k-dim">  no menu. no arrows. no cursor.</span></div>
+    </div>
+    <div class="term good">
+      <div class="bar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span>&nbsp; drive-tui — perceive → act</div>
+      <div class="body"><span class="k-dim">[screen 30x100] cursor=r25c6 [stable]</span>
+  <span class="k-cor">╭─────────────────────────╮</span>
+  <span class="k-cor">│</span> <span class="k-teal">Grok Build Beta  0.2.99</span> <span class="k-cor">│</span>
+  <span class="k-cor">│</span> New worktree     ctrl+w <span class="k-cor">│</span>
+  <span class="k-cor">╰─────────────────────────╯</span>
+  <span class="k-teal">❯</span> keys: Down Down <span class="k-grn">✓</span>
+  <span class="k-amb">Grok 4.5 (low)</span> · switched <span class="k-grn">✓</span></div>
+    </div>
+  </div>
+  <div class="verdict"><span class="x">✗ blind &amp; hung</span> &nbsp;→&nbsp;
+    <span class="ok">✓ perceived, driven, confirmed</span></div>
+</div></section>
+
+<section><div class="wrap">
+  <div class="sec-head center">
+    <span class="eyebrow">Three skills, one core</span>
+    <h2>Drive. Design. Render.</h2>
+    <p class="sub">Each skill is a self-contained tool over one pluggable PTY +
+      <code>pyte</code> screen model.</p>
+  </div>
+  <div class="cards">
+    <div class="card">
+      <div class="k">DRIVE-TUI</div>
+      <h3>Drive interactive TUIs</h3>
+      <p>perceive → decide → act → wait → confirm. Reads semantic screen
+        snapshots, never a blind sleep. Classifies a screen and drives it.</p>
+      <div class="stat">8 recipes · repl · menu · pager · form · wizard</div>
+    </div>
+    <div class="card">
+      <div class="k">CMD-ART</div>
+      <h3>Terminal visual effects</h3>
+      <p>A living-template <code>fx</code> engine: pure frame producers,
+        auto-discovered, themeable, truecolor. Bounded play loop.</p>
+      <div class="stat">19 effects · 8 themes · donut · solarsystem · fire</div>
+    </div>
+    <div class="card">
+      <div class="k">TUI-UI</div>
+      <h3>Cell-accurate UIs</h3>
+      <p>A web-like layout engine emitting tmux-safe ANSI frames. CSS box model,
+        flex/grid, CJK-accurate so columns never desync.</p>
+      <div class="stat">15 widgets · panel · table · meter · chart</div>
+    </div>
+  </div>
+</div></section>
+
+<section id="playground" class="band-dark"><div class="wrap">
+  <div class="sec-head center">
+    <span class="eyebrow">Try it — no install</span>
+    <h2>Play with the actual engine.</h2>
+    <p class="sub">These run the same primitives the skills ship — live, in your
+      browser. Poke them.</p>
+  </div>
+  <div class="toys">
+    <!-- toy 1: live cmd-art effect -->
+    <div class="toy">
+      <div class="toy-head"><span class="toy-k">CMD-ART</span>
+        <div class="toy-tabs" id="fx-tabs">
+          <button data-fx="rain" class="on">rain</button>
+          <button data-fx="fire">fire</button>
+          <button data-fx="plasma">plasma</button>
+          <button data-fx="starfield">stars</button>
+          <button data-fx="life">life</button>
+        </div>
+      </div>
+      <div class="toy-stage"><canvas id="fx-canvas"></canvas></div>
+      <div class="toy-cap">A pure frame producer, 30fps — the fx engine idea.</div>
+    </div>
+    <!-- toy 2: drive a menu with real keys -->
+    <div class="toy">
+      <div class="toy-head"><span class="toy-k">DRIVE-TUI</span>
+        <span class="toy-hint">↑ ↓ Enter — or click</span></div>
+      <div class="toy-stage"><div class="menu" id="drive-menu" tabindex="0">
+        <div class="mtitle">Select a deploy target</div>
+        <div class="mrow"><span class="arrow">❯</span> production</div>
+        <div class="mrow"><span class="arrow">❯</span> staging</div>
+        <div class="mrow"><span class="arrow">❯</span> preview</div>
+        <div class="mrow"><span class="arrow">❯</span> local</div>
+      </div></div>
+      <div class="toy-cap" id="drive-log">perceive → the highlighted row is <b>production</b></div>
+    </div>
+    <!-- toy 3: tui-ui widgets, sub-cell precision -->
+    <div class="toy">
+      <div class="toy-head"><span class="toy-k">TUI-UI</span>
+        <span class="toy-hint">drag the slider</span></div>
+      <div class="toy-stage"><div class="widgets" id="widgets-toy">
+        <div class="w-row"><span class="w-lbl">progress</span><span class="w-bar" id="w-bar"></span><span class="w-pct" id="w-pct">62%</span></div>
+        <div class="w-row"><span class="w-lbl">cpu</span><span class="w-meter" id="w-meter"></span></div>
+        <div class="w-row"><span class="w-lbl">latency</span><span class="w-spark" id="w-spark"></span></div>
+        <div class="w-slider" id="w-slider" role="slider" tabindex="0"
+             aria-valuemin="0" aria-valuemax="100" aria-valuenow="62">
+          <div class="w-slider-fill" id="w-fill"></div>
+          <div class="w-slider-thumb" id="w-thumb">▲</div>
+        </div>
+      </div></div>
+      <div class="toy-cap">1/8-cell precision bars &amp; braille — no desync.</div>
+    </div>
+  </div>
+</div></section>
+
+<section class="band-soft"><div class="wrap">
+  <div class="sec-head center">
+    <span class="eyebrow">Real captures</span>
+    <h2>The <em>fx</em> engine, actually running.</h2>
+    <p class="sub">Every clip below is the real effect rendered frame-by-frame
+      through the project's own pipeline — no screen recorder. Reproduce any with
+      <code>python -m fx play &lt;name&gt;</code>.</p>
+  </div>
+  <figure class="gif-hero"><img src="assets/fx-solarsystem.gif" alt="ASCII solar system orrery: planets orbiting a pulsing sun" loading="lazy"><figcaption>solarsystem — an orrery: planets on Keplerian elliptical orbits around a pulsing sun</figcaption></figure>
+  <div class="gifs">
+    <figure><img src="assets/fx-donut.gif" alt="spinning ASCII donut" loading="lazy"><figcaption>donut — the classic ASCII torus</figcaption></figure>
+    <figure><img src="assets/fx-tunnel.gif" alt="demoscene tunnel fly-through" loading="lazy"><figcaption>tunnel — demoscene fly-through (seamless loop)</figcaption></figure>
+    <figure><img src="assets/fx-fire.gif" alt="demoscene fire" loading="lazy"><figcaption>fire — heat-buffer flame field</figcaption></figure>
+    <figure><img src="assets/fx-rain.gif" alt="matrix digital rain" loading="lazy"><figcaption>rain — Matrix digital rain</figcaption></figure>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <div class="callout">
+    <span class="eyebrow" style="color:#fff;opacity:.85">Model-agnostic</span>
+    <h2 style="margin-top:12px">Any AI, in any agent CLI.</h2>
+    <p class="sub">SmartCLI is a tool the model calls — it works with whatever
+      model is driving, inside whatever agent CLI you run.</p>
+    <div class="chiprow">
+      <span class="chip"><b>Claude</b> Sonnet · Opus · Fable</span>
+      <span class="chip"><b>GPT</b>-5.6 · 5.5</span>
+      <span class="chip"><b>Grok</b> 4.5</span>
+    </div>
+    <div class="chiprow">
+      <span class="chip">codex</span><span class="chip">claude-code</span>
+      <span class="chip">grok</span><span class="chip">kiro-cli</span>
+      <span class="chip">gemini-cli</span><span class="chip">aider</span>
+    </div>
+  </div>
+</div></section>
+
+<section id="install" class="band-dark"><div class="wrap">
+  <div class="sec-head center">
+    <span class="eyebrow">Get started</span>
+    <h2>Unzip, drop it in, it works.</h2>
+    <p class="sub">The core installs from PyPI; the skills run in place. A
+      dropped-in <code>drive-tui</code> folder even carries its own core.</p>
+  </div>
+  <div class="code"><span class="cm"># the shared core, from PyPI</span>
+<span class="cor">pip install</span> smartcli-toolkit
+
+<span class="cm"># then, in Python</span>
+<span class="teal">from</span> smartcli_core <span class="teal">import</span> PtySession
+
+<span class="cm"># or check a dropped-in skill folder is wired up</span>
+<span class="cor">python</span> skills/drive-tui/scripts/tui.py doctor</div>
+</div></section>
+
+<footer><div class="wrap">
+  <div class="brand">Smart<b>CLI</b></div>
+  — three agent skills over one pluggable PTY + <code>pyte</code> core.
+  <div style="margin-top:14px">
+    <a href="https://github.com/dwgx/SmartCLI">GitHub</a> &nbsp;·&nbsp;
+    <a href="https://pypi.org/project/smartcli-toolkit/">PyPI</a> &nbsp;·&nbsp;
+    <a href="https://github.com/dwgx/SmartCLI/blob/main/LICENSE">MIT License</a>
+  </div>
+  <div class="fine">Verified on Windows 11 · Python 3.14 · pyte + pywinpty / ConPTY</div>
+</div></footer>
+<script src="assets/app.js"></script>
+<script src="assets/toys.js"></script>
+</body>
+</html>
