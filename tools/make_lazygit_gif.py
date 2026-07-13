@@ -20,9 +20,16 @@ sys.path.insert(0, str(_ROOT / "tools" / "screenshot"))
 from PIL import Image, ImageDraw, ImageFont  # noqa: E402
 import shot  # noqa: E402
 
-SRC = r"C:\Users\dwgx1\AppData\Local\Temp\lgframes"
-OUT = _ROOT / "docs" / "site" / "assets" / "drive-lazygit.gif"
-COLS, ROWS = 100, 30
+import argparse
+_ap = argparse.ArgumentParser()
+_ap.add_argument("--src", default=r"C:\Users\dwgx1\AppData\Local\Temp\lgframes")
+_ap.add_argument("--out", default=str(_ROOT / "docs" / "site" / "assets" / "drive-lazygit.gif"))
+_ap.add_argument("--cols", type=int, default=100)
+_ap.add_argument("--rows", type=int, default=30)
+_args, _ = _ap.parse_known_args()
+SRC = _args.src
+OUT = Path(_args.out)
+COLS, ROWS = _args.cols, _args.rows
 CELL_W, CELL_H = 7, 14
 CAP_H = 30           # caption bar height (px)
 BG = (13, 12, 10)    # #0d0c0a warm near-black to match the site
