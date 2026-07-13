@@ -121,6 +121,7 @@ Named tokens: `Enter Tab BackTab Space Backspace Delete Escape Up Down Left Righ
 Combos: `C-c` / `^C` (Ctrl+C), `M-x` (Alt+x). Anything else is sent literally.
 - Menus/keys → `keys`. Free text + submit → `send-line`. Text without submit (fills a field) → `send-text`.
 - `send-line` submits with `\r`. A raw-mode app that needs `\n` → use `send-text "...\n"`.
+- **Slash-commands (`/model`, `/help`, …) on Git Bash / MSYS — use `--stdin`.** A leading `/` in a native-command argument is rewritten to a Windows path by MSYS path-conversion *before Python sees it* (`/model` arrives as `D:/Software/Git/model` — the tool then faithfully types the garbage). This is a shell quirk, not a tool bug. The robust, shell-agnostic fix is to pipe the text so it never rides in argv: `printf '/model' | python … send-line --id <SID> --stdin`. (`echo -n` works too.) Alternatives that also work but are easier to forget: prefix `MSYS_NO_PATHCONV=1`, or double the slash (`//model`). Prefer `--stdin` — it's immune on Git Bash, cmd, PowerShell, and POSIX alike. **Do not** try to type a slash-command with the `keys` subcommand: there is no `slash` token — unknown tokens are typed literally, so `keys slash` types the word "slash".
 
 ## Choosing the right wait — do NOT sleep
 - Know the exact text that means "ready" (a prompt, a banner) → `wait-regex <pattern>`. **Prefer this.** It watches strictly for the regex and will NOT return early.

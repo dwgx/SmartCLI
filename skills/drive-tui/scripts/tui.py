@@ -340,13 +340,28 @@ def cmd_snapshot(args) -> int:
     return 0
 
 
+def _resolve_send_text(args) -> str:
+    """Text for send-text/send-line: from stdin if --stdin, else the argument.
+
+    stdin is the path-conversion-safe channel: Git Bash / MSYS rewrites a leading
+    '/' in a native argv (so '/model' arrives as 'D:/Software/Git/model'), but it
+    never touches piped stdin. A trailing newline from the pipe is stripped.
+    """
+    if getattr(args, "stdin", False):
+        return sys.stdin.read().rstrip("\r\n")
+    if args.text is None:
+        raise SystemExit("error: give TEXT, or pass --stdin to read it from a pipe "
+                         "(use --stdin for slash-commands like /model on Git Bash)")
+    return args.text
+
+
 def cmd_send_text(args) -> int:
-    _call(args.id, {"action": "send_text", "text": args.text})
+    _call(args.id, {"action": "send_text", "text": _resolve_send_text(args)})
     return 0
 
 
 def cmd_send_line(args) -> int:
-    _call(args.id, {"action": "send_line", "text": args.text})
+    _call(args.id, {"action": "send_line", "text": _resolve_send_text(args)})
     return 0
 
 
@@ -434,14 +449,29 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--json", action="store_true", help="emit Snapshot.to_json() instead of to_text()")
     sp.set_defaults(func=cmd_snapshot)
 
-    sp = sub.add_parser("send-text", help="type literal text (no Enter)")
+    sp = sub.add_parser("send-text", help="type literal text (no Enter). "
+                        "Use --stdin for text with a leading '/' (see note below).")
     sp.add_argument("--id", required=True)
-    sp.add_argument("text")
+    sp.add_argument("text", nargs="?",
+                    help="text to type; omit and pass --stdin to read from stdin")
+    sp.add_argument("--stdin", action="store_true",
+                    help="read the text from stdin instead of the argument. "
+                         "REQUIRED for slash-commands like /model on Git Bash / "
+                         "MSYS, where a leading '/' in an argv is rewritten to a "
+                         "Windows path (e.g. '/model' -> 'D:/Software/Git/model') "
+                         "before Python sees it. Piping via stdin bypasses that.")
     sp.set_defaults(func=cmd_send_text)
 
-    sp = sub.add_parser("send-line", help="type text followed by Enter")
+    sp = sub.add_parser("send-line", help="type text followed by Enter. "
+                        "Use --stdin for text with a leading '/' (see note below).")
     sp.add_argument("--id", required=True)
-    sp.add_argument("text")
+    sp.add_argument("text", nargs="?",
+                    help="text to type; omit and pass --stdin to read from stdin")
+    sp.add_argument("--stdin", action="store_true",
+                    help="read the text from stdin instead of the argument. "
+                         "REQUIRED for slash-commands like /model on Git Bash / "
+                         "MSYS, where a leading '/' in an argv is rewritten to a "
+                         "Windows path before Python sees it. Piping bypasses that.")
     sp.set_defaults(func=cmd_send_line)
 
     sp = sub.add_parser("keys", help="send key tokens, e.g. Down Down Enter, C-c, M-x")
