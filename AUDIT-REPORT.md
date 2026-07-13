@@ -2,8 +2,10 @@
 
 > **已归档 · 时点报告 (2026-07-07)。** 这是一份一次性的修复日志，非活文档。
 > 记录的三个 bug 均已修复并回归验证，修复至今仍在源码中生效
-> （`_readme_literal.py` 导入顺序、`repl_session.py` 有界轮询、`verify_fx.py` 分派
-> 仍为 26/26）。项目入口见根 [`README.md`](README.md) 与 [`README-USAGE.md`](README-USAGE.md)。
+> （`_readme_literal.py` 导入顺序、`repl_session.py` 有界轮询、`verify_fx.py` 分派）。
+> 下方正文的计数（`26/26`、`18 effects`）是 **2026-07-07 归档时点** 的事实，属不可变历史；
+> 当前值已随 solarsystem 效果加入变为 **27/27 · 19 effects**（以 `python -m fx list` 为准）。
+> 项目入口见根 [`README.md`](README.md) 与 [`README-USAGE.md`](README-USAGE.md)。
 
 **范围**：`smartcli_core`（PTY+pyte 引擎）+ `skills/cmd-art` + `skills/drive-tui`
 **环境**：Windows 11 · Python 3.14.6 · pyte + pywinpty(ConPTY) · 无 tmux

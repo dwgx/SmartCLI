@@ -20,7 +20,7 @@ SmartCLI is **published and public** as of 2026-07-12. This section is the autho
 - `.github/workflows/ci.yml` — **Windows-only** CI on the deterministic tests.
 - `.github/workflows/publish.yml` — PyPI **Trusted Publishing (OIDC)**, tag-push triggered. ⚠️ **REQUIRES one-time human PyPI setup that is NOT yet done:** register a Trusted Publisher on PyPI (owner `dwgx`, repo `SmartCLI`, workflow `publish.yml`, environment `pypi`) **and** create a `pypi` GitHub Environment. **Until that is done, tag-push auto-publish will NOT work** — the v0.1.0/0.1.1/0.1.2 releases were done **manually with `twine`** (`python -m twine upload --disable-progress-bar` — twine's rich progress bar crashes on gbk).
 
-**Live counts (verified 2026-07-12):** cmd-art **18 effects / 8 themes**; drive-tui **8 recipes**; tui-ui **15 widgets** (11 core + 4 in `ui/widgets_ext/`, incl. `braille_chart.py`); knowledge **122-note graph** (**140 `.md` files**). Any doc that still says **14 widgets** is STALE.
+**Live counts (re-verified against code 2026-07-13):** cmd-art **19 effects / 8 themes** (solarsystem was added 2026-07-13, after the v0.1.2 tag — that is why older lines say 18); drive-tui **8 recipes**; tui-ui **15 widgets** (11 core + 4 in `ui/widgets_ext/`, incl. `braille_chart.py`); knowledge **122-note graph** (**140 `.md` files**). Any doc that still says **18 effects** or **14 widgets** is STALE — `python -m fx list` prints 19, `python -m ui widgets` prints 15.
 
 **Security note:** a PyPI API token's plaintext appeared in a prior session's chat. The owner chose **not** to revoke it. Recommended action still stands: revoke it and rely on the OIDC publish workflow (after the one-time Trusted-Publisher setup above).
 
@@ -38,7 +38,7 @@ SmartCLI is **published and public** as of 2026-07-12. This section is the autho
 
 **tui-ui skill (`skills/tui-ui/`).** A web-like terminal UI layout engine + widgets emitting **tmux-safe ANSI frames** (SGR color runs + newlines only — no cursor moves, no alt-screen). You compose a tree of renderables (CSS box model margin→border→padding→content, border-box default; `VStack/HStack/Grid/Page` with `Fr` fractional units); it resolves sizes, composites cell grids, and serializes **once**. Everything is display-cell accurate (CJK/emoji/ZWJ/VS16/flag-pairs via `ui.core.width()`, never `len()`), so columns never desync. Beyond widgets it has a real **ENGINE**: `field.py` (CellField shader — LinearGradient/RadialGlow/Ripple/Plasma + Over/Add/Mask/Translate compositors, ASPECT=2 distance), `raster.py` (sub-cell half/quad/braille pixels), `box_junction.py` (edge-algebra auto-connecting `┼┬┤`), `color_model.py` (honest truecolor→256→16→mono degrade). It produces *frames*; something else owns the terminal (contrast drive-tui). **15 widgets live** (11 core + 4 in `ui/widgets_ext/`: `gradient_rule`, `radial_glow`, `slider_track`, `braille_chart`).
 
-**Knowledge graph (`knowledge/`).** A navigable wiki-link graph — **140 `.md` files**, of which **122 concept/works entries** (120 unique slugs; `tmux-capture-pane` intentionally ×3), plus 7 READMEs, INDEX, and 10 `sources/` research digests. Each note carries an exact formula/sequence/constant, a **Source:**, and double-bracketed cross-links. Core discipline is lane-selection: **replica task → measure ground truth first** (start at `[[hard-lessons]]` + `[[effort-selector]]`); **creative task → compose the four primitives** (start at `[[rendering-model]]`). Integrity as of this handoff: 0 dangling links (all 909 resolve), 0 remaining "(unsourced — verify)" flags.
+**Knowledge graph (`knowledge/`).** A navigable wiki-link graph — **140 `.md` files**, of which **122 concept/works entries** (120 unique slugs; `tmux-capture-pane` intentionally ×3), plus 7 READMEs, INDEX, and 10 `sources/` research digests. Each note carries an exact formula/sequence/constant, a **Source:**, and double-bracketed cross-links. Core discipline is lane-selection: **replica task → measure ground truth first** (start at `[[hard-lessons]]` + `[[effort-selector]]`); **creative task → compose the four primitives** (start at `[[rendering-model]]`). Integrity (re-checked 2026-07-13): 0 dangling links (every `[[slug]]` resolves; the only bracketed non-links are the literal `[[filename-slug]]`/`[[links]]`/`[[see also]]` syntax examples in the section READMEs). A handful of digest-level uncertainties are still honestly marked `*(verify)*` in `INDEX.md` (neo/sl/notcurses/chafa) — see §3 for the correct status.
 
 ---
 
@@ -46,17 +46,18 @@ SmartCLI is **published and public** as of 2026-07-12. This section is the autho
 
 Run everything from repo root `D:\Project\SmartCLI` unless a `cd` is shown. Set `PYTHONIOENCODING=utf-8` on Windows first (the CLIs also auto-reconfigure stdout).
 
-**cmd-art — 18 effects, all render.**
+**cmd-art — 19 effects, all render.**
 ```
 cd skills\cmd-art
-python -m fx list            # 18: banner_scroll, boids, cube, decrypt, donut, fire,
+python -m fx list            # 19: banner_scroll, boids, cube, decrypt, donut, fire,
                              # fireworks, gradient_text, image2ascii, life, plasma,
-                             # rain, sparkle, sphere, starfield, text3d, tunnel, typewriter
+                             # rain, solarsystem, sparkle, sphere, starfield, text3d,
+                             # tunnel, typewriter
 python -m fx gallery         # one frame of each
 python -m fx play donut --seconds 5
 python -m fx show --seq "donut:fire:3,plasma::3"
 ```
-Themes: mono, fire, ocean, synthwave, viridis, pastel, matrix-green, rainbow. Verified by `python tests\verify_fx.py` — **26/26 pass** (is_animated routing mirrors the CLI).
+Themes: mono, fire, ocean, synthwave, viridis, pastel, matrix-green, rainbow. Verified by `python tests\verify_fx.py` — **27/27 pass** (19 effects + 8 fixed checks; is_animated routing mirrors the CLI).
 
 **effort_selector replica — violet-ripple selector.**
 ```
@@ -116,12 +117,12 @@ Missing external tools = skipped, not failed. Six scenarios: repl/confirm/progre
 # deterministic / mutation-verified suite (all GENUINE, not false-green):
 python tests\test_readiness.py          # virtual-clock unit tests + blank-gate locks (#1)
 python tests\test_degenerate_inputs.py  # the degenerate-input regression locks above
-python tests\test_fx_contract.py        # 18 effects x 6 sizes, exact frame contract
+python tests\test_fx_contract.py        # 19 effects x sizes, exact frame contract (enumerates all_effects())
 python tests\_drive_probe6.py           # pager/form/wizard driven LIVE
 python tests\_tui_cli_probe.py          # drive-tui CLI + token-auth
 python skills\tui-ui\ui\box_junction.py # box_junction _selftest (module-level)
 # standing regression gate (must stay exit-0):
-python tests\verify_fx.py               # 26/26; known random-seconds flake — rerun once
+python tests\verify_fx.py               # 27/27 (19 effects + 8 fixed checks); known random-seconds flake — rerun once
 python tests\_readme_literal.py         python tests\probe_pty_fx.py
 ```
 Plus: 3 external-AI fixes (2026-07-07) still exit 0 — README literal import-order crash, verify_fx dispatch, repl_session settle-loop (documented in `AUDIT-REPORT.md`; those did NOT touch `smartcli_core` — the authorized core changes above came later, in v0.1.1/v0.1.2).
@@ -136,7 +137,7 @@ Plus: 3 external-AI fixes (2026-07-07) still exit 0 — README literal import-or
 - **Replica task** (recreate a real program's look) → *measure ground truth first.* Start at **`[[hard-lessons]]`** (the 10 rules, §4 below) and **`[[effort-selector]]`** (the worked replica). Decompile / drive / capture the real thing before you write render code.
 - **Creative task** (design something new) → *compose the four primitives.* Start at **`[[rendering-model]]`**: field shaders (`field.py`), sub-cell raster (`raster.py`), box junctions (`box_junction.py`), honest color degrade (`color_model.py`). Most "new" effects are a composition of these plus a case study in `works/`.
 
-The **Works wing** (`works/`, 27 studied programs — cbonsai, no-more-secrets, sl, asciiquarium, cava, firework-rs, chafa, notcurses, neo …) is the design brain: each has a real source URL and the extracted algorithm. The six newest concept notes distilled from them are the ready building blocks: `effects/procedural-branching` (cbonsai recursion), `effects/decrypt-reveal` (nms 3-phase reveal), `effects/sprite-scroll` (sl/asciiquarium blit), `effects/color-mask-sprites` (parallel glyph/color layers), `effects/particle-system` (firework-rs float physics), `effects/spectrum-bars` (cava log-bins + eighth-blocks). `sources/` holds the 10 raw research digests behind the notes. The `neo`/`sl`/`notcurses`/`chafa` notes were **corrected from primary source** (real algorithm constants) and **no longer carry `*(verify)*` flags** — all accuracy flags are resolved. (Note: `INDEX.md` and `works/README.md` may still *describe* these four as pending — that summary text is stale and should be reconciled.)
+The **Works wing** (`works/`, 27 studied programs — cbonsai, no-more-secrets, sl, asciiquarium, cava, firework-rs, chafa, notcurses, neo …) is the design brain: each has a real source URL and the extracted algorithm. The six newest concept notes distilled from them are the ready building blocks: `effects/procedural-branching` (cbonsai recursion), `effects/decrypt-reveal` (nms 3-phase reveal), `effects/sprite-scroll` (sl/asciiquarium blit), `effects/color-mask-sprites` (parallel glyph/color layers), `effects/particle-system` (firework-rs float physics), `effects/spectrum-bars` (cava log-bins + eighth-blocks). `sources/` holds the 10 raw research digests behind the notes. The `neo`/`sl`/`notcurses`/`chafa` notes carry **digest-level `*(verify)*` flags** that `INDEX.md` states honestly (README-level color math, un-re-fetched constants, `ncpile_rasterize` quantization, chafa's cost function) — these are the remaining source-confirmation gaps, not errors. Treat them as "usable, but re-fetch the primary source before quoting an exact constant." (Earlier drafts of this handoff claimed the flags were all resolved; that was wrong — `INDEX.md` is the accurate record.)
 
 ---
 
@@ -209,8 +210,11 @@ Non-issues, do not "fix": drive-tui's `description` has an unquoted `Keywords: T
 
 ## 7. 2026-07-13 SESSION — what this long session did (承上启下)
 
-A single long session. Everything below is on `main`, pushed, working tree clean,
-all gates green (re-verified against code at handoff). Ordered by durability.
+A single long session. The §7 work below was on `main`, pushed, and gate-green at
+the time it was written. **A LATER session (2026-07-13) added more work that may be
+uncommitted/unpushed when you read this** — the drive-tui `/model` `--stdin` fix, a
+docs-site video/lightbox overhaul, and a doc-accuracy pass. **Always run `git status`
++ `git log origin/main..HEAD` first** rather than trusting this line. Ordered by durability.
 
 ### 7a. Core POSIX fixes — VERIFIED ON REAL LINUX (the highest-value work)
 Two issues that were "known but unverifiable on Windows" (#5/#6) were reproduced,
@@ -335,7 +339,7 @@ ConPTY/pywinpty and Linux/mac use posix pty). The skills:
                  never blind-sleep. CLI scripts/tui.py (persistent daemon + one-shot run)
                  + 8 importable recipes (repl, menu_select, pager, search_filter,
                  confirm, form, progress, wizard).
-  - cmd-art    : DESIGN terminal visuals via `python -m fx` — 18 effects, 8 themes,
+  - cmd-art    : DESIGN terminal visuals via `python -m fx` — 19 effects, 8 themes,
                  pure frame-producer Effect ABC + @register auto-discovery.
   - tui-ui     : web-like cell-accurate layout engine emitting tmux-safe ANSI frames
                  (SGR + newlines only). 15 widgets + ENGINE (field/raster/box_junction/
@@ -398,7 +402,7 @@ real tmux host. Rely on WebSearch/WebFetch (codex dispatcher is dead).
 
 VERIFY WHAT YOU SHIP (all should exit 0):
   python tests\run_all.py                # unified runner (readiness/degenerate/fx-contract/probes)
-  cd skills\cmd-art && python -m fx list && python -m fx gallery   # 18 effects
+  cd skills\cmd-art && python -m fx list && python -m fx gallery   # 19 effects
   python skills\tui-ui\examples\effort_selector.py --once --stage ultracode --frame 1
   python skills\drive-tui\scripts\tui.py start --cmd "python" --cols 80 --rows 24
     -> wait-regex --id <SID> ">>> " --timeout-ms 15000 -> send-line -> snapshot -> close

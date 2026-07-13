@@ -213,7 +213,7 @@ SmartCLI/
   tools/screenshot/        pyte -> PNG smoke-test harness
   tools/agentcli/          agent-CLI control validation harness
   knowledge/               122-note knowledge graph (see knowledge/INDEX.md)
-  showcase/                rendered effect PNGs (see Screenshots)
+  showcase/                rendered effect PNGs + demo GIFs (shown above)
   tests/                   direct script-style regressions
   research/                archived first-pass research notes
 ```

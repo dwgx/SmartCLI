@@ -34,7 +34,7 @@ Never fire keystrokes blind and never guess with `sleep`. Every interaction is o
 
 ## Setup
 
-`scripts/tui.py` adds the repo root to `sys.path` itself, so run it from anywhere. It needs `smartcli_core` importable (default: three levels up from the script) and the deps `pyte` + `pywinpty` (Windows) already installed. Override the repo location with `SMARTCLI_ROOT` if needed.
+`scripts/tui.py` adds the repo root to `sys.path` itself, so run it from anywhere. It locates `smartcli_core` via `smartcli_bootstrap.locate_core()`: `$SMARTCLI_ROOT` → walk up every parent of the script for a dir containing `smartcli_core/__init__.py` → a bundled `_vendor/` next to the skill → an existing pip install (there is no fixed "N levels up"). It also needs the deps `pyte` + `pywinpty` (Windows) importable. Set `SMARTCLI_ROOT` to override, or run `tui.py doctor` to report where the core resolved and which deps are missing.
 
 All commands below are shown from the repo root. Use the exact form:
 `python skills/drive-tui/scripts/tui.py <subcommand> ...`
@@ -78,7 +78,7 @@ Step objects (executed in order; each `wait_*`/`snapshot` prints a snapshot):
 **By design, driving a CLI here is already headless and non-intrusive — there is no window to hide, and the user's focus is never stolen.** This is a property of the PTY model, not an extra feature:
 
 - The program runs inside a **pseudo-terminal**: an in-memory character grid (ConPTY via `pywinpty` on Windows, the stdlib `pty` on POSIX). The CLI believes it has a real terminal — so it still draws menus, the cursor, colours — but that "terminal" **exists only in memory**. There is **no GUI window, no console window, nothing painted on screen** for the user to see or lose focus to.
-- The persistent-session daemon is launched **fully detached**: on Windows with `DETACHED_PROCESS` (no console window, no focus change); on POSIX with `start_new_session=True` (no controlling terminal). Its stdin/stdout/stderr are all `DEVNULL`, so it never prints into the user's shell.
+- The persistent-session daemon is launched **fully detached**: on Windows with `CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP` — no console window is created, so it never steals focus (this deliberately replaced the older `DETACHED_PROCESS`, which does *not* prevent a conhost window from flashing up and grabbing focus); on POSIX with `start_new_session=True` (no controlling terminal). Its stdin/stdout/stderr are all `DEVNULL`, so it never prints into the user's shell.
 - So the loop is invisible: the AI `start`s a program, `snapshot`s the in-memory screen, `send-keys`, `wait`, `snapshot` again — all while the user keeps typing in their editor, undisturbed. Nothing pops up, nothing grabs the cursor.
 
 **Two intents, both already supported — this is a choice you make, not code you write:**

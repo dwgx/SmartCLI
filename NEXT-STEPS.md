@@ -29,10 +29,12 @@ non-negotiable and overrides any shortcut that looks faster.
   skillhu.bz. `.claude-plugin/marketplace.json` present.
 - Version 0.1.2 is consistent across pyproject.toml, smartcli_core/__init__.py,
   skills/cmd-art/fx/__init__.py, all 3 skills/*/SKILL.md, marketplace.json. VERIFIED.
-- Live counts (VERIFIED): cmd-art **18 effects / 8 themes**; drive-tui **8 recipes**
+- Live counts (re-verified against code 2026-07-13): cmd-art **19 effects / 8 themes**
+  (solarsystem added 2026-07-13, after the v0.1.2 tag); drive-tui **8 recipes**
   (patterns/recipes/); tui-ui **15 widgets** (braille_chart present in
   ui/widgets_ext/braille_chart.py); knowledge **140 md files / 122-note graph**.
-  If any doc still says 14 widgets it is STALE.
+  If any doc still says 18 effects or 14 widgets it is STALE (`python -m fx list` = 19,
+  `python -m ui widgets` = 15).
 - CI: `.github/workflows/ci.yml` (Windows-only, deterministic tests) +
   `.github/workflows/publish.yml` (PyPI Trusted Publishing via OIDC). VERIFIED present.
 - Core fixes (smartcli_core, done WITH authorization + adversarial verify):
@@ -105,7 +107,8 @@ These are fully executable and verifiable on the current Windows machine.
   contract.
 - **Verify:** `cd skills/cmd-art && python -m fx list` shows the new effects; run each
   via `python -m fx play <name>`; extend tests/test_fx_contract.py so the new effects
-  are covered by the "18 effects x 6 sizes exact frame contract" (it becomes 20). Run
+  are covered by the exact frame contract (it enumerates all_effects(), so the count
+  rises automatically from the current 19 as you add each). Run
   verify_fx.py to exit-0 (known random-seconds flake — rerun once if it trips).
 - **Effort:** S-M
 
@@ -128,7 +131,7 @@ These are fully executable and verifiable on the current Windows machine.
 ### A6. Shared easing.py + Gradient(stops, steps, direction) builder for cmd-art  [M]
 - **Goal:** factor the repeated easing curves and gradient math into reusable
   `easing.py` and a `Gradient(stops, steps, direction)` builder.
-- **Why it matters:** removes duplication across 18 effects, makes new effects (A7)
+- **Why it matters:** removes duplication across the 19 effects, makes new effects (A7)
   cheaper, and is a clean public sub-API.
 - **First step:** grep skills/cmd-art/fx/ for inline lerp/ease/gradient math to find
   the duplication; design the smallest API that covers existing call sites; refactor
@@ -330,8 +333,8 @@ Every task above is done under these rules. They override any faster-looking sho
    concurrent path.
 
 5. **Quality only goes UP.** Never trade a passing gate for speed. Regression gates
-   that must stay exit-0: verify_fx.py (26/26; known random-seconds flake — rerun
-   once), _readme_literal.py, probe_pty_fx.py, tests/run_all.py.
+   that must stay exit-0: verify_fx.py (27/27 = 19 effects + 8 fixed checks; known
+   random-seconds flake — rerun once), _readme_literal.py, probe_pty_fx.py, tests/run_all.py.
 
 6. **The smartcli_core modification rule.** smartcli_core was DO-NOT-MODIFY. Changes
    are now allowed ONLY with: (a) real-run-path verification, (b) independent
