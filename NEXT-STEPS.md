@@ -221,35 +221,65 @@ POSIX backend — that is exactly the class of false-green the standing method f
 
 ---
 
-## C. Discoverability (0 stars today — highest real-world leverage)
+## C. Launch / growth plan — TWO PHASES (2 stars today)
 
-### C1. Record a demo GIF / asciinema for the README top  [M] (asciinema + agg needs POSIX; termsvg is cross-platform)
-- **Goal:** a short looping demo (fx effects + a driven TUI recipe) embedded at the top
-  of README.md.
-- **Why it matters:** a repo with no visual gets no stars; this is the single highest-
-  leverage discoverability item and gates C2/C3.
-- **First step:** script a ~20s reel: 3–4 fx effects then one drive-tui recipe. Record
-  with asciinema and render to GIF with `agg` (POSIX), or use `termsvg` if staying on
-  Windows. Set PYTHONIOENCODING=utf-8 so glyphs render.
-- **Verify:** GIF loops cleanly, glyphs are not mojibake, file size is reasonable for a
-  README; embed and confirm it renders on the GitHub repo page.
-- **Effort:** M
+Strategy (owner's call, 2026-07-13): **seed first, then ignite.** Target three
+audiences: **(1) AI-agent developers** (core pitch: "agents can't drive
+interactive CLIs — SmartCLI gives them eyes+hands"), **(2) terminal/CLI
+enthusiasts** (hook: cmd-art effects + tui-ui widgets), **(3) Claude Code / skill
+users** (show: drop the skill into their agent).
 
-### C2. Show HN + r/commandline + r/Python posts  [S] (human posts; blocked on C1)
-- **Goal:** launch posts once the demo GIF is live.
-- **Why it matters:** first traffic. Lead with the GIF and the one-line pip install.
-- **First step:** draft a Show HN title + first comment (what it is, why pyte+pywinpty,
-  the deterministic-verification story). Post after C1.
-- **Verify:** links live; respond to comments.
-- **Effort:** S
+Honest gate before igniting: the showcase layer is strong (live site, GIFs,
+interactive playground, 5 languages) but there is **~zero external validation** —
+the first real users will hit `skills/drive-tui/references/LIMITATIONS.md` edges.
+So Phase 1 buys credibility + resilience; Phase 2 spends it.
 
-### C3. awesome-list PRs  [S] (human/PR; blocked on C1)
-- **Goal:** PRs to awesome-claude-code, awesome-cli-apps (and a TUI list if it fits).
-- **Why it matters:** durable long-tail discovery.
-- **First step:** fork each list, add SmartCLI in the correct category with a one-line
-  description + the demo link, follow each list's contribution rules.
-- **Verify:** PRs open and pass each repo's CI/linter.
-- **Effort:** S
+Already done (do NOT redo): README demo GIFs (solarsystem/donut/fire/rain),
+live showcase site https://dwgx.github.io/SmartCLI/ (interactive, 5-lang),
+PyPI `smartcli-toolkit`, skillhu.bz listings, POSIX verified on real Linux.
+
+### PHASE 1 — SEED (build discoverability + proof; low blast radius)
+
+#### C1. Real-world proof reel + 2-3 concrete case studies  [M] (AI can draft; needs real runs)
+- **Goal:** short recordings/writeups of SmartCLI driving REAL third-party TUIs end
+  to end — e.g. drive `htop`/`k9s` read-only, answer a real installer's prompts, page
+  through `less`/`git log`. Not toy apps — real programs.
+- **Why:** this is the missing social proof. "Drove <real tool> autonomously" is what
+  converts skeptics; it also surfaces + fixes LIMITATIONS edges before strangers do.
+- **First step (AI):** in the Linux sandbox, drive 3 real TUIs, capture asciinema/GIF +
+  a short "here's the perceive→act loop" writeup; log any gap in LIMITATIONS.md and fix
+  what's cheap. **Human:** confirm which tools are fair game.
+- **Verify:** each reel loops clean, no mojibake; the case study reproduces from the repo.
+
+#### C2. awesome-list PRs (durable long-tail)  [S] (human/PR)
+- **Goal:** PRs to awesome-claude-code, awesome-cli-apps, awesome-mcp (if MCP lands),
+  and a Python-TUI list. One line + the showcase link, per each list's rules.
+- **Why:** evergreen discovery that keeps trickling stars long after a launch spike.
+- **AI can:** draft the exact PR text + pick correct categories. **Human:** open the PRs.
+
+#### C3. SEO / metadata polish  [S] (AI can do fully)
+- **Goal:** repo topics/description, PyPI keywords/classifiers, site `<meta>` + OpenGraph
+  card so links unfurl nicely on X/Reddit/HN; a one-line tagline that names the core pitch.
+- **AI can:** set gh repo topics, tune pyproject keywords, add OG tags to the site head.
+
+### PHASE 2 — IGNITE (spend the credibility; higher variance)
+
+#### C4. Show HN + r/commandline + r/Python + X thread  [S] (human posts; blocked on C1)
+- **Goal:** coordinated launch once C1 proof exists. Lead with a real-TUI reel + one-line
+  install. Per-audience framing: agent-dev angle for HN, visual angle for r/commandline.
+- **AI can:** draft the Show HN title + first comment, the Reddit posts, the X thread
+  (each tuned to its audience) + a FAQ pre-empting "does it work with <my TUI>?".
+- **Human:** post, and be available to answer for the first few hours (matters a lot).
+
+#### C5. Claude Code / skill-community push  [S] (human; hottest circle)
+- **Goal:** post in Claude Code / agent-skill channels showing "drop drive-tui in, your
+  agent can now drive interactive CLIs." Reuse the marketplace one-liner.
+- **AI can:** draft the post + a 20s "install → drive" clip. **Human:** post to the
+  communities they're in.
+
+Sequencing: C1→C3 (seed, mostly AI-doable) land first; C4/C5 (human, ignite) fire
+together once C1's proof reel is real. Never ignite before C1 — a launch with no
+external proof invites "does it actually work?" with no answer.
 
 ---
 
