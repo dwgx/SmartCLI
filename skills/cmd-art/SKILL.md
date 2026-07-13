@@ -2,11 +2,11 @@
 name: cmd-art
 description: >-
   Design and render terminal/CMD visual effects and ASCII art from a one-line
-  request via the pluggable `fx` engine (18 hot-swappable, themeable effects
+  request via the pluggable `fx` engine (19 hot-swappable, themeable effects
   plus scripted shows). Effects include donut, matrix rain, plasma, fire, a
-  spinning 3D ball, Game of Life, wireframe cube, 3D text banners,
-  rainbow/lolcat gradient text, starfield, tunnel, fireworks, image-to-ASCII,
-  and more. Use when the request is for a terminal animation, ANSI/CLI art, or
+  spinning 3D ball, a solar-system orrery, Game of Life, wireframe cube, 3D text
+  banners, rainbow/lolcat gradient text, starfield, tunnel, fireworks,
+  image-to-ASCII, and more. Use when the request is for a terminal animation, ANSI/CLI art, or
   a new console effect. Pure Python stdlib; truecolor.
 version: 0.1.2
 ---
@@ -20,13 +20,14 @@ Render and design terminal visual effects with `fx`, a living-template engine: a
 - User wants a static ASCII title/banner with a color gradient, or an image turned into ASCII.
 - User wants to invent a new console effect (drop one file in `fx/effects/`).
 
-## The 18 effects (registry names)
+## The 19 effects (registry names)
 Run `python -m fx list` for the live catalog. Names + aliases as registered:
 
 | name | kind | what | aliases |
 |------|------|------|---------|
 | `sphere` | anim | rotating Lambert-shaded 3D ball ("spinning ball") | |
 | `donut` | anim | THE spinning ASCII torus (Sloane donut.c) | |
+| `solarsystem` | anim | orrery: planets on elliptical orbits round a pulsing sun | `orrery`, `planets` |
 | `cube` | anim | rotating wireframe cube | |
 | `tunnel` | anim | demoscene tunnel fly-through | |
 | `starfield` | anim | perspective starfield warp | |
