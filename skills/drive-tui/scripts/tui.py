@@ -185,26 +185,53 @@ def _run_daemon(sid: str, cmd, cols: int, rows: int, token: str) -> None:
     try:
         while True:
             conn, _ = srv.accept()
+            shutdown = False
             try:
-                conn.settimeout(60.0)
-                buf = bytearray()
-                while b"\n" not in buf:
-                    chunk = conn.recv(65536)
-                    if not chunk:
-                        break
-                    buf.extend(chunk)
-                if not buf:
-                    continue
-                req = json.loads(bytes(buf).split(b"\n", 1)[0].decode("utf-8"))
+                # The ENTIRE per-connection body is guarded: a malformed request
+                # (non-JSON bytes, a truncated line, an idle client that trips the
+                # 60s recv timeout, or a non-dict payload) must only drop THAT
+                # connection — it must never propagate to the outer `finally` and
+                # tear down the whole daemon + live session. Note the transport /
+                # parse steps run BEFORE the token check in _handle, so without
+                # this guard an unauthenticated peer could kill the session with a
+                # single garbage byte sequence.
                 try:
+                    conn.settimeout(60.0)
+                    buf = bytearray()
+                    while b"\n" not in buf:
+                        chunk = conn.recv(65536)
+                        if not chunk:
+                            break
+                        buf.extend(chunk)
+                    if not buf:
+                        continue
+                    req = json.loads(bytes(buf).split(b"\n", 1)[0].decode("utf-8"))
                     resp = _handle(sess, req, token)
+                    shutdown = bool(resp.get("_shutdown"))
+                    conn.sendall((json.dumps(resp) + "\n").encode("utf-8"))
+                except (socket.timeout, OSError, ValueError,
+                        UnicodeDecodeError) as exc:
+                    # ValueError covers json.JSONDecodeError and non-dict .get();
+                    # OSError/timeout cover a slow/rude client. Best-effort error
+                    # reply, then close — the daemon keeps serving.
+                    try:
+                        conn.sendall((json.dumps(
+                            {"ok": False,
+                             "error": f"bad request: {type(exc).__name__}"})
+                            + "\n").encode("utf-8"))
+                    except OSError:
+                        pass
                 except Exception as exc:  # never let one bad request kill the daemon
-                    resp = {"error": f"{type(exc).__name__}: {exc}"}
-                conn.sendall((json.dumps(resp) + "\n").encode("utf-8"))
-                if resp.get("_shutdown"):
-                    break
+                    try:
+                        conn.sendall((json.dumps(
+                            {"error": f"{type(exc).__name__}: {exc}"})
+                            + "\n").encode("utf-8"))
+                    except OSError:
+                        pass
             finally:
                 conn.close()
+            if shutdown:
+                break
     finally:
         sess.close()
         srv.close()
