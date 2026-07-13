@@ -240,7 +240,15 @@ PyPI `smartcli-toolkit`, skillhu.bz listings, POSIX verified on real Linux.
 
 ### PHASE 1 — SEED (build discoverability + proof; low blast radius)
 
-#### C1. Real-world proof reel + 2-3 concrete case studies  [M] (AI can draft; needs real runs)
+#### ~~C1. Real-world proof reel~~ — DONE 2026-07-13
+- Drove the REAL lazygit 0.63 TUI in a throwaway Debian 13 container via
+  smartcli_core (SS3/DECCKM arrows, reverse-video selection reading, opened a
+  real commit diff, highlighted a branch). Captured to `showcase/drive-lazygit.gif`
+  and featured at the top of README ("Driving a real TUI"). Reproduce:
+  `tests/_demo_lazygit.py` + `tools/make_lazygit_gif.py`. Container torn down.
+- **Copy for all channels drafted + fact-checked in `docs/LAUNCH-COPY.md`.**
+
+#### C1-orig. Real-world proof reel (original task, for reference)  [M]
 - **Goal:** short recordings/writeups of SmartCLI driving REAL third-party TUIs end
   to end — e.g. drive `htop`/`k9s` read-only, answer a real installer's prompts, page
   through `less`/`git log`. Not toy apps — real programs.
@@ -251,16 +259,15 @@ PyPI `smartcli-toolkit`, skillhu.bz listings, POSIX verified on real Linux.
   what's cheap. **Human:** confirm which tools are fair game.
 - **Verify:** each reel loops clean, no mojibake; the case study reproduces from the repo.
 
-#### C2. awesome-list PRs (durable long-tail)  [S] (human/PR)
-- **Goal:** PRs to awesome-claude-code, awesome-cli-apps, awesome-mcp (if MCP lands),
-  and a Python-TUI list. One line + the showcase link, per each list's rules.
-- **Why:** evergreen discovery that keeps trickling stars long after a launch spike.
-- **AI can:** draft the exact PR text + pick correct categories. **Human:** open the PRs.
+#### C2. awesome-list PRs (durable long-tail)  [S] (human/PR — copy ready)
+- **PR text drafted** for awesome-cli-apps, awesome-tuis, awesome-claude-code,
+  awesome-python in `docs/LAUNCH-COPY.md` §C2. **Human:** fork each, add the line
+  in the right category per its CONTRIBUTING, open the PR.
 
-#### C3. SEO / metadata polish  [S] (AI can do fully)
-- **Goal:** repo topics/description, PyPI keywords/classifiers, site `<meta>` + OpenGraph
-  card so links unfurl nicely on X/Reddit/HN; a one-line tagline that names the core pitch.
-- **AI can:** set gh repo topics, tune pyproject keywords, add OG tags to the site head.
+#### ~~C3. SEO / metadata polish~~ — DONE 2026-07-13
+- Repo topics already good; **repo homepage set to the live site**; **OpenGraph +
+  Twitter cards added to the site head** (links now unfurl with title + pitch +
+  the solarsystem GIF). Remaining optional: OG tags on the 4 localized pages.
 
 ### PHASE 2 — IGNITE (spend the credibility; higher variance)
 
