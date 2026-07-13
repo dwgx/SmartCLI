@@ -1,0 +1,65 @@
+# mkdocs-material documentation site config — PREPARED, not yet wired to hosting.
+#
+# TO GO LIVE (the step only you can do), pick one:
+#   A) Read the Docs: sign in at https://readthedocs.org, "Import a Project",
+#      connect dwgx/SmartCLI. RTD auto-detects this mkdocs.yml. (Add a
+#      .readthedocs.yaml if you want to pin the build — a starter is below in
+#      docs/PACKAGING-NOTES.md.)
+#   B) GitHub Pages: `pip install mkdocs-material && mkdocs gh-deploy` publishes to
+#      the gh-pages branch. NOTE: the showcase site already occupies Pages via
+#      docs/site + pages.yml, so only do this if you move the showcase to a
+#      subpath or a separate Pages target first.
+#
+# Local preview:  pip install mkdocs-material && mkdocs serve
+site_name: SmartCLI
+site_description: Three terminal Agent Skills over one pluggable PTY + pyte core.
+site_url: https://dwgx.github.io/SmartCLI/
+repo_url: https://github.com/dwgx/SmartCLI
+repo_name: dwgx/SmartCLI
+edit_uri: edit/main/
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: deep orange
+      accent: teal
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - scheme: slate
+      primary: deep orange
+      accent: teal
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - search.suggest
+
+markdown_extensions:
+  - admonition
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.superfences
+
+# The nav maps existing repo docs into a site. mkdocs reads Markdown from docs_dir
+# (default: docs/), so these use paths relative to the repo via the include below.
+# Simplest path: keep authoring in the repo root/README and let RTD render them.
+nav:
+  - Home: index.md
+  - Usage: usage.md
+  - Skills:
+      - cmd-art: skills-cmd-art.md
+      - drive-tui: skills-drive-tui.md
+      - tui-ui: skills-tui-ui.md
+  - Knowledge graph: knowledge.md
+  - Changelog: changelog.md
+
+# NOTE: the nav above references docs/*.md stubs that do NOT exist yet — see
+# docs/PACKAGING-NOTES.md for the one-liner that symlinks/copies README.md,
+# README-USAGE.md, the SKILL.md files, knowledge/INDEX.md and CHANGELOG.md into
+# docs/ at build time. Left as a prepared step so nothing 404s silently.

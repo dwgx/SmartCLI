@@ -1,0 +1,61 @@
+# Publish to TestPyPI (https://test.pypi.org) via OIDC Trusted Publishing.
+#
+# ---------------------------------------------------------------------------
+# ONE-TIME SETUP YOU MUST DO (mirrors the production PyPI setup that now works):
+#   1. Register an account at https://test.pypi.org (separate from PyPI).
+#   2. Either upload smartcli-toolkit once with twine so the project exists, OR
+#      use TestPyPI's "pending publisher" flow to pre-register it.
+#   3. On TestPyPI, add a Trusted Publisher (GitHub) with EXACTLY:
+#        PyPI Project Name: smartcli-toolkit
+#        Owner:             dwgx
+#        Repository name:   SmartCLI          <-- the GitHub repo name (NOT the
+#                                                 dist name — that mismatch was the
+#                                                 original invalid-publisher bug)
+#        Workflow name:     publish-testpypi.yml
+#        Environment name:  testpypi
+#   4. Create a GitHub Environment named `testpypi` (repo Settings -> Environments).
+#
+# Trigger: a pre-release tag like v0.1.3rc1, or manual dispatch. Use this to
+# rehearse a release end-to-end before tagging the real PyPI version.
+# ---------------------------------------------------------------------------
+name: Publish to TestPyPI
+
+on:
+  push:
+    tags:
+      - "v*rc*"
+      - "v*a*"
+      - "v*b*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-testpypi
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    environment: testpypi
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist-testpypi
+          path: dist/
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true

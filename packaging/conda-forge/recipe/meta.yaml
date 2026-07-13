@@ -1,0 +1,65 @@
+{% set name = "smartcli-toolkit" %}
+{% set version = "0.1.2" %}
+
+# conda-forge recipe DRAFT for smartcli-toolkit.
+#
+# TO SUBMIT (the step only you can do):
+#   1. Fork https://github.com/conda-forge/staged-recipes
+#   2. Copy this file to recipes/smartcli-toolkit/meta.yaml in that fork.
+#   3. Fill in the sha256 below: download the sdist from PyPI and hash it —
+#        curl -L -o s.tar.gz https://pypi.io/packages/source/s/smartcli-toolkit/smartcli_toolkit-0.1.2.tar.gz
+#        sha256sum s.tar.gz          # (or: openssl dgst -sha256 s.tar.gz)
+#   4. Open a PR to conda-forge/staged-recipes. A conda-forge maintainer reviews
+#      it; once merged a feedstock repo is auto-created and future versions are
+#      bumped by their bot. You become a listed maintainer.
+#
+# Import name stays `smartcli_core` even though the dist is `smartcli-toolkit`.
+
+package:
+  name: {{ name|lower }}
+  version: {{ version }}
+
+source:
+  url: https://pypi.io/packages/source/{{ name[0] }}/{{ name }}/smartcli_toolkit-{{ version }}.tar.gz
+  sha256: 0000000000000000000000000000000000000000000000000000000000000000  # TODO: fill in (see header)
+
+build:
+  noarch: python
+  number: 0
+  script: {{ PYTHON }} -m pip install . -vv --no-deps --no-build-isolation
+
+requirements:
+  host:
+    - python >=3.9
+    - pip
+    - setuptools >=61
+  run:
+    - python >=3.9
+    - pyte >=0.8.1
+    # pywinpty is Windows-only and gated by an environment marker in the wheel;
+    # conda-forge noarch builds target all platforms, so it is intentionally not
+    # a hard run dep here (the POSIX stdlib pty backend needs no extra package).
+
+test:
+  imports:
+    - smartcli_core
+  commands:
+    - python -c "import smartcli_core; print(smartcli_core.__version__)"
+
+about:
+  home: https://github.com/dwgx/SmartCLI
+  license: MIT
+  license_family: MIT
+  license_file: LICENSE
+  summary: Pluggable-PTY + pyte screen model + semantic snapshot / readiness core for driving interactive terminal programs.
+  description: |
+    SmartCLI is three terminal Agent Skills (drive-tui, cmd-art, tui-ui) over one
+    pluggable PTY + pyte core. This package ships the shared core (smartcli_core):
+    a PTY backend, a pyte screen model, semantic snapshots, and readiness sync for
+    driving interactive terminal programs on Windows (ConPTY) and POSIX.
+  doc_url: https://github.com/dwgx/SmartCLI#readme
+  dev_url: https://github.com/dwgx/SmartCLI
+
+extra:
+  recipe-maintainers:
+    - dwgx
