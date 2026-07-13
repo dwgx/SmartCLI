@@ -35,12 +35,15 @@ non-negotiable and overrides any shortcut that looks faster.
   If any doc still says 14 widgets it is STALE.
 - CI: `.github/workflows/ci.yml` (Windows-only, deterministic tests) +
   `.github/workflows/publish.yml` (PyPI Trusted Publishing via OIDC). VERIFIED present.
-- Core fixes this session (smartcli_core, done WITH authorization + adversarial
-  verify): #1 blank_hash readiness gate (readiness.py + session.py, VERIFIED),
-  #2 unanchored `>>> ` docstrings, #4 WinptyBackend.spawn EOF/queue reset.
+- Core fixes (smartcli_core, done WITH authorization + adversarial verify):
+  #1 blank_hash readiness gate, #2 unanchored `>>> ` docstrings, #4 WinptyBackend
+  EOF/queue reset. **#5 + #6 FIXED & verified on real Debian 13 (2026-07-13)**:
+  #5 arrows now adaptive (SS3 under DECCKM via ScreenModel.app_cursor, CSI else),
+  #6 POSIX terminate() now reaps the child (no zombie). Verified with
+  tests/_sandbox_posix_backend.py over SSH; Windows zero-regression.
   NOT fixed (recorded known): #3 content_hash blind to selection-only move
-  (design tradeoff), #5 arrows always CSI never SS3 (POSIX/TUI, unverifiable on
-  Windows), #6 POSIX terminate() doesn't reap child (POSIX-only).
+  (design tradeoff — fixing risks false-unstable). See
+  skills/drive-tui/references/LIMITATIONS.md for the living log.
 - `research/cc-decompiled/` is gitignored and EXCLUDED from release. VERIFIED. Keep
   it excluded — do not re-expose it. Provenance wording already neutralized.
 - Env: Windows 11, Python 3.14.6, pyte 0.8.2 + pywinpty 3.0.5. No tmux, no WSL.
@@ -173,16 +176,16 @@ Do NOT fake these on Windows. A green monkeypatched harness is not proof for the
 POSIX backend — that is exactly the class of false-green the standing method forbids.
 
 ### B2. Add a Linux CI matrix running the deterministic tests  [S] (needs GitHub Actions / Linux runner)
-- **Goal:** run the deterministic test suite on Linux in CI, validating the currently
-  machine-unverified POSIX pty backend.
-- **Why it matters:** the POSIX backend and known-issues #5/#6 are unverifiable on this
-  Windows machine; a Linux runner is the only honest way to exercise them.
-- **First step:** extend `.github/workflows/ci.yml` (currently Windows-only) with an
-  `os: [ubuntu-latest]` matrix leg running the deterministic subset (readiness virtual-
-  clock tests, degenerate-inputs, fx contract). Guard Windows-only bits behind markers.
-- **Verify:** push branch, confirm the Linux leg is green in Actions. If it exposes a
-  real POSIX bug (#6 child-reaping is a prime suspect), that is a genuine finding — fix
-  under the core-modification rule.
+- **Status update (2026-07-13):** the POSIX backend is now **verified on real Debian 13**
+  (Python 3.13) via an isolated SSH sandbox — spawn/read/write/resize, DECCKM SS3 arrows,
+  zombie-free terminate all pass `tests/_sandbox_posix_backend.py`. #5/#6 were found real
+  there and FIXED. This task is no longer "validate the unknown" — it's "automate the
+  now-verified backend in CI so it stays green without a manual SSH run."
+- **Goal:** run the deterministic suite + `tests/_sandbox_posix_backend.py` on Linux in CI.
+- **First step:** extend `.github/workflows/ci.yml` (Windows-only) with an
+  `os: [ubuntu-latest]` leg: `pip install pyte`, run readiness/degenerate/fx-contract +
+  `_sandbox_posix_backend.py`. Guard Windows-only bits behind markers.
+- **Verify:** push, confirm the Linux leg is green in Actions (it should match the SSH run).
 - **Effort:** S (needs the cloud runner, hence Section B)
 
 ### B-PyPI. One-time PyPI Trusted-Publisher setup  [S] (needs human with PyPI login)

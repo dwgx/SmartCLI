@@ -105,7 +105,9 @@ Missing external tools = skipped, not failed. Six scenarios: repl/confirm/progre
 - **FIXED #1 — false-STABLE on a blank startup screen.** `wait_ready` / `wait_until_stable` could declare STABLE on a never-painted blank screen during a ConPTY startup quiet-gap. Added an optional **`blank_hash` gate** (default `None` = byte-identical old behavior); `PtySession` passes its blank baseline so a still-blank screen is not treated as ready.
 - **FIXED #2 — quickstart marker could never match.** The docstring example marker `>>> $` can never match pyte's space-padded lines; examples now use the **unanchored `>>> `**.
 - **FIXED #4 — stale EOF on backend reuse.** `WinptyBackend.spawn` now **resets `queue` / `_eof` / `_reader`** so a re-used backend cannot inherit a stale EOF sentinel.
-- **NOT fixed (recorded as known, with reasons):** **#3** `content_hash` is blind to selection-only cursor movement (design tradeoff — fixing it risks false-*unstable*); **#5** arrows are always emitted CSI, never SS3 (pyte doesn't track DECCKM; POSIX/TUI concern, unverifiable on Windows); **#6** POSIX `terminate()` doesn't reap the child (POSIX-only, unverifiable on this host).
+- **FIXED #5 (2026-07-13, verified on real Linux) — arrows now adaptive.** Was: arrows always emitted CSI (`ESC[A`), never SS3, so curses/DECCKM apps ignored them. Now `send_keys` reads the live screen's cursor-key mode (`ScreenModel.app_cursor` — pyte records DECCKM as mode value `32`) and emits SS3 (`ESC O A`) to application-cursor apps, CSI otherwise. Verified on Debian 13 ncurses (a `keypad(True)` probe read our `Up` as `KEY_UP`); Windows default path unchanged.
+- **FIXED #6 (2026-07-13, verified on real Linux) — POSIX `terminate()` reaps the child.** Was: `SIGTERM` with no `waitpid`, leaving a `<defunct>` zombie. Now polls `waitpid(WNOHANG)` ~1s, `SIGKILL` fallback, blocking reap. Verified on Debian 13 (`_sandbox_posix_backend.py`: `[KNOWN] zombie` → `[OK] reaped`).
+- **NOT fixed (recorded as known, with reasons):** **#3** `content_hash` is blind to selection-only cursor movement (design tradeoff — fixing it risks false-*unstable*).
 
 *Skill-code degenerate-input fixes (all with regression locks in `tests/test_degenerate_inputs.py`):* `field.Ripple` (wavelength 0 / falloff 0 / empty palette), `SliderTrack` (empty positions list), `BrailleChart` (non-finite series), and `fx` **Param int coerce** (zero-padded `08`/`010` and `+`/`-` signed based literals now parse; clean error otherwise).
 
@@ -182,8 +184,8 @@ Reproducible ground-truth archive (INTERNAL-ONLY — gitignored, EXCLUDED from p
 
 Ranked by impact/effort. The v0.1.2 release, the deterministic/mutation-verified test suite, and the core #1/#2/#4 fixes are DONE — these are what's left.
 
-1. **[S] Ship a `py.typed` marker in `smartcli_core`.** Confirmed **absent** on disk (2026-07-12); add it so downstream type-checkers see the package as typed.
-2. **[S] Add a Linux CI matrix** running the deterministic tests — this validates the currently machine-**unverified POSIX pty backend** (relates to known-unfixed #5/#6). CI is Windows-only today.
+1. **[DONE 2026-07-13] Ship a `py.typed` marker in `smartcli_core`.** Added + `[tool.setuptools.package-data]`; verified present inside the built wheel. Not version-bumped/published yet.
+2. **[S] Add a Linux CI matrix** running the deterministic tests + `tests/_sandbox_posix_backend.py`. The POSIX pty backend is now **verified on real Debian 13** (2026-07-13, via an SSH sandbox — #5/#6 fixed there), but CI is still Windows-only; a Linux job would keep it green automatically instead of relying on a manual SSH run.
 3. **[M] MCP-server wrapper over the drive-tui daemon's verb surface** (`start/snapshot/send-*/keys/wait*/alive/close/list`). Biggest adoption lever — usable by any MCP client.
 4. **[S] Pattern-list / multi-marker wait** (pexpect-style wait-any that returns *which* marker matched).
 5. **[M] Golden-frame snapshot regression test for tui-ui** — commit a baseline frame and diff, like `pytest-textual-snapshot`.
@@ -195,7 +197,7 @@ Ranked by impact/effort. The v0.1.2 release, the deterministic/mutation-verified
 
 **One-time release chore (blocks tag-push auto-publish):** complete the PyPI Trusted-Publisher setup + `pypi` GitHub Environment described in §0 so `publish.yml` works; until then keep releasing manually with `twine --disable-progress-bar`.
 
-**Still-open replica polish (unchanged from earlier rounds):** eyeball `effort_selector.py`'s animation cadence in a REAL Windows Terminal. Keep `field.Ripple` `travel` **small (~λ×1..1.6, breathing)** so the ripple stays localized on the ultracode/max side; `travel < ~26` keeps low/medium/high/xhigh clean dim-gray. Label distances: ultracode 4, max 14, xhigh 25, high 34, medium 45, low 53. It's bit-exact in pyte; the only gap is the real-terminal eyeball. **POSIX-verify drive-tui** (daemon `start_new_session` + `C-c` interrupt path coded but unverified off Windows; tmux launchers `skills/cmd-art/tmux/*.sh` need a real tmux host).
+**Still-open replica polish (unchanged from earlier rounds):** eyeball `effort_selector.py`'s animation cadence in a REAL Windows Terminal. Keep `field.Ripple` `travel` **small (~λ×1..1.6, breathing)** so the ripple stays localized on the ultracode/max side; `travel < ~26` keeps low/medium/high/xhigh clean dim-gray. Label distances: ultracode 4, max 14, xhigh 25, high 34, medium 45, low 53. It's bit-exact in pyte; the only gap is the real-terminal eyeball. **drive-tui is now POSIX-verified** (2026-07-13, Debian 13 over SSH: spawn/read/write/resize, DECCKM SS3 arrows, and zombie-free terminate all pass `tests/_sandbox_posix_backend.py`). Still unverified: macOS (BSD pty EOF path), and the tmux launchers `skills/cmd-art/tmux/*.sh` (need a real tmux host).
 
 **Standing re-verify-after-workflows:** confirm the 3 external fixes + full `tests/run_all.py` stay exit-0 after any workflow that edits fx effects or recipe `matches()` (`external-ai-fixes.md`).
 
@@ -275,9 +277,10 @@ Environment setup before tag-push auto-publish works; until then release manuall
 `python -m twine upload --disable-progress-bar`. cc-decompiled/ stays gitignored/excluded.
 
 OPEN OBJECTIVES — "reach A-grade" gaps (ranked by impact/effort; start immediately):
-1. [S] Ship a py.typed marker in smartcli_core (confirmed ABSENT on disk).
-2. [S] Add a Linux CI matrix for the deterministic tests — validates the machine-unverified
-   POSIX pty backend (known-unfixed #5/#6). CI is Windows-only today.
+1. [DONE 2026-07-13] py.typed marker shipped in smartcli_core (verified in the wheel).
+2. [S] Add a Linux CI matrix for the deterministic tests + _sandbox_posix_backend.py.
+   POSIX backend now VERIFIED on real Debian 13 (2026-07-13, #5/#6 fixed); CI still
+   Windows-only, so a Linux job would keep it green automatically.
 3. [M] MCP-server wrapper over the drive-tui daemon verb surface — biggest adoption lever.
 4. [S] Pattern-list / multi-marker wait (pexpect-style wait-any returning which matched).
 5. [M] Golden-frame snapshot regression test for tui-ui (baseline + diff).
