@@ -41,6 +41,18 @@ jobs:
   build:
     name: Build distribution
     runs-on: ubuntu-latest
+    # Guard: this workflow publishes to PRODUCTION PyPI. Its trigger `tags: v*`
+    # also matches prerelease tags (v0.1.3rc1 / v0.1.3a1 / v0.1.3b2), which the
+    # SEPARATE publish-testpypi.yml is meant to handle. GitHub tag patterns are
+    # globs, not regex, so we can't exclude prereleases in the `on:` filter —
+    # skip them here instead, so a rehearsal tag goes to TestPyPI ONLY and never
+    # silently burns a version string on the real index. workflow_dispatch (no
+    # prerelease ref) always runs.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (!contains(github.ref_name, 'rc') &&
+       !contains(github.ref_name, 'a') &&
+       !contains(github.ref_name, 'b'))
     steps:
       - uses: actions/checkout@v4
 

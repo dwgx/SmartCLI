@@ -15,9 +15,15 @@ on:
       - "skills/**"
       - ".github/workflows/docker.yml"
   pull_request:
+    # Mirror the push paths so a PR that breaks the image via a core/skill change
+    # (e.g. a bad import the fx/ui/drive entrypoint hits) gets caught by the
+    # build-only PR gate, not only after merge.
     paths:
       - "Dockerfile"
       - "docker-entrypoint.sh"
+      - "smartcli_core/**"
+      - "skills/**"
+      - ".github/workflows/docker.yml"
   workflow_dispatch:
 
 env:
