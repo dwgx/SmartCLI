@@ -17,7 +17,6 @@
     --coral:#cc785c; --coral-active:#a9583e; --teal:#5db8a6; --amber:#e8a55a;
     --ink:#141413; --body-strong:#252523; --body:#3d3d3a;
     --muted:#6c6a64; --muted-soft:#8e8b82; --on-dark:#faf9f5; --on-dark-soft:#a09d96;
-    --fg:#faf9f5; --grn:#5db872;  /* aliases for the legacy DRIVE-TUI menu rows */
     --serif:'Cormorant Garamond',Georgia,serif;
     --sans:'Inter',-apple-system,'Segoe UI',sans-serif;
     --mono:'JetBrains Mono','SF Mono',Consolas,monospace;
@@ -221,17 +220,6 @@
     60%{opacity:1;transform:translateY(0) scale(1.06)}
     100%{opacity:1;transform:translateY(0) scale(1)}}
 
-  /* drive-tui menu toy — fills the fixed stage */
-  .menu{font-family:var(--mono);font-size:14px;padding:14px 16px;outline:none;
-    cursor:pointer;height:100%}
-  .menu:focus{box-shadow:inset 0 0 0 2px var(--coral)}
-  .mtitle{color:var(--on-dark-soft);font-size:12px;margin-bottom:10px}
-  .mrow{color:var(--on-dark-soft);padding:3px 0;transition:color .18s ease}
-  .mrow .arrow{opacity:0;color:var(--teal);margin-right:8px;
-    transition:opacity .18s ease}
-  .mrow.sel{color:var(--fg)}
-  .mrow.sel .arrow{opacity:1}
-  .mrow.done{color:var(--grn)}
 
   /* tui-ui widgets toy — fixed-width mono cells so bars never shift siblings */
   /* drive-tui menu toy — faithful Claude Code slash-command menu (nested).
