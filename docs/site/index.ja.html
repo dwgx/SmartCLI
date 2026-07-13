@@ -233,6 +233,44 @@
   .mrow.done{color:var(--grn)}
 
   /* tui-ui widgets toy — fixed-width mono cells so bars never shift siblings */
+  /* drive-tui menu toy — faithful Claude Code slash-command menu (nested).
+     Colors are Claude Code's real dark-theme tokens. */
+  .cc-menu{--cc-suggestion:rgb(177,185,249);--cc-success:rgb(78,186,101);
+    --cc-inactive:rgb(153,153,153);--cc-claude:rgb(215,119,87);
+    --cc-warning:rgb(255,193,7);--cc-error:rgb(255,107,128);
+    height:100%;padding:12px 14px;outline:none;font-family:var(--mono);
+    font-size:13px;line-height:1.55;color:var(--on-dark);cursor:pointer;
+    display:flex;flex-direction:column;overflow:hidden}
+  .cc-menu:focus{box-shadow:none}
+  .cc-title{color:var(--cc-claude);font-weight:600;margin-bottom:2px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cc-sub{color:var(--cc-inactive);font-size:11px;margin-bottom:8px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cc-rows{flex:1 1 auto;overflow:hidden}
+  .cc-row{display:flex;align-items:baseline;gap:7px;padding:2px 6px;
+    border-radius:5px;white-space:nowrap}
+  .cc-mk{flex:0 0 auto;width:1ch;color:transparent}
+  .cc-row.sel{background:rgba(255,255,255,.05);
+    box-shadow:inset 2px 0 0 var(--cc-suggestion)}
+  .cc-row.sel .cc-mk{color:var(--cc-suggestion)}
+  .cc-row.sel .cc-cmd{color:var(--cc-claude)}
+  .cc-row.sel .cc-label{color:#fff}
+  .cc-row.sel .cc-desc{color:#e8e6f6}
+  .cc-cmd{flex:0 0 auto;color:var(--cc-claude)}
+  .cc-label{flex:0 0 auto;color:var(--on-dark)}
+  .cc-desc{flex:1 1 auto;color:var(--cc-inactive);overflow:hidden;
+    text-overflow:ellipsis;font-size:12px}
+  .cc-tick{flex:0 0 auto;color:var(--cc-success);margin-left:4px}
+  .cc-val{flex:0 0 auto;margin-left:auto;padding-left:10px;color:var(--cc-inactive);
+    font-variant-numeric:tabular-nums}
+  .cc-caret{flex:0 0 auto;color:var(--cc-inactive)}
+  .cc-foot{margin-top:8px;padding-top:7px;border-top:1px solid #2a2622;
+    color:var(--cc-inactive);font-size:11px;white-space:nowrap;overflow:hidden}
+  .cc-result{flex:1 1 auto;white-space:pre-wrap;color:var(--cc-success);
+    font-size:12.5px;padding:4px 2px}
+  .cc-result .cc-warn{color:var(--cc-warning)}
+  .cc-effort{color:var(--cc-inactive);font-size:11px;margin-left:2ch}
+
   .widgets{font-family:var(--mono);font-size:13px;padding:16px;height:100%;
     display:flex;flex-direction:column;gap:14px;justify-content:center}
   .w-row{display:flex;align-items:center;gap:10px}
@@ -400,14 +438,8 @@
     <!-- toy 2: drive a menu with real keys -->
     <div class="toy">
       <div class="toy-head"><span class="toy-k">DRIVE-TUI</span>
-        <span class="toy-hint">↑ ↓ Enter — またはクリック</span></div>
-      <div class="toy-stage"><div class="menu" id="drive-menu" tabindex="0">
-        <div class="mtitle">デプロイ先を選択</div>
-        <div class="mrow"><span class="arrow">❯</span> production</div>
-        <div class="mrow"><span class="arrow">❯</span> staging</div>
-        <div class="mrow"><span class="arrow">❯</span> preview</div>
-        <div class="mrow"><span class="arrow">❯</span> local</div>
-      </div></div>
+        <span class="toy-hint">↑↓ 移動 · Enter/→ 開く · Esc/← 戻る · 1–9 ジャンプ</span></div>
+      <div class="toy-stage"><div class="cc-menu" id="drive-menu" tabindex="0"></div></div>
       <div class="toy-cap" id="drive-log">認識 → ハイライトされている行は <b>production</b></div>
     </div>
     <!-- toy 3: tui-ui widgets, sub-cell precision -->
@@ -427,6 +459,55 @@
       <div class="toy-cap">1/8 セル精度のバーと点字 — 桁ずれなし。</div>
     </div>
   </div>
+</div></section>
+
+<section><div class="wrap">
+  <div class="sec-head center">
+    <span class="eyebrow">証明 — 実際の TUI を操作</span>
+    <h2>本当に <em>lazygit</em> を操作する。</h2>
+    <p class="sub">SmartCLI が実際の lazygit TUI を 認識 → 実行 → 確認
+      のループで直接操作します — 矢印キーでパネルを移動し、コミットの diff を開き、
+      ブランチをハイライトする、そのすべてを <code>pyte</code> セルグリッド(どの行が
+      選択されているか、alt-screen かどうか)を読み取って行います。実際のプログラムを
+      Linux コンテナ内で直接操作してキャプチャしたもので、スクリプトではありません。
+      pexpect のようなバイトストリームマッチャーは「どの行がハイライトされているか」を
+      認識できませんが、スクリーンモデルならできます。</p>
+  </div>
+  <figure class="gif-hero"><video autoplay muted loop playsinline preload="metadata" poster="assets/drive-lazygit.gif" aria-label="SmartCLI が実際の lazygit TUI を操作: パネル移動、コミット diff を開く、ブランチをハイライト"><source src="assets/drive-lazygit.webm" type="video/webm"><source src="assets/drive-lazygit.mp4" type="video/mp4"><img src="assets/drive-lazygit.gif" alt="SmartCLI が実際の lazygit TUI を操作"></video><figcaption>drive-tui が Debian 13 で実際の lazygit TUI を操作 — 認識 → 実行 → 確認 (30fps)</figcaption></figure>
+  <div class="gifs" style="margin-top:22px">
+    <figure><video autoplay muted loop playsinline preload="metadata" poster="assets/drive-dialog-poster.jpg" aria-label="SmartCLI が dialog のチェックリストフォームを操作: Space で行をトグル"><source src="assets/drive-dialog.webm" type="video/webm"><source src="assets/drive-dialog.mp4" type="video/mp4"></video><figcaption>dialog — チェックリストフォーム: 移動、Space で行をトグル、送信</figcaption></figure>
+    <figure><video autoplay muted loop playsinline preload="metadata" poster="assets/drive-vim-poster.jpg" aria-label="SmartCLI が vim を操作: モーダル挿入、Esc、保存して終了"><source src="assets/drive-vim.webm" type="video/webm"><source src="assets/drive-vim.mp4" type="video/mp4"></video><figcaption>vim — モーダル編集: insert、入力、Esc、<code>:wq</code></figcaption></figure>
+    <figure><video autoplay muted loop playsinline preload="metadata" poster="assets/drive-htop.gif" aria-label="SmartCLI が htop を操作: ツリービュー、ソートメニュー"><source src="assets/drive-htop.webm" type="video/webm"><source src="assets/drive-htop.mp4" type="video/mp4"><img src="assets/drive-htop.gif" alt="SmartCLI が htop を操作"></video><figcaption>htop — ツリービュー、ソートメニューを開く、適用</figcaption></figure>
+    <figure><video autoplay muted loop playsinline preload="metadata" poster="assets/drive-ncdu.gif" aria-label="SmartCLI が ncdu を操作: サイズ順にディスク使用量を閲覧"><source src="assets/drive-ncdu.webm" type="video/webm"><source src="assets/drive-ncdu.mp4" type="video/mp4"><img src="assets/drive-ncdu.gif" alt="SmartCLI が ncdu を操作"></video><figcaption>ncdu — 最大のディレクトリに入って、戻る</figcaption></figure>
+  </div>
+  <p class="sub" style="margin-top:22px;font-size:13px">どのクリップも SmartCLI が
+    <em>実際の</em> プログラムを操作したものです — pyte スクリーングリッドを読み取って
+    キーを押しており、スクリプトで作った出力ではありません。pexpect のような
+    バイトストリームマッチャーは「どの行がハイライトされているか」を認識できませんが、
+    スクリーンモデルならできます。</p>
+</div></section>
+
+<section class="band-soft"><div class="wrap">
+  <div class="sec-head center">
+    <span class="eyebrow">1つの API · 3つの OS</span>
+    <h2><em>同じ</em> ドライバー。Windows、macOS、Linux。</h2>
+    <p class="sub">本当に難しく、そして守りの効く部分: 1つのライブラリが、3つの
+      プラットフォームすべてで同じ実際の <code>lazygit</code> を同じ
+      <code>認識 → 実行 → 確認</code> ループで操作します — Windows のネイティブ
+      <b>ConPTY</b>、macOS の <b>BSD pty</b>、そして <b>Linux pty</b> で、
+      それぞれ適応型の DECCKM/SS3 矢印キーを使います。WSL も Cygwin もありません。
+      以下の各クリップは、その OS で実際に操作したものです。</p>
+  </div>
+  <div class="gifs gifs-3">
+    <figure><video autoplay muted loop playsinline preload="metadata" poster="assets/drive-lazygit-windows-poster.jpg" aria-label="SmartCLI がネイティブ Windows で ConPTY を使って lazygit を操作"><source src="assets/drive-lazygit-windows.webm" type="video/webm"><source src="assets/drive-lazygit-windows.mp4" type="video/mp4"></video><figcaption>Windows — ConPTY (pywinpty)</figcaption></figure>
+    <figure><video autoplay muted loop playsinline preload="metadata" poster="assets/drive-lazygit-macos-poster.jpg" aria-label="SmartCLI が macOS で BSD pty を使って lazygit を操作"><source src="assets/drive-lazygit-macos.webm" type="video/webm"><source src="assets/drive-lazygit-macos.mp4" type="video/mp4"></video><figcaption>macOS — BSD pty (Apple Silicon)</figcaption></figure>
+    <figure><video autoplay muted loop playsinline preload="metadata" poster="assets/drive-lazygit.gif" aria-label="SmartCLI が Linux で lazygit を操作"><source src="assets/drive-lazygit.webm" type="video/webm"><source src="assets/drive-lazygit.mp4" type="video/mp4"><img src="assets/drive-lazygit.gif" alt="SmartCLI が Linux で lazygit を操作"></video><figcaption>Linux — pty.fork()</figcaption></figure>
+  </div>
+  <p class="sub" style="margin-top:22px;font-size:13px">Windows は ConPTY で
+    lazygit 0.63 を操作し、macOS は Apple Silicon の M シリーズで BSD pty を使って
+    操作(そこでの DECCKM/SS3 矢印キー経路は実際の ncurses に対して検証済み)、
+    Linux は標準ライブラリの <code>pty.fork()</code> で操作しました。同じ
+    <code>scripts/tui.py</code>、同じ recipes、3つの OS。</p>
 </div></section>
 
 <section class="band-soft"><div class="wrap">
@@ -494,6 +575,7 @@
 </div></footer>
 <script src="assets/app.js"></script>
 <script src="assets/toys.js"></script>
+<script src="assets/ccmenu.js"></script>
 <script src="assets/lightbox.js"></script>
 </body>
 </html>

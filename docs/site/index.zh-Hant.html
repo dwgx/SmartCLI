@@ -234,6 +234,44 @@
   .mrow.done{color:var(--grn)}
 
   /* tui-ui widgets toy — fixed-width mono cells so bars never shift siblings */
+  /* drive-tui menu toy — faithful Claude Code slash-command menu (nested).
+     Colors are Claude Code's real dark-theme tokens. */
+  .cc-menu{--cc-suggestion:rgb(177,185,249);--cc-success:rgb(78,186,101);
+    --cc-inactive:rgb(153,153,153);--cc-claude:rgb(215,119,87);
+    --cc-warning:rgb(255,193,7);--cc-error:rgb(255,107,128);
+    height:100%;padding:12px 14px;outline:none;font-family:var(--mono);
+    font-size:13px;line-height:1.55;color:var(--on-dark);cursor:pointer;
+    display:flex;flex-direction:column;overflow:hidden}
+  .cc-menu:focus{box-shadow:none}
+  .cc-title{color:var(--cc-claude);font-weight:600;margin-bottom:2px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cc-sub{color:var(--cc-inactive);font-size:11px;margin-bottom:8px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cc-rows{flex:1 1 auto;overflow:hidden}
+  .cc-row{display:flex;align-items:baseline;gap:7px;padding:2px 6px;
+    border-radius:5px;white-space:nowrap}
+  .cc-mk{flex:0 0 auto;width:1ch;color:transparent}
+  .cc-row.sel{background:rgba(255,255,255,.05);
+    box-shadow:inset 2px 0 0 var(--cc-suggestion)}
+  .cc-row.sel .cc-mk{color:var(--cc-suggestion)}
+  .cc-row.sel .cc-cmd{color:var(--cc-claude)}
+  .cc-row.sel .cc-label{color:#fff}
+  .cc-row.sel .cc-desc{color:#e8e6f6}
+  .cc-cmd{flex:0 0 auto;color:var(--cc-claude)}
+  .cc-label{flex:0 0 auto;color:var(--on-dark)}
+  .cc-desc{flex:1 1 auto;color:var(--cc-inactive);overflow:hidden;
+    text-overflow:ellipsis;font-size:12px}
+  .cc-tick{flex:0 0 auto;color:var(--cc-success);margin-left:4px}
+  .cc-val{flex:0 0 auto;margin-left:auto;padding-left:10px;color:var(--cc-inactive);
+    font-variant-numeric:tabular-nums}
+  .cc-caret{flex:0 0 auto;color:var(--cc-inactive)}
+  .cc-foot{margin-top:8px;padding-top:7px;border-top:1px solid #2a2622;
+    color:var(--cc-inactive);font-size:11px;white-space:nowrap;overflow:hidden}
+  .cc-result{flex:1 1 auto;white-space:pre-wrap;color:var(--cc-success);
+    font-size:12.5px;padding:4px 2px}
+  .cc-result .cc-warn{color:var(--cc-warning)}
+  .cc-effort{color:var(--cc-inactive);font-size:11px;margin-left:2ch}
+
   .widgets{font-family:var(--mono);font-size:13px;padding:16px;height:100%;
     display:flex;flex-direction:column;gap:14px;justify-content:center}
   .w-row{display:flex;align-items:center;gap:10px}
@@ -402,14 +440,8 @@
     <!-- toy 2: drive a menu with real keys -->
     <div class="toy">
       <div class="toy-head"><span class="toy-k">DRIVE-TUI</span>
-        <span class="toy-hint">↑ ↓ Enter —— 或點按</span></div>
-      <div class="toy-stage"><div class="menu" id="drive-menu" tabindex="0">
-        <div class="mtitle">選擇部署目標</div>
-        <div class="mrow"><span class="arrow">❯</span> production</div>
-        <div class="mrow"><span class="arrow">❯</span> staging</div>
-        <div class="mrow"><span class="arrow">❯</span> preview</div>
-        <div class="mrow"><span class="arrow">❯</span> local</div>
-      </div></div>
+        <span class="toy-hint">↑↓ 導覽 · Enter/→ 開啟 · Esc/← 返回 · 1–9 跳轉</span></div>
+      <div class="toy-stage"><div class="cc-menu" id="drive-menu" tabindex="0"></div></div>
       <div class="toy-cap" id="drive-log">感知 → 目前反白的列是 <b>production</b></div>
     </div>
     <!-- toy 3: tui-ui widgets, sub-cell precision -->
@@ -429,6 +461,53 @@
       <div class="toy-cap">1/8 格精準的進度條與點字符 —— 絕不錯位。</div>
     </div>
   </div>
+</div></section>
+
+<section><div class="wrap">
+  <div class="sec-head center">
+    <span class="eyebrow">實證 —— 操控真實的 TUI</span>
+    <h2>真真切切地操控 <em>lazygit</em>。</h2>
+    <p class="sub">SmartCLI 以感知 → 行動 → 確認的迴圈,直接操控貨真價實的
+      lazygit TUI —— 用方向鍵在面板間移動、開啟某個 commit 的 diff、把某個分支
+      反白起來 —— 這一切全靠讀取 <code>pyte</code> 的儲存格網格(哪一列被選取、
+      是不是 alt-screen)來完成。這是在 Linux 容器裡直接操控真實程式所擷取的,
+      不是腳本。像 pexpect 這種逐位元組串流比對器無法感知「哪一列被反白」;
+      畫面模型卻可以。</p>
+  </div>
+  <figure class="gif-hero"><video autoplay muted loop playsinline preload="metadata" poster="assets/drive-lazygit.gif" aria-label="SmartCLI 操控真實的 lazygit TUI:在面板間移動、開啟 commit diff、反白分支"><source src="assets/drive-lazygit.webm" type="video/webm"><source src="assets/drive-lazygit.mp4" type="video/mp4"><img src="assets/drive-lazygit.gif" alt="SmartCLI 操控真實的 lazygit TUI"></video><figcaption>drive-tui 在 Debian 13 上操控真實的 lazygit TUI —— 感知 → 行動 → 確認 (30fps)</figcaption></figure>
+  <div class="gifs" style="margin-top:22px">
+    <figure><video autoplay muted loop playsinline preload="metadata" poster="assets/drive-dialog-poster.jpg" aria-label="SmartCLI 操控 dialog 核取清單表單:用 Space 切換各列"><source src="assets/drive-dialog.webm" type="video/webm"><source src="assets/drive-dialog.mp4" type="video/mp4"></video><figcaption>dialog —— 核取清單表單:移動、用 Space 切換各列、送出</figcaption></figure>
+    <figure><video autoplay muted loop playsinline preload="metadata" poster="assets/drive-vim-poster.jpg" aria-label="SmartCLI 操控 vim:模式化插入、Esc、寫入並離開"><source src="assets/drive-vim.webm" type="video/webm"><source src="assets/drive-vim.mp4" type="video/mp4"></video><figcaption>vim —— 模式化編輯:insert、輸入、Esc、<code>:wq</code></figcaption></figure>
+    <figure><video autoplay muted loop playsinline preload="metadata" poster="assets/drive-htop.gif" aria-label="SmartCLI 操控 htop:樹狀檢視、排序選單"><source src="assets/drive-htop.webm" type="video/webm"><source src="assets/drive-htop.mp4" type="video/mp4"><img src="assets/drive-htop.gif" alt="SmartCLI 操控 htop"></video><figcaption>htop —— 樹狀檢視、開啟排序選單、套用</figcaption></figure>
+    <figure><video autoplay muted loop playsinline preload="metadata" poster="assets/drive-ncdu.gif" aria-label="SmartCLI 操控 ncdu:依大小瀏覽磁碟用量"><source src="assets/drive-ncdu.webm" type="video/webm"><source src="assets/drive-ncdu.mp4" type="video/mp4"><img src="assets/drive-ncdu.gif" alt="SmartCLI 操控 ncdu"></video><figcaption>ncdu —— 進入最大的目錄,再退回來</figcaption></figure>
+  </div>
+  <p class="sub" style="margin-top:22px;font-size:13px">每一段影片都是 SmartCLI
+    在操控<em>真實的</em>程式 —— 讀取 pyte 畫面網格並按下按鍵,而不是腳本產生的
+    輸出。像 pexpect 這種逐位元組串流比對器無法感知「哪一列被反白」;畫面模型
+    卻可以。</p>
+</div></section>
+
+<section class="band-soft"><div class="wrap">
+  <div class="sec-head center">
+    <span class="eyebrow">一套 API · 三種作業系統</span>
+    <h2><em>同一個</em>驅動程式。Windows、macOS、Linux。</h2>
+    <p class="sub">真正困難、也真正站得住腳的地方:同一個函式庫在三種平台上,
+      都以同樣的 <code>感知 → 行動 → 確認</code> 迴圈操控同一個真實的
+      <code>lazygit</code> —— Windows 上用原生 <b>ConPTY</b>、macOS 上用
+      <b>BSD pty</b>、Linux 上用 <b>Linux pty</b>,各自搭配自適應的
+      DECCKM/SS3 方向鍵。不用 WSL,也不用 Cygwin。下面每一段影片都是在該作業系統
+      上真實操控的。</p>
+  </div>
+  <div class="gifs gifs-3">
+    <figure><video autoplay muted loop playsinline preload="metadata" poster="assets/drive-lazygit-windows-poster.jpg" aria-label="SmartCLI 在原生 Windows 上透過 ConPTY 操控 lazygit"><source src="assets/drive-lazygit-windows.webm" type="video/webm"><source src="assets/drive-lazygit-windows.mp4" type="video/mp4"></video><figcaption>Windows —— ConPTY (pywinpty)</figcaption></figure>
+    <figure><video autoplay muted loop playsinline preload="metadata" poster="assets/drive-lazygit-macos-poster.jpg" aria-label="SmartCLI 在 macOS 上透過 BSD pty 操控 lazygit"><source src="assets/drive-lazygit-macos.webm" type="video/webm"><source src="assets/drive-lazygit-macos.mp4" type="video/mp4"></video><figcaption>macOS —— BSD pty (Apple Silicon)</figcaption></figure>
+    <figure><video autoplay muted loop playsinline preload="metadata" poster="assets/drive-lazygit.gif" aria-label="SmartCLI 在 Linux 上操控 lazygit"><source src="assets/drive-lazygit.webm" type="video/webm"><source src="assets/drive-lazygit.mp4" type="video/mp4"><img src="assets/drive-lazygit.gif" alt="SmartCLI 在 Linux 上操控 lazygit"></video><figcaption>Linux —— pty.fork()</figcaption></figure>
+  </div>
+  <p class="sub" style="margin-top:22px;font-size:13px">Windows 在 ConPTY 下操控
+    lazygit 0.63;macOS 在 Apple Silicon M 系列上透過 BSD pty 操控(該處的
+    DECCKM/SS3 方向鍵路徑已對真實 ncurses 驗證過);Linux 則透過標準函式庫的
+    <code>pty.fork()</code>。同一份 <code>scripts/tui.py</code>、同一批 recipes,
+    三種作業系統。</p>
 </div></section>
 
 <section class="band-soft"><div class="wrap">
@@ -496,6 +575,7 @@
 </div></footer>
 <script src="assets/app.js"></script>
 <script src="assets/toys.js"></script>
+<script src="assets/ccmenu.js"></script>
 <script src="assets/lightbox.js"></script>
 </body>
 </html>

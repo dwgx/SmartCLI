@@ -233,6 +233,44 @@
   .mrow.done{color:var(--grn)}
 
   /* tui-ui widgets toy — fixed-width mono cells so bars never shift siblings */
+  /* drive-tui menu toy — faithful Claude Code slash-command menu (nested).
+     Colors are Claude Code's real dark-theme tokens. */
+  .cc-menu{--cc-suggestion:rgb(177,185,249);--cc-success:rgb(78,186,101);
+    --cc-inactive:rgb(153,153,153);--cc-claude:rgb(215,119,87);
+    --cc-warning:rgb(255,193,7);--cc-error:rgb(255,107,128);
+    height:100%;padding:12px 14px;outline:none;font-family:var(--mono);
+    font-size:13px;line-height:1.55;color:var(--on-dark);cursor:pointer;
+    display:flex;flex-direction:column;overflow:hidden}
+  .cc-menu:focus{box-shadow:none}
+  .cc-title{color:var(--cc-claude);font-weight:600;margin-bottom:2px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cc-sub{color:var(--cc-inactive);font-size:11px;margin-bottom:8px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cc-rows{flex:1 1 auto;overflow:hidden}
+  .cc-row{display:flex;align-items:baseline;gap:7px;padding:2px 6px;
+    border-radius:5px;white-space:nowrap}
+  .cc-mk{flex:0 0 auto;width:1ch;color:transparent}
+  .cc-row.sel{background:rgba(255,255,255,.05);
+    box-shadow:inset 2px 0 0 var(--cc-suggestion)}
+  .cc-row.sel .cc-mk{color:var(--cc-suggestion)}
+  .cc-row.sel .cc-cmd{color:var(--cc-claude)}
+  .cc-row.sel .cc-label{color:#fff}
+  .cc-row.sel .cc-desc{color:#e8e6f6}
+  .cc-cmd{flex:0 0 auto;color:var(--cc-claude)}
+  .cc-label{flex:0 0 auto;color:var(--on-dark)}
+  .cc-desc{flex:1 1 auto;color:var(--cc-inactive);overflow:hidden;
+    text-overflow:ellipsis;font-size:12px}
+  .cc-tick{flex:0 0 auto;color:var(--cc-success);margin-left:4px}
+  .cc-val{flex:0 0 auto;margin-left:auto;padding-left:10px;color:var(--cc-inactive);
+    font-variant-numeric:tabular-nums}
+  .cc-caret{flex:0 0 auto;color:var(--cc-inactive)}
+  .cc-foot{margin-top:8px;padding-top:7px;border-top:1px solid #2a2622;
+    color:var(--cc-inactive);font-size:11px;white-space:nowrap;overflow:hidden}
+  .cc-result{flex:1 1 auto;white-space:pre-wrap;color:var(--cc-success);
+    font-size:12.5px;padding:4px 2px}
+  .cc-result .cc-warn{color:var(--cc-warning)}
+  .cc-effort{color:var(--cc-inactive);font-size:11px;margin-left:2ch}
+
   .widgets{font-family:var(--mono);font-size:13px;padding:16px;height:100%;
     display:flex;flex-direction:column;gap:14px;justify-content:center}
   .w-row{display:flex;align-items:center;gap:10px}
@@ -401,14 +439,8 @@
     <!-- toy 2: drive a menu with real keys -->
     <div class="toy">
       <div class="toy-head"><span class="toy-k">DRIVE-TUI</span>
-        <span class="toy-hint">↑ ↓ Enter — 또는 클릭</span></div>
-      <div class="toy-stage"><div class="menu" id="drive-menu" tabindex="0">
-        <div class="mtitle">배포 대상 선택</div>
-        <div class="mrow"><span class="arrow">❯</span> production</div>
-        <div class="mrow"><span class="arrow">❯</span> staging</div>
-        <div class="mrow"><span class="arrow">❯</span> preview</div>
-        <div class="mrow"><span class="arrow">❯</span> local</div>
-      </div></div>
+        <span class="toy-hint">↑↓ 이동 · Enter/→ 열기 · Esc/← 뒤로 · 1–9 점프</span></div>
+      <div class="toy-stage"><div class="cc-menu" id="drive-menu" tabindex="0"></div></div>
       <div class="toy-cap" id="drive-log">인식 → 강조된 행은 <b>production</b></div>
     </div>
     <!-- toy 3: tui-ui widgets, sub-cell precision -->
@@ -428,6 +460,53 @@
       <div class="toy-cap">1/8셀 정밀도 막대 &amp; 브라유 문자 — 어긋남 없음.</div>
     </div>
   </div>
+</div></section>
+
+<section><div class="wrap">
+  <div class="sec-head center">
+    <span class="eyebrow">증명 — 실제 TUI 조작</span>
+    <h2>진짜로 <em>lazygit</em>을 조작합니다.</h2>
+    <p class="sub">SmartCLI가 실제 lazygit TUI를 인식 → 조작 → 확인
+      루프로 직접 조작합니다 — 방향키로 패널을 이동하고, 커밋의 diff를 열고,
+      브랜치를 강조하는 것까지 모두 <code>pyte</code> 셀 그리드(어느 행이
+      선택됐는지, alt-screen 여부)를 읽어서 수행합니다. 실제 프로그램을 Linux
+      컨테이너에서 직접 조작해 캡처했고, 스크립트가 아닙니다. pexpect 같은 바이트
+      스트림 매처는 "어느 행이 강조됐는지"를 인식할 수 없지만, 화면 모델은 할 수
+      있습니다.</p>
+  </div>
+  <figure class="gif-hero"><video autoplay muted loop playsinline preload="metadata" poster="assets/drive-lazygit.gif" aria-label="SmartCLI가 실제 lazygit TUI를 조작: 패널 이동, 커밋 diff 열기, 브랜치 강조"><source src="assets/drive-lazygit.webm" type="video/webm"><source src="assets/drive-lazygit.mp4" type="video/mp4"><img src="assets/drive-lazygit.gif" alt="SmartCLI가 실제 lazygit TUI를 조작"></video><figcaption>drive-tui가 Debian 13에서 실제 lazygit TUI를 조작 — 인식 → 조작 → 확인 (30fps)</figcaption></figure>
+  <div class="gifs" style="margin-top:22px">
+    <figure><video autoplay muted loop playsinline preload="metadata" poster="assets/drive-dialog-poster.jpg" aria-label="SmartCLI가 dialog 체크리스트 폼을 조작: Space로 행 토글"><source src="assets/drive-dialog.webm" type="video/webm"><source src="assets/drive-dialog.mp4" type="video/mp4"></video><figcaption>dialog — 체크리스트 폼: 이동, Space로 행 토글, 제출</figcaption></figure>
+    <figure><video autoplay muted loop playsinline preload="metadata" poster="assets/drive-vim-poster.jpg" aria-label="SmartCLI가 vim을 조작: 모달 입력, Esc, 저장 후 종료"><source src="assets/drive-vim.webm" type="video/webm"><source src="assets/drive-vim.mp4" type="video/mp4"></video><figcaption>vim — 모달 편집: insert, 입력, Esc, <code>:wq</code></figcaption></figure>
+    <figure><video autoplay muted loop playsinline preload="metadata" poster="assets/drive-htop.gif" aria-label="SmartCLI가 htop을 조작: 트리 뷰, 정렬 메뉴"><source src="assets/drive-htop.webm" type="video/webm"><source src="assets/drive-htop.mp4" type="video/mp4"><img src="assets/drive-htop.gif" alt="SmartCLI가 htop을 조작"></video><figcaption>htop — 트리 뷰, 정렬 메뉴 열기, 적용</figcaption></figure>
+    <figure><video autoplay muted loop playsinline preload="metadata" poster="assets/drive-ncdu.gif" aria-label="SmartCLI가 ncdu를 조작: 크기순 디스크 사용량 탐색"><source src="assets/drive-ncdu.webm" type="video/webm"><source src="assets/drive-ncdu.mp4" type="video/mp4"><img src="assets/drive-ncdu.gif" alt="SmartCLI가 ncdu를 조작"></video><figcaption>ncdu — 가장 큰 디렉터리로 들어갔다가 되돌아 나오기</figcaption></figure>
+  </div>
+  <p class="sub" style="margin-top:22px;font-size:13px">모든 클립은 SmartCLI가
+    <em>실제</em> 프로그램을 조작한 것입니다 — pyte 화면 그리드를 읽고 키를 누른
+    것이지, 스크립트로 만든 출력이 아닙니다. pexpect 같은 바이트 스트림 매처는
+    "어느 행이 강조됐는지"를 인식할 수 없지만, 화면 모델은 할 수 있습니다.</p>
+</div></section>
+
+<section class="band-soft"><div class="wrap">
+  <div class="sec-head center">
+    <span class="eyebrow">하나의 API · 세 가지 OS</span>
+    <h2><em>같은</em> 드라이버. Windows, macOS, Linux.</h2>
+    <p class="sub">진짜로 어렵고, 방어 가능한 지점: 하나의 라이브러리가 세 플랫폼
+      모두에서 동일한 실제 <code>lazygit</code>을 동일한 <code>인식 → 조작 → 확인</code>
+      루프로 조작합니다 — Windows의 네이티브 <b>ConPTY</b>, macOS의 <b>BSD pty</b>,
+      그리고 <b>Linux pty</b>에서, 각각 적응형 DECCKM/SS3 방향키로.
+      WSL도, Cygwin도 없습니다. 아래 각 클립은 해당 OS에서 실제로 조작한 것입니다.</p>
+  </div>
+  <div class="gifs gifs-3">
+    <figure><video autoplay muted loop playsinline preload="metadata" poster="assets/drive-lazygit-windows-poster.jpg" aria-label="SmartCLI가 네이티브 Windows에서 ConPTY로 lazygit을 조작"><source src="assets/drive-lazygit-windows.webm" type="video/webm"><source src="assets/drive-lazygit-windows.mp4" type="video/mp4"></video><figcaption>Windows — ConPTY (pywinpty)</figcaption></figure>
+    <figure><video autoplay muted loop playsinline preload="metadata" poster="assets/drive-lazygit-macos-poster.jpg" aria-label="SmartCLI가 macOS에서 BSD pty로 lazygit을 조작"><source src="assets/drive-lazygit-macos.webm" type="video/webm"><source src="assets/drive-lazygit-macos.mp4" type="video/mp4"></video><figcaption>macOS — BSD pty (Apple Silicon)</figcaption></figure>
+    <figure><video autoplay muted loop playsinline preload="metadata" poster="assets/drive-lazygit.gif" aria-label="SmartCLI가 Linux에서 lazygit을 조작"><source src="assets/drive-lazygit.webm" type="video/webm"><source src="assets/drive-lazygit.mp4" type="video/mp4"><img src="assets/drive-lazygit.gif" alt="SmartCLI가 Linux에서 lazygit을 조작"></video><figcaption>Linux — pty.fork()</figcaption></figure>
+  </div>
+  <p class="sub" style="margin-top:22px;font-size:13px">Windows는 ConPTY에서
+    lazygit 0.63을 조작했고, macOS는 Apple Silicon M 시리즈에서 BSD pty로
+    조작했으며(그곳의 DECCKM/SS3 방향키 경로는 실제 ncurses에 대해 검증했습니다),
+    Linux는 표준 라이브러리 <code>pty.fork()</code>로 조작했습니다. 같은
+    <code>scripts/tui.py</code>, 같은 recipes, 세 가지 OS.</p>
 </div></section>
 
 <section class="band-soft"><div class="wrap">
@@ -495,6 +574,7 @@
 </div></footer>
 <script src="assets/app.js"></script>
 <script src="assets/toys.js"></script>
+<script src="assets/ccmenu.js"></script>
 <script src="assets/lightbox.js"></script>
 </body>
 </html>
