@@ -316,7 +316,8 @@
     padding:12px 16px;background:var(--dark-elev);border-top:1px solid #3a352e;
     text-align:center}
   .gifs{display:grid;grid-template-columns:repeat(2,1fr);gap:22px}
-  @media(max-width:760px){.gifs{grid-template-columns:1fr}}
+  .gifs.gifs-3{grid-template-columns:repeat(3,1fr)}
+  @media(max-width:760px){.gifs,.gifs.gifs-3{grid-template-columns:1fr}}
   .gifs figure{margin:0;border-radius:12px;overflow:hidden;
     border:1px solid var(--hairline);background:var(--dark);
     display:flex;flex-direction:column}
@@ -498,10 +499,31 @@
     <figure><video autoplay muted loop playsinline preload="metadata" poster="assets/drive-ncdu.gif" aria-label="SmartCLI driving ncdu: browsing disk usage by size"><source src="assets/drive-ncdu.webm" type="video/webm"><source src="assets/drive-ncdu.mp4" type="video/mp4"><img src="assets/drive-ncdu.gif" alt="SmartCLI driving ncdu: browsing disk usage by size"></video><figcaption>ncdu — scan /usr, descend into the biggest dir, back out</figcaption></figure>
   </div>
   <p class="sub" style="margin-top:22px;font-size:13px">Every clip is SmartCLI
-    driving the <em>real</em> program in a Linux container — reading the pyte
-    screen grid and pressing keys, not scripted output. Verified on Debian 13 +
-    Windows/ConPTY; macOS and real tmux are not yet verified — known edges are in
-    <code>LIMITATIONS.md</code>.</p>
+    driving the <em>real</em> program — reading the pyte screen grid and pressing
+    keys, not scripted output. A byte-stream matcher like pexpect can't perceive
+    "which row is highlighted"; a screen model can.</p>
+</div></section>
+
+<section class="band-soft"><div class="wrap">
+  <div class="sec-head center">
+    <span class="eyebrow">One API · three OSes</span>
+    <h2>The <em>same</em> driver. Windows, macOS, Linux.</h2>
+    <p class="sub">The genuinely hard, defensible part: one library drives the same
+      real <code>lazygit</code> through the same <code>perceive → act → confirm</code>
+      loop on all three platforms — native <b>ConPTY</b> on Windows, the <b>BSD pty</b>
+      on macOS, and the <b>Linux pty</b> — with adaptive DECCKM/SS3 arrows on each.
+      No WSL, no Cygwin. Each clip below was driven for real on that OS.</p>
+  </div>
+  <div class="gifs gifs-3">
+    <figure><video autoplay muted loop playsinline preload="metadata" aria-label="SmartCLI driving lazygit on native Windows via ConPTY"><source src="assets/drive-lazygit-windows.webm" type="video/webm"><source src="assets/drive-lazygit-windows.mp4" type="video/mp4"></video><figcaption>Windows — ConPTY (pywinpty)</figcaption></figure>
+    <figure><video autoplay muted loop playsinline preload="metadata" aria-label="SmartCLI driving lazygit on macOS via the BSD pty"><source src="assets/drive-lazygit-macos.webm" type="video/webm"><source src="assets/drive-lazygit-macos.mp4" type="video/mp4"></video><figcaption>macOS — BSD pty (Apple Silicon)</figcaption></figure>
+    <figure><video autoplay muted loop playsinline preload="metadata" poster="assets/drive-lazygit.gif" aria-label="SmartCLI driving lazygit on Linux"><source src="assets/drive-lazygit.webm" type="video/webm"><source src="assets/drive-lazygit.mp4" type="video/mp4"><img src="assets/drive-lazygit.gif" alt="SmartCLI driving lazygit on Linux"></video><figcaption>Linux — pty.fork()</figcaption></figure>
+  </div>
+  <p class="sub" style="margin-top:22px;font-size:13px">Windows drove lazygit 0.63
+    under ConPTY; macOS drove it on an Apple-Silicon M-series over the BSD pty
+    (the DECCKM/SS3 arrow path verified against real ncurses there); Linux via the
+    stdlib <code>pty.fork()</code>. Same <code>scripts/tui.py</code>, same recipes,
+    three OSes.</p>
 </div></section>
 
 <section class="band-soft"><div class="wrap">
