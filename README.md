@@ -24,6 +24,23 @@ on Windows via ConPTY (`pywinpty`), while target programs can run under POSIX pt
 or tmux elsewhere. Three skills sit on that core, each a self-contained tool you run
 in place from the checkout.
 
+## Driving a real TUI
+
+SmartCLI driving **lazygit** — a real full-screen curses app — through its
+perceive → act → confirm loop: it reads the `pyte` cell grid (which row is
+selected, the alt-screen diff), moves with arrow keys, opens a commit's diff,
+and highlights a branch. This is captured by driving the actual program in a
+Linux container, not scripted or mocked. A byte-stream matcher like pexpect
+can't perceive "which row is highlighted"; a screen model can.
+
+<p align="center">
+  <img src="showcase/drive-lazygit.gif" alt="SmartCLI driving the real lazygit TUI: navigating panels, opening a commit diff, highlighting a branch" width="700">
+</p>
+
+> Honest scope: verified on Debian 13 + Windows/ConPTY. macOS and real tmux are
+> not yet verified — known edges are listed in
+> [`skills/drive-tui/references/LIMITATIONS.md`](skills/drive-tui/references/LIMITATIONS.md).
+
 Verified on Windows 11, Python 3.14.6, `pyte` + `pywinpty` / ConPTY. This machine has
 no real `tmux`, so screenshot reports are honestly labelled `pyte-simulation`, not
 real tmux captures.
