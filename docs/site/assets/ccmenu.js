@@ -15,50 +15,47 @@ const MENU = {
   items: [
     {
       cmd: "/model",
-      desc: "Set the AI model for Claude Code (currently Sonnet 4.6)",
+      desc: "Set the AI model for Claude Code (currently Opus 4.8 (1M context))",
       children: {
         title: "Select model",
-        subtitle: "Switch between Claude models. Use ←/→ to adjust reasoning effort.",
+        subtitle: "Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, specify with --model.",
+        foot: "Enter to set as default · s to use this session only · Esc to cancel",
         items: [
           {
-            label: "Default (recommended)",
-            desc: "Use the default model (currently Sonnet 4.6) · $3/$15 per Mtok",
-            result: "✓ Using the default model (Sonnet 4.6)"
+            label: "1. Default (recommended) ✔",
+            desc: "Use the default model (currently Opus 4.8 (1M context)) · $5/$25 per Mtok",
+            effort: "● High effort (default)",
+            result: "Kept model as Opus 4.8 (1M context) (default)"
           },
           {
-            label: "Sonnet",
-            desc: "Sonnet 4.6 · Best for everyday tasks · $3/$15 per Mtok",
-            effort: "Effort: high — Comprehensive implementation with extensive testing and documentation",
-            result: "✓ Set model to Sonnet 4.6\nEffort level: auto (currently high)"
+            label: "2. Opus",
+            desc: "Opus 4.8 with 1M context · Best for everyday, complex tasks · $5/$25 per Mtok",
+            effort: "● High effort (default)",
+            result: "Set model to Opus 4.8 (1M context)"
           },
           {
-            label: "Sonnet (1M context)",
-            desc: "Sonnet 4.6 for long sessions · $3/$15 per Mtok",
-            effort: "Effort: high — for long sessions with large codebases",
-            result: "✓ Set model to Sonnet 4.6 (1M context)"
+            label: "3. Fable",
+            desc: "Fable 5 · Most capable for your hardest and longest-running tasks · $10/$50 per Mtok",
+            effort: "● High effort (default)",
+            result: "Set model to Fable 5"
           },
           {
-            label: "Opus",
-            desc: "Opus 4.6 · Most capable for complex work",
-            effort: "Effort: max — Maximum capability with deepest reasoning (Opus 4.6 only)",
-            result: "✓ Set model to Opus 4.6\nEffort level: auto (currently high)"
+            label: "4. Sonnet",
+            desc: "Sonnet 5 · Efficient for routine tasks · $3/$15 $2/$10 per Mtok · promo through Aug 31",
+            effort: "● High effort (default)",
+            result: "Set model to Sonnet 5"
           },
           {
-            label: "Opus (1M context)",
-            desc: "Opus 4.6 for long sessions",
-            effort: "Effort: high — Comprehensive implementation with extensive testing and documentation",
-            result: "✓ Set model to Opus 4.6 (1M context)"
+            label: "5. Sonnet 5 (1M context)",
+            desc: "Sonnet 5 for long sessions · $3/$15 $2/$10 per Mtok · promo through Aug 31",
+            effort: "● High effort (default)",
+            result: "Set model to Sonnet 5 (1M context)"
           },
           {
-            label: "Opus 4.1",
-            desc: "Opus 4.1 · Legacy",
-            result: "✓ Set model to Opus 4.1"
-          },
-          {
-            label: "Haiku",
-            desc: "Haiku 4.5 · Fastest for quick answers",
-            effort: "Effort: low — Quick, straightforward implementation with minimal overhead",
-            result: "✓ Set model to Haiku 4.5"
+            label: "6. Haiku",
+            desc: "Haiku 4.5 · Fastest for quick answers · $1/$5 per Mtok",
+            effort: "● High effort (default)",
+            result: "Set model to Haiku 4.5"
           }
         ]
       }
@@ -273,12 +270,16 @@ const MENU = {
       html += '</div>';
       // effort line for the focused model row (ModelPicker special case)
       var c = its[sel];
-      if (c && c.effort) html += '<div class="cc-effort">' + esc(c.effort) + ' ‹› to adjust</div>';
-      // footer hint
+      if (c && c.effort) html += '<div class="cc-effort">' + esc(c.effort) + ' ←/→ to adjust</div>';
+      // footer hint — use the submenu's real footer text when provided
       var atRoot = stack.length === 1;
-      html += '<div class="cc-foot">↑↓ navigate · '
-        + (c && c.children ? 'Enter/→ open' : 'Enter select')
-        + (atRoot ? '' : ' · Esc/← back') + '</div>';
+      if (node.foot) {
+        html += '<div class="cc-foot">' + esc(node.foot) + '</div>';
+      } else {
+        html += '<div class="cc-foot">↑↓ navigate · '
+          + (c && c.children ? 'Enter/→ open' : 'Enter select')
+          + (atRoot ? '' : ' · Esc/← back') + '</div>';
+      }
       root.innerHTML = html;
     }
 
@@ -309,17 +310,22 @@ const MENU = {
       if (stack.length > 1) { stack.pop(); render();
         setCap("act → back to <b>" + esc(top().node.title || "commands") + "</b>"); }
     }
-    // ModelPicker ←/→ effort adjust (only when the focused row has .effort)
-    var EFFORTS = ["low", "medium", "high", "max"];
+    // ModelPicker ←/→ effort adjust — real Claude Code symbols + labels
+    // (○ Low · ◐ Medium · ● High · ◉ Max). "High" is the default.
+    var EFFORTS = [
+      { sym: "○", name: "Low" }, { sym: "◐", name: "Medium" },
+      { sym: "●", name: "High" }, { sym: "◉", name: "Max" }
+    ];
     function adjustEffort(d) {
       var it = cur();
       if (resultView || !it || !it.effort) return;
-      var m = it.effort.match(/Effort:\s*(\w+)/);
-      var idx = m ? EFFORTS.indexOf(m[1]) : 2;
+      var m = it.effort.match(/(Low|Medium|High|Max)/);
+      var idx = m ? EFFORTS.map(function (e) { return e.name; }).indexOf(m[1]) : 2;
       idx = Math.max(0, Math.min(EFFORTS.length - 1, idx + d));
-      it.effort = it.effort.replace(/Effort:\s*\w+/, "Effort: " + EFFORTS[idx]);
+      var e = EFFORTS[idx];
+      it.effort = e.sym + " " + e.name + " effort" + (e.name === "High" ? " (default)" : "");
       render();
-      setCap("act → effort <b>" + EFFORTS[idx] + "</b> (←/→)");
+      setCap("act → effort <b>" + e.name + "</b> (←/→ to adjust)");
     }
 
     root.addEventListener("keydown", function (e) {
