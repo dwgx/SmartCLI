@@ -20,6 +20,9 @@ def _client():
     pw = os.environ["SSH_PASS"]
     port = int(os.environ.get("SSH_PORT", "22"))
     c = paramiko.SSHClient()
+    # AutoAddPolicy skips host-key verification (no MITM protection). Acceptable
+    # ONLY because this is a throwaway helper for a known LAN host; do not reuse
+    # it against untrusted networks without pinning the host key.
     c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     c.connect(host, port=port, username=user, password=pw,
               look_for_keys=False, allow_agent=False, timeout=20)

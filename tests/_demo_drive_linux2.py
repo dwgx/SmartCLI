@@ -121,40 +121,42 @@ def drive_one(target: str) -> int:
         os.remove(os.path.join(frames, f))
 
     os.environ["TERM"] = "xterm-256color"
-    sess = PtySession(cols=cols, rows=rows)
-    sess.start(argv)
-    reason, _ = sess.wait_ready(marker=ready, max_wait_ms=9000)
-    print(f"[{target}] startup: {reason}")
-
     labels, n = [], 0
-    for (label, keys, seconds) in beats:
-        _apply_keys(sess, keys)
-        start = time.monotonic()
-        next_tick = start
-        end = start + seconds
-        while True:
-            sess.pump()
-            with open(f"{frames}/{n:04d}.ansi", "wb") as fh:
-                fh.write(_screen_to_ansi(sess.model.screen))
-            labels.append(label)
-            n += 1
-            next_tick += CAP_DT
-            if next_tick >= end:
-                break
-            sl = next_tick - time.monotonic()
-            if sl > 0:
-                time.sleep(sl)
-        print(f"  beat: {label[:46]:46s} frames->{n:4d} "
-              f"DECCKM={'on' if sess.model.app_cursor else 'off'}")
+    # `with` guarantees close() even if a beat/startup raises — otherwise the
+    # child leaks and main()'s "all" loop spawns the next target alongside it
+    # (concurrent-spawn red-line). PtySession.__exit__ -> close().
+    with PtySession(cols=cols, rows=rows) as sess:
+        sess.start(argv)
+        reason, _ = sess.wait_ready(marker=ready, max_wait_ms=9000)
+        print(f"[{target}] startup: {reason}")
 
-    for k in quit_keys:
-        if isinstance(k, str) and (k.endswith("\r") or k.endswith("\n")):
-            sess.send_text(k)
-        else:
-            sess.send_keys([k])
-        time.sleep(0.3)
-        sess.pump()
-    sess.close()
+        for (label, keys, seconds) in beats:
+            _apply_keys(sess, keys)
+            start = time.monotonic()
+            next_tick = start
+            end = start + seconds
+            while True:
+                sess.pump()
+                with open(f"{frames}/{n:04d}.ansi", "wb") as fh:
+                    fh.write(_screen_to_ansi(sess.model.screen))
+                labels.append(label)
+                n += 1
+                next_tick += CAP_DT
+                if next_tick >= end:
+                    break
+                sl = next_tick - time.monotonic()
+                if sl > 0:
+                    time.sleep(sl)
+            print(f"  beat: {label[:46]:46s} frames->{n:4d} "
+                  f"DECCKM={'on' if sess.model.app_cursor else 'off'}")
+
+        for k in quit_keys:
+            if isinstance(k, str) and (k.endswith("\r") or k.endswith("\n")):
+                sess.send_text(k)
+            else:
+                sess.send_keys([k])
+            time.sleep(0.3)
+            sess.pump()
     with open(f"{frames}/labels.txt", "w", encoding="utf-8") as fh:
         fh.write("\n".join(labels))
     print(f"OK [{target}]: {n} frames @ {CAP_FPS}fps")

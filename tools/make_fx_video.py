@@ -83,11 +83,6 @@ def _render_frames(name, frames, w, h, theme, fps, cell_w, cell_h, params, out):
             tmp.unlink()
 
 
-def _encode(cmd):
-    proc = subprocess.run(cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL,
-                          stderr=subprocess.PIPE)
-    return proc
-
 
 def render_video(name, out_stem, seconds=4.0, w=72, h=24, fps=60,
                  theme=None, cell_w=8, cell_h=16, params=None):
