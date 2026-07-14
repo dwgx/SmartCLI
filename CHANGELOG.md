@@ -5,6 +5,36 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2026-07-14
+
+Documentation accuracy, anti-drift hardening, and test-suite coverage. No
+`smartcli_core` code changes — the published package is byte-for-byte 0.1.2; this
+release re-cuts it alongside the repo-consistency and doc fixes below.
+
+### Fixed
+- **Localized READMEs drifted from the code.** The four i18n READMEs
+  (`zh-Hans` / `zh-Hant` / `ja` / `ko`) stated **18 effects** and omitted
+  `solarsystem` in their feature paragraphs while the English README and their own
+  quick-start/tree already said 19. Corrected all four to **19 effects** with
+  `solarsystem` listed.
+- **Anti-drift gate was blind to CJK phrasings.** `tests/test_doc_counts.py` only
+  matched the English `"N effects"` form, so the localized drift above slipped
+  past it. It now also matches the CJK unit phrasings
+  (`种效果` / `種效果` / `種のエフェクト` / `개 이펙트`) and forces UTF-8 stdout so it
+  runs standalone on a legacy Windows codepage. Mutation-verified: it fails on the
+  pre-fix READMEs and passes after.
+
+### Added
+- `tests/_tui_cli_probe.py` (drive-tui CLI end-to-end + per-session token auth) is
+  now wired into the unified `tests/run_all.py` runner.
+
+### Changed
+- Website hero de-branded: the static `demo.svg` animation and the `app.js`
+  carousel scenario now use a generic agent CLI placeholder instead of a specific
+  vendor's branding (the three-scenario carousel is unchanged).
+- `HANDOFF.md` / `NEXT-STEPS.md` reconciled with the shipped state: 3-OS CI matrix
+  (was Windows-only), 8 workflows, video proof reels, and the daemon-hardening work.
+
 ## [0.1.2] - 2026-07-11
 
 Correctness fixes found by a deep review + mutation-testing pass, each with a
