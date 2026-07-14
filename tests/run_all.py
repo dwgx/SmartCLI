@@ -101,6 +101,10 @@ def build_suite():
     suite.append(Test("_drive_probe6 (optional)",
                       [PY, str(TESTS / "_drive_probe6.py")], ROOT, 120,
                       optional=True))
+    # drive-tui persistent-session CLI coverage: happy path + token auth +
+    # one-shot run + no-leak. Real ConPTY like the probes above, so generous.
+    suite.append(Test("_tui_cli_probe (drive-tui CLI end-to-end)",
+                      [PY, str(TESTS / "_tui_cli_probe.py")], ROOT, 180))
 
     # --- tui-ui: top-level self-tests (run from skills/tui-ui) -------------
     suite.append(Test("tui-ui self_test.py",
