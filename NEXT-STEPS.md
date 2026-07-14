@@ -21,7 +21,7 @@ non-negotiable and overrides any shortcut that looks faster.
 
 ---
 
-## Verified ground-truth snapshot (checked against disk 2026-07-12)
+## Verified ground-truth snapshot (checked against disk 2026-07-14)
 
 - Release: **v0.1.2** live on PyPI as dist `smartcli-toolkit` (import stays
   `smartcli_core`): `pip install smartcli-toolkit`. Repo github.com/dwgx/SmartCLI,
@@ -35,8 +35,12 @@ non-negotiable and overrides any shortcut that looks faster.
   ui/widgets_ext/braille_chart.py); knowledge **140 md files / 122-note graph**.
   If any doc still says 18 effects or 14 widgets it is STALE (`python -m fx list` = 19,
   `python -m ui widgets` = 15).
-- CI: `.github/workflows/ci.yml` (Windows-only, deterministic tests) +
-  `.github/workflows/publish.yml` (PyPI Trusted Publishing via OIDC). VERIFIED present.
+- CI (updated 2026-07-14): **8 workflows**. `ci.yml` is a **3-OS matrix**
+  (windows/ubuntu/macos × py3.11/3.12) running ~12 deterministic gates incl.
+  `test_doc_counts` (anti-drift) + POSIX-only `_sandbox_posix_backend.py` on the
+  non-Windows legs. Plus `publish.yml` + `publish-testpypi.yml` (OIDC),
+  `pages.yml`, `docker.yml` (GHCR), `codeql.yml`, `lint.yml`, `release-drafter.yml`.
+  VERIFIED present.
 - Core fixes (smartcli_core, done WITH authorization + adversarial verify):
   #1 blank_hash readiness gate, #2 unanchored `>>> ` docstrings, #4 WinptyBackend
   EOF/queue reset. **#5 + #6 FIXED & verified on real Debian 13 (2026-07-13)**:
@@ -158,14 +162,18 @@ These are fully executable and verifiable on the current Windows machine.
   unauthenticated (network-exposed surface).
 - **Effort:** M
 
-### A8. mkdocs-material docs site + CONTRIBUTING.md + coverage badge  [L]
+### A8. mkdocs-material docs site + CONTRIBUTING.md + coverage badge  [L] — PARTIAL (2026-07-14)
+- **Status:** `mkdocs.yml` **now exists** (config prepared, commit 61c5a93) but is NOT
+  yet hosted on Pages — the live site at dwgx.github.io/SmartCLI is the hand-written
+  `docs/site/`, deployed by `pages.yml`. Still open: actually build+host the mkdocs
+  site, add `CONTRIBUTING.md`, and a pytest/coverage badge.
 - **Goal:** a real docs site (mkdocs-material), a CONTRIBUTING.md, and a
   pytest/coverage badge in the README.
 - **Why it matters:** last structural A-grade gap; makes the repo look maintained and
   lowers the contribution barrier once stars start arriving.
-- **First step:** scaffold `mkdocs.yml` + `docs/` with sections mirroring the 3 skills
-  + smartcli_core API; wire a coverage run (pytest-cov over tests/run_all.py) and emit
-  a badge. Do NOT include anything from research/cc-decompiled.
+- **First step:** `mkdocs.yml` is scaffolded — flesh out `docs/` sections mirroring the
+  3 skills + smartcli_core API; wire a coverage run (pytest-cov over tests/run_all.py)
+  and emit a badge. Do NOT include anything from research/cc-decompiled.
 - **Verify:** `mkdocs build --strict` exits 0 with no broken internal links; coverage
   command produces a number and the badge renders. Confirm the built site references no
   neutralized-provenance terms.
@@ -178,18 +186,18 @@ These are fully executable and verifiable on the current Windows machine.
 Do NOT fake these on Windows. A green monkeypatched harness is not proof for the
 POSIX backend — that is exactly the class of false-green the standing method forbids.
 
-### B2. Add a Linux CI matrix running the deterministic tests  [S] (needs GitHub Actions / Linux runner)
-- **Status update (2026-07-13):** the POSIX backend is now **verified on real Debian 13**
-  (Python 3.13) via an isolated SSH sandbox — spawn/read/write/resize, DECCKM SS3 arrows,
-  zombie-free terminate all pass `tests/_sandbox_posix_backend.py`. #5/#6 were found real
-  there and FIXED. This task is no longer "validate the unknown" — it's "automate the
-  now-verified backend in CI so it stays green without a manual SSH run."
-- **Goal:** run the deterministic suite + `tests/_sandbox_posix_backend.py` on Linux in CI.
-- **First step:** extend `.github/workflows/ci.yml` (Windows-only) with an
-  `os: [ubuntu-latest]` leg: `pip install pyte`, run readiness/degenerate/fx-contract +
-  `_sandbox_posix_backend.py`. Guard Windows-only bits behind markers.
-- **Verify:** push, confirm the Linux leg is green in Actions (it should match the SSH run).
-- **Effort:** S (needs the cloud runner, hence Section B)
+### ~~B2. Add a Linux CI matrix running the deterministic tests~~  [DONE 2026-07-14]
+- **Result:** `ci.yml` is now a **3-OS matrix** — `os: [windows-latest, ubuntu-latest,
+  macos-latest] × python: [3.11, 3.12]`, `fail-fast: false`. Runs ~12 deterministic
+  gates (verify_fx, test_fx_contract, test_readiness, test_degenerate_inputs,
+  _sandbox_fuzz_core, test_vendor_sync, test_doc_counts, _readme_literal, tui-ui
+  self_test, fx list, ui widgets) on all three OSes, plus `_sandbox_posix_backend.py`
+  gated `if: runner.os != 'Windows'` so the POSIX pty backend (#5 SS3 arrows / #6
+  zombie reap) stays green on ubuntu + macos automatically — no more manual SSH run.
+  The interactive drive-tui PTY probes + effort_selector stay OUT of CI (need a live
+  TTY, hang-prone on runners); the pure-memory gates cover the code paths.
+- *(original task, for reference)* validate the POSIX backend in CI instead of by a
+  manual SSH run to Debian 13 — now automated.
 
 ### B-PyPI. PyPI Trusted-Publisher setup  [DONE 2026-07-13]
 - **Status:** DONE and verified. Trusted Publisher registered on PyPI (owner `dwgx`,
@@ -235,9 +243,13 @@ interactive playground, 5 languages) but there is **~zero external validation** 
 the first real users will hit `skills/drive-tui/references/LIMITATIONS.md` edges.
 So Phase 1 buys credibility + resilience; Phase 2 spends it.
 
-Already done (do NOT redo): README demo GIFs (solarsystem/donut/fire/rain),
-live showcase site https://dwgx.github.io/SmartCLI/ (interactive, 5-lang),
-PyPI `smartcli-toolkit`, skillhu.bz listings, POSIX verified on real Linux.
+Already done (do NOT redo): README fx demos + **real re-driven proof reels as
+MP4+WebM video** (lazygit/htop/ncdu/nano at 60/30fps, incl. Windows/macOS/Linux
+variants + dialog/vim, with click-to-zoom lightbox — replaced the old GIF galleries
+2026-07-14), live showcase site https://dwgx.github.io/SmartCLI/ (interactive, 5-lang,
+grok de-branded to a generic agent except the `.chip` tags), PyPI `smartcli-toolkit`,
+skillhu.bz listings, POSIX verified on real Linux + macOS CI, 3-OS CI matrix + 8
+workflows.
 
 ### PHASE 1 — SEED (build discoverability + proof; low blast radius)
 

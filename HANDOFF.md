@@ -1,6 +1,6 @@
 # SmartCLI — Handoff (承上启下)
 
-*Written 2026-07-08, last updated **2026-07-13**. This is the single document a fresh AI reads first to pick up SmartCLI without re-deriving anything. It records the **current release state**, what the project IS, what already WORKS (with the exact commands to see it), the brain (`knowledge/`), the hard-won rules that must never be re-lost, the environment, and the open tasks framed so you can start in one move. Baked-in truths (re-verified against code 2026-07-13): there are **THREE** skills, the live `fx` registry has **19** effects (a 3D `solarsystem` orrery was added), and `tui-ui` has **15** widgets. **Read §7 (2026-07-13 session) first for the most recent work — website, POSIX real-Linux fixes, and the launch plan.***
+*Written 2026-07-08, last updated **2026-07-13**. This is the single document a fresh AI reads first to pick up SmartCLI without re-deriving anything. It records the **current release state**, what the project IS, what already WORKS (with the exact commands to see it), the brain (`knowledge/`), the hard-won rules that must never be re-lost, the environment, and the open tasks framed so you can start in one move. Baked-in truths (re-verified against code 2026-07-14): there are **THREE** skills, the live `fx` registry has **19** effects (a 3D `solarsystem` orrery was added), and `tui-ui` has **15** widgets. **Read §8 (2026-07-14) first for the most recent work — 3-OS CI, video proof reels, daemon hardening, i18n/anti-drift fixes; then §7 (2026-07-13) for the website + POSIX Linux fixes + launch plan.***
 
 ---
 
@@ -16,9 +16,11 @@ SmartCLI is **published and public** as of 2026-07-12. This section is the autho
 
 **Version consistency (VERSION = 0.1.2, verified 2026-07-12 across):** `pyproject.toml`, `smartcli_core/__init__.py` `__version__`, `skills/cmd-art/fx/__init__.py` `__version__`, all 3 `skills/*/SKILL.md` `version:` fields, and `.claude-plugin/marketplace.json` plugin version. **When you bump the version, all six must move together.**
 
-**CI / publishing:**
-- `.github/workflows/ci.yml` — **Windows-only** CI on the deterministic tests.
-- `.github/workflows/publish.yml` — PyPI **Trusted Publishing (OIDC)**, tag-push triggered. ✅ **NOW WORKING (verified 2026-07-13):** the one-time setup is done — a Trusted Publisher is registered on PyPI (owner `dwgx`, **repo `SmartCLI`** — the GitHub repo name, NOT the PyPI dist name; that mismatch was the original `invalid-publisher` bug) and the `pypi` GitHub Environment exists. A `workflow_dispatch` run (29245353129) completed green: the OIDC handshake succeeded and the publish step ran against `upload.pypi.org` (0.1.2 files were `skip-existing`-skipped as already present). So **tag-push auto-publish now works**: bump the version everywhere, `git tag vX.Y.Z && git push origin vX.Y.Z`. `skip-existing:true` is set so a re-run on an existing version is a no-op, not an error. (Historical: v0.1.0/0.1.1/0.1.2 were originally uploaded **manually with `twine --disable-progress-bar`** because OIDC was not yet configured — no longer necessary.)
+**CI / publishing (8 workflows — updated 2026-07-14, was 2: ci + publish):**
+- `.github/workflows/ci.yml` — **3-OS matrix** (windows-latest + ubuntu-latest + macos-latest × py3.11/3.12), ~12 deterministic gates on every push/PR: `verify_fx`, `test_fx_contract`, `test_readiness`, `test_degenerate_inputs`, `_sandbox_fuzz_core`, `test_vendor_sync`, **`test_doc_counts` (anti-drift)**, `_readme_literal`, tui-ui `self_test`, `fx list`, `ui widgets`, plus POSIX-only `_sandbox_posix_backend.py` on the non-Windows legs. (Was "Windows-only" in earlier drafts — no longer true; the Linux matrix listed as an OPEN TASK in §6#2 is DONE.)
+- `.github/workflows/publish.yml` — PyPI **Trusted Publishing (OIDC)**, tag-push triggered (prerelease tags guarded off prod). `publish-testpypi.yml` mirrors it to TestPyPI.
+- Other workflows: `pages.yml` (deploy docs/site), `docker.yml` (GHCR image), `codeql.yml` (security scan), `lint.yml`, `release-drafter.yml`.
+- publish.yml OIDC — ✅ **WORKING (verified 2026-07-13):** the one-time setup is done — a Trusted Publisher is registered on PyPI (owner `dwgx`, **repo `SmartCLI`** — the GitHub repo name, NOT the PyPI dist name; that mismatch was the original `invalid-publisher` bug) and the `pypi` GitHub Environment exists. A `workflow_dispatch` run (29245353129) completed green: the OIDC handshake succeeded and the publish step ran against `upload.pypi.org` (0.1.2 files were `skip-existing`-skipped as already present). So **tag-push auto-publish now works**: bump the version everywhere, `git tag vX.Y.Z && git push origin vX.Y.Z`. `skip-existing:true` is set so a re-run on an existing version is a no-op, not an error. (Historical: v0.1.0/0.1.1/0.1.2 were originally uploaded **manually with `twine --disable-progress-bar`** because OIDC was not yet configured — no longer necessary.)
 
 **Live counts (re-verified against code 2026-07-13):** cmd-art **19 effects / 8 themes** (solarsystem was added 2026-07-13, after the v0.1.2 tag — that is why older lines say 18); drive-tui **8 recipes**; tui-ui **15 widgets** (11 core + 4 in `ui/widgets_ext/`, incl. `braille_chart.py`); knowledge **122-note graph** (**140 `.md` files**). Any doc that still says **18 effects** or **14 widgets** is STALE — `python -m fx list` prints 19, `python -m ui widgets` prints 15.
 
@@ -186,17 +188,17 @@ Reproducible ground-truth archive (INTERNAL-ONLY — gitignored, EXCLUDED from p
 Ranked by impact/effort. The v0.1.2 release, the deterministic/mutation-verified test suite, and the core #1/#2/#4 fixes are DONE — these are what's left.
 
 1. **[DONE 2026-07-13] Ship a `py.typed` marker in `smartcli_core`.** Added + `[tool.setuptools.package-data]`; verified present inside the built wheel. Not version-bumped/published yet.
-2. **[S] Add a Linux CI matrix** running the deterministic tests + `tests/_sandbox_posix_backend.py`. The POSIX pty backend is now **verified on real Debian 13** (2026-07-13, via an SSH sandbox — #5/#6 fixed there), but CI is still Windows-only; a Linux job would keep it green automatically instead of relying on a manual SSH run.
+2. **[DONE 2026-07-14] Linux (+ macOS) CI matrix.** `ci.yml` is now a **3-OS matrix** (windows/ubuntu/macos × py3.11/3.12) running ~12 deterministic gates on every push/PR, plus `tests/_sandbox_posix_backend.py` on the non-Windows legs — the POSIX backend (verified on real Debian 13 2026-07-13, #5/#6 fixed) is now kept green automatically instead of by a manual SSH run. The `test_doc_counts` anti-drift gate also gates PRs now.
 3. **[M] MCP-server wrapper over the drive-tui daemon's verb surface** (`start/snapshot/send-*/keys/wait*/alive/close/list`). Biggest adoption lever — usable by any MCP client.
 4. **[S] Pattern-list / multi-marker wait** (pexpect-style wait-any that returns *which* marker matched).
 5. **[M] Golden-frame snapshot regression test for tui-ui** — commit a baseline frame and diff, like `pytest-textual-snapshot`.
 6. **[M] Shared `easing.py` + `Gradient(stops, steps, direction)` builder for cmd-art** to de-duplicate effect math.
 7. **[S-M] Ship `spectrum-bars` + `cbonsai` effects** — the knowledge notes `[[spectrum-bars]]` / `[[procedural-branching]]` are ready building blocks. Add each as a pure-frame `fx` effect; verify with `test_fx_contract.py` + on the real run path.
-8. **[L] Docs site + contributor onramp:** mkdocs-material site, `CONTRIBUTING.md`, pytest/coverage badge.
+8. **[PARTIAL] Docs site + contributor onramp:** `mkdocs.yml` **now exists** (config ready, not yet hosted on Pages — the live site at dwgx.github.io/SmartCLI is the hand-written `docs/site/`, deployed by `pages.yml`); `TestPyPI`/`conda-forge`/`Homebrew`/mkdocs packaging configs prepared (commit 61c5a93). Still open: actually host the mkdocs build, add `CONTRIBUTING.md`, and a pytest/coverage badge.
 
-**Discoverability (0 stars today):** record a demo GIF/asciinema for the README top (asciinema + agg, or termsvg), then Show HN / r/commandline / `awesome-claude-code` + `awesome-cli-apps` PRs. A calibrated `/deep-research` prompt list exists (anchors: conch, terminal-bench, plotille, TTE, PyPI trusted publishing) — worth saving as `RESEARCH-PROMPTS.md`.
+**Discoverability (0 stars today):** the README top now carries **real re-driven proof reels** (lazygit/htop/ncdu/nano as 60/30fps MP4+WebM video, not GIFs, incl. Windows/macOS/Linux variants + dialog/vim) — the "record a demo" chore is DONE. Remaining: Show HN / r/commandline / `awesome-claude-code` + `awesome-cli-apps` PRs (copy ready in `docs/LAUNCH-COPY.md`, owner-gated). A calibrated `/deep-research` prompt list exists (anchors: conch, terminal-bench, plotille, TTE, PyPI trusted publishing) — worth saving as `RESEARCH-PROMPTS.md`.
 
-**One-time release chore (blocks tag-push auto-publish):** complete the PyPI Trusted-Publisher setup + `pypi` GitHub Environment described in §0 so `publish.yml` works; until then keep releasing manually with `twine --disable-progress-bar`.
+**Release chore — DONE (was: blocks tag-push auto-publish):** the PyPI Trusted-Publisher setup + `pypi` GitHub Environment are complete and OIDC-verified (§0). Tag-push auto-publish now works; twine is no longer needed.
 
 **Still-open replica polish (unchanged from earlier rounds):** eyeball `effort_selector.py`'s animation cadence in a REAL Windows Terminal. Keep `field.Ripple` `travel` **small (~λ×1..1.6, breathing)** so the ripple stays localized on the ultracode/max side; `travel < ~26` keeps low/medium/high/xhigh clean dim-gray. Label distances: ultracode 4, max 14, xhigh 25, high 34, medium 45, low 53. It's bit-exact in pyte; the only gap is the real-terminal eyeball. **drive-tui is now POSIX-verified** (2026-07-13, Debian 13 over SSH: spawn/read/write/resize, DECCKM SS3 arrows, and zombie-free terminate all pass `tests/_sandbox_posix_backend.py`). **macOS: the POSIX backend core is now verified** (2026-07-13, GitHub Actions `macos-latest`: `tests/_sandbox_posix_backend.py` PASSed spawn/read/drive/resize + #6 zombie-free reap on the BSD pty path). The interactive curses DECCKM/SS3-arrow probe is SKIPPED on CI runners (no controllable terminal) — it still wants one real-Mac run over SSH (see `docs/MACOS-VERIFY.md`). Still unverified: the tmux launchers `skills/cmd-art/tmux/*.sh` (need a real tmux host).
 
@@ -314,6 +316,105 @@ concurrent real-PTY spawns (CLAUDE.md red-line).
 
 ---
 
+## 8. 2026-07-13 → 07-14 SESSION(S) — CI/CD, video reels, hardening (承上启下)
+
+The 21 commits after §7's `8fafa0e` (range `8be24ed..784bf74`). §7 described the
+site + POSIX fixes; this section catches up everything since. Verified against disk
+2026-07-14. Ordered by durability.
+
+### 8a. CI/CD went from 2 workflows to 8 — the big structural change
+`.github/workflows/` now has **8** workflows (was `ci.yml` + `publish.yml`):
+- **`ci.yml` is now a 3-OS matrix** — `windows-latest + ubuntu-latest + macos-latest`
+  × py3.11/3.12, running ~12 **deterministic** gates on every push/PR (`verify_fx`,
+  `test_fx_contract`, `test_readiness`, `test_degenerate_inputs`, `_sandbox_fuzz_core`,
+  `test_vendor_sync`, `test_doc_counts`, `_readme_literal`, tui-ui `self_test`,
+  `fx list`, `ui widgets`) + POSIX-only `_sandbox_posix_backend.py` on the
+  non-Windows legs. This closes OPEN TASK §6#2 (Linux matrix) AND finally covers the
+  macOS BSD-pty path in CI. The interactive PTY probes stay OUT of CI (need a live
+  TTY, hang-prone on runners) — the pure-memory gates are the crown jewels here.
+- **`publish.yml`** now guards prod PyPI against prerelease tags; **`publish-testpypi.yml`**
+  mirrors to TestPyPI. **`docker.yml`** builds a GHCR image (buildx cache).
+  **`codeql.yml`** security scan, **`lint.yml`**, **`release-drafter.yml`**,
+  **`pages.yml`** (deploys `docs/site/`). Repo templates + Dependabot added
+  (commits 48c62f6, ec5ae05, 65d1146, 61c5a93).
+- **Anti-drift now gates PRs:** `test_doc_counts.py` is a CI step, so a doc that says
+  a stale count like 18 instead of 19 (or its CJK equivalents — hardened 2026-07-14,
+  see 8e) fails the PR.
+
+### 8b. Video proof reels replaced the GIF galleries on the site
+The site's "Driving a real TUI" + fx galleries are now **`<video>` (MP4 + WebM)**,
+not GIFs: fx at 60fps, drive reels re-driven at 30fps, with a click-to-zoom
+**lightbox** (commits 913e738, f8ec911, 3815e19). New captures: **real
+cross-platform reels** — Windows (ConPTY) + macOS (BSD pty) + Linux — plus
+**dialog-form** and **vim** drives. A **three-OS gallery** section (fixed to 3
+columns, ec10f5c) shows the same tool driven on all three platforms. Assets live in
+`docs/site/assets/drive-*.{mp4,webm}` (+ `-macos`/`-windows` variants). GIFs are kept
+only as `<video>` posters / `showcase/` stills.
+
+### 8c. drive-tui daemon hardening (authorized core-adjacent fixes)
+- **Token-leak surfaces closed** (7c21bec): the session daemon's local socket paths
+  that could echo screen contents without auth were tightened; `_tui_cli_probe.py`
+  now asserts wrong/missing token → rejected with NO screen leak, correct token →
+  succeeds (this is the C2-era per-session TOKEN auth, now probe-covered).
+- **PTY close-on-error** (47ad62a): a red-line fix — a PTY that errored mid-drive was
+  leaking (never `close()`d), the exact concurrency-leak class the CLAUDE.md red-line
+  warns about. Now closed on the error path.
+- **`--stdin` for send-text/send-line** (8be24ed): values now come via stdin so MSYS
+  Git-bash path-conversion can't mangle a payload like `/model` into `D:/…/model`.
+  (See memory `[[model-slash-msys-pathconv]]`.)
+
+### 8d. Probes 1–5 became asserting tests; `_tui_cli_probe` wired into run_all
+`_drive_probe1..5` were print-only (a human had to eyeball them) — they now **assert**
+and return non-zero on failure (0d3b3b4), so `run_all.py` actually gates on them.
+`_tui_cli_probe.py` (drive-tui CLI end-to-end + token auth) is now in the `run_all.py`
+suite (added 2026-07-14). run_all's suite is ~22 entries; the deterministic subset is
+what CI runs.
+
+### 8e. i18n + anti-drift accuracy pass (2026-07-14)
+- **The 4 localized READMEs (zh-Hans/zh-Hant/ja/ko) said a stale 18 (should be 19) and
+  omitted `solarsystem`** in their feature paragraphs while the English README + their own
+  quick-start/tree said 19 — a self-contradiction the English-only `test_doc_counts`
+  regex couldn't see. Fixed all 4 to **19 + solarsystem**.
+- **`test_doc_counts.py` hardened** to catch the CJK phrasings (`种效果` / `種效果` /
+  `種のエフェクト` / `개 이펙트`) that let the drift slip through, and to force UTF-8
+  stdout so it's safe to run standalone on a CP936 console. Mutation-proven: it FAILS
+  on the pre-fix READMEs, PASSES after. This is why the anti-drift gate (8a) is now
+  trustworthy for localized docs, not just English.
+- **grok de-branded from hero surfaces** (ec10f5c + 2026-07-14 follow-up): the static
+  hero (`demo.svg` orrery-style animation) and the `app.js` carousel scenario were
+  neutralized to a generic `agent` CLI / `Fable 5` model (the three-scenario carousel
+  is intentionally KEPT per owner). grok now survives ONLY in the `.chip` tags of the
+  5 `index*.html` pages — that is deliberate.
+
+### 8f. Also done
+- **i18n README parity** (f169cf1, e37f1f8): "Driving a real TUI" section, dynamic
+  badges, tri-platform scope, drive reels, three-OS section, and the live DRIVE-TUI
+  `/model` menu toy ported to all 5 locales; dead legacy `.menu/.mrow` CSS + unused
+  CSS var aliases removed (6183fc0).
+- **tools/ cleanup** (947df4a): one-shot migration/recording helper scripts removed.
+- **OIDC publish confirmed working** (229e1bd): §0's Trusted-Publisher story — the
+  one-time setup is done, tag-push auto-publish verified green.
+
+### NEXT STEPS for the next AI (updated 2026-07-14)
+1. **Owner-gated launch** (unchanged): C2 awesome-list PRs, C4 Show HN/Reddit/X, C5
+   skill community — copy is in `docs/LAUNCH-COPY.md`; the owner posts. Proof reels
+   now exist (8b), so C1's blocker is cleared.
+2. **Host the mkdocs site** (§6#8 PARTIAL): `mkdocs.yml` exists but isn't on Pages yet;
+   add `CONTRIBUTING.md` + a coverage badge. Do NOT include `research/cc-decompiled/`.
+3. **macOS / tmux real-host verification**: CI covers the macOS POSIX core, but the
+   interactive DECCKM/SS3 curses probe is still CI-skipped (needs a real Mac over SSH,
+   see `docs/MACOS-VERIFY.md`); real tmux launchers still unverified. Don't claim tmux.
+4. **A-grade backlog** (§6): MCP-server wrapper (biggest adoption lever), `wait_any`
+   multi-marker wait, tui-ui golden-frame snapshot test, `easing.py`/`Gradient` builder,
+   spectrum-bars + cbonsai effects.
+
+**Standing (unchanged):** never fan out concurrent real-PTY spawns (CLAUDE.md red-line
+— verify serially, one PTY/TUI at a time, close + confirm zero leaks before the next).
+The deterministic gates are pure-memory and safe to run freely; the drive probes /
+verify_fx spawn real PTYs and are the heavy ones — run them serially, with consent.
+
+---
+
 ## CONTINUATION PROMPT (paste to next AI)
 
 ```
@@ -379,15 +480,17 @@ RELEASE STATE (2026-07-12): v0.1.2 is PUBLIC. PyPI `pip install smartcli-toolkit
 (import stays smartcli_core); GitHub github.com/dwgx/SmartCLI (tags v0.1.0/0.1.1/0.1.2 +
 Releases); 3 skills on skillhu.bz; `/plugin marketplace add dwgx/SmartCLI`. VERSION 0.1.2
 must stay consistent across pyproject / smartcli_core __init__ / fx __init__ / 3 SKILL.md /
-marketplace.json. publish.yml (OIDC) NEEDS one-time PyPI Trusted-Publisher + `pypi` GitHub
-Environment setup before tag-push auto-publish works; until then release manually with
-`python -m twine upload --disable-progress-bar`. cc-decompiled/ stays gitignored/excluded.
+marketplace.json. publish.yml (OIDC) is DONE + verified — Trusted Publisher + `pypi` GitHub
+Environment are set up, so tag-push auto-publishes (bump the 6 sites, `git tag vX.Y.Z &&
+git push origin vX.Y.Z`; twine no longer needed). CI is a 3-OS matrix (win/ubuntu/macos ×
+py3.11/3.12) with ~12 deterministic gates incl. anti-drift `test_doc_counts`; 8 workflows
+total. cc-decompiled/ stays gitignored/excluded.
 
 OPEN OBJECTIVES — "reach A-grade" gaps (ranked by impact/effort; start immediately):
 1. [DONE 2026-07-13] py.typed marker shipped in smartcli_core (verified in the wheel).
-2. [S] Add a Linux CI matrix for the deterministic tests + _sandbox_posix_backend.py.
-   POSIX backend now VERIFIED on real Debian 13 (2026-07-13, #5/#6 fixed); CI still
-   Windows-only, so a Linux job would keep it green automatically.
+2. [DONE 2026-07-14] Linux + macOS CI matrix — ci.yml runs the deterministic suite +
+   _sandbox_posix_backend.py on win/ubuntu/macos × py3.11/3.12. POSIX backend stays green
+   automatically (was Windows-only). Next structural gap is hosting the mkdocs site (§6#8).
 3. [M] MCP-server wrapper over the drive-tui daemon verb surface — biggest adoption lever.
 4. [S] Pattern-list / multi-marker wait (pexpect-style wait-any returning which matched).
 5. [M] Golden-frame snapshot regression test for tui-ui (baseline + diff).

@@ -30,27 +30,27 @@
   function rep(s, n) { var o = ""; for (var i = 0; i < n; i++) o += s; return o; }
 
   // ---- SCENARIOS: real + plausible model x CLI x task combos --------------
-  // The grok scenario is verbatim from real drive-tui captures in this repo;
-  // the others follow the same perceive/act/confirm shape.
+  // Each scenario follows the same perceive/act/confirm shape captured from
+  // real drive-tui runs; CLI/model names are neutral placeholders.
   var SCENARIOS = [
     {
-      model: "Fable 5", cli: "grok",
-      prompt: "drive grok, say hi, switch to the lowest tier",
+      model: "Fable 5", cli: "agent",
+      prompt: "drive an agent CLI, say hi, switch to the lowest tier",
       beats: [
         { cap: "perceive — a semantic snapshot of the live screen", lines: [
-          L("[screen 30x100] cursor=r25c6  title=\"grok\"  [stable]", C.dim),
+          L("[screen 30x100] cursor=r25c6  title=\"agent\"  [stable]", C.dim),
           L(boxTop(30), C.cor),
-          L(boxRow("  Grok Build Beta  0.2.99", 30), C.teal),
+          L(boxRow("  Agent Build Beta  0.2.99", 30), C.teal),
           L(boxRow("  New worktree", 30, "ctrl+w  "), C.fg),
           L(boxRow("  Resume session", 30, "ctrl+s  "), C.fg),
           L(boxBot(30), C.cor),
           L("  ❯ _", C.teal),
-          L("  Grok 4.5 (high) · always-approve", C.cor)
+          L("  Fable 5 (high) · always-approve", C.cor)
         ]},
         { cap: "act — type 你好 and read the reply", lines: [
           L("  ❯ 你好                              9:36 AM", C.teal, true),
           L("  ◆ Thought for 0.1s", C.dim),
-          L("  你好！我是 Grok，可以帮你处理开发任务。", C.fg),
+          L("  你好！我是助手，可以帮你处理开发任务。", C.fg),
           L("  Worked for 2.0s.", C.dim)
         ]},
         { cap: "act — arrow keys navigate the /model picker", lines: [
@@ -65,7 +65,7 @@
           L("  你好！有什么需要帮忙的吗？", C.fg),
           L("  Worked for 1.5s.", C.dim),
           L("", C.fg),
-          L("  Grok 4.5 (low) · always-approve        ✓", C.grn, true)
+          L("  Fable 5 (low) · always-approve        ✓", C.grn, true)
         ]}
       ]
     },
