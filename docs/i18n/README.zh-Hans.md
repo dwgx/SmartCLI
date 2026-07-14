@@ -153,7 +153,7 @@ s.close()
 ## 功能特性
 
 **`cmd-art`**（`skills/cmd-art`）—— 一个“活模板”式的效果引擎：`Effect` 抽象基类 +
-`@register` 装饰器 + 自动发现。**18 种效果**（donut、fire、plasma、rain、
+`@register` 装饰器 + 自动发现。**19 种效果**（donut、solarsystem、fire、plasma、rain、
 starfield、tunnel、text3d、cube、sphere、boids、life、fireworks、sparkle、decrypt、
 gradient_text、banner_scroll、image2ascii、typewriter）横跨 **8 种主题**（mono、fire、
 ocean、synthwave、viridis、pastel、matrix-green、rainbow）。效果都是纯粹的帧生产者；

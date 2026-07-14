@@ -159,7 +159,7 @@ s.close()
 ## Features
 
 **`cmd-art`**（`skills/cmd-art`）— 「リビングテンプレート」型のエフェクトエンジン。`Effect` ABC +
-`@register` デコレータ + 自動検出で構成されます。**18 種のエフェクト**（donut、fire、plasma、rain、
+`@register` デコレータ + 自動検出で構成されます。**19 種のエフェクト**（donut、solarsystem、fire、plasma、rain、
 starfield、tunnel、text3d、cube、sphere、boids、life、fireworks、sparkle、decrypt、
 gradient_text、banner_scroll、image2ascii、typewriter）を **8 種のテーマ**（mono、fire、
 ocean、synthwave、viridis、pastel、matrix-green、rainbow）にわたって備えます。エフェクトは純粋な

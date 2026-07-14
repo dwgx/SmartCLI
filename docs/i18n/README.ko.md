@@ -159,7 +159,7 @@ s.close()
 ## 기능
 
 **`cmd-art`** (`skills/cmd-art`) — "살아 있는 템플릿" 방식의 이펙트 엔진: `Effect` ABC +
-`@register` 데코레이터 + 자동 발견으로 구성됩니다. **18개 이펙트**(donut, fire, plasma, rain,
+`@register` 데코레이터 + 자동 발견으로 구성됩니다. **19개 이펙트**(donut, solarsystem, fire, plasma, rain,
 starfield, tunnel, text3d, cube, sphere, boids, life, fireworks, sparkle, decrypt,
 gradient_text, banner_scroll, image2ascii, typewriter)를 **8개 테마**(mono, fire,
 ocean, synthwave, viridis, pastel, matrix-green, rainbow)에 걸쳐 제공합니다. 이펙트는

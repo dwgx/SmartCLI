@@ -158,7 +158,7 @@ s.close()
 
 **`cmd-art`**（`skills/cmd-art`）— 一套「活範本」效果引擎：`Effect` ABC +
 `@register` 裝飾器 + 自動探索。橫跨 **8 種主題**（mono、fire、
-ocean、synthwave、viridis、pastel、matrix-green、rainbow）的 **18 種效果**（donut、fire、plasma、rain、
+ocean、synthwave、viridis、pastel、matrix-green、rainbow）的 **19 種效果**（donut、solarsystem、fire、plasma、rain、
 starfield、tunnel、text3d、cube、sphere、boids、life、fireworks、sparkle、decrypt、
 gradient_text、banner_scroll、image2ascii、typewriter）。這些效果是純粹的畫格
 產生器；`play` 預設有時間界限，且一定會還原終端機狀態。
