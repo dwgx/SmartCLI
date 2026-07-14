@@ -13,6 +13,16 @@ import re
 import sys
 from pathlib import Path
 
+# This test prints CJK doc snippets (e.g. Korean "개 이펙트") in its failure
+# labels, so force a UTF-8 stdout — otherwise a legacy console codepage (CP936
+# on this Windows box) raises UnicodeEncodeError mid-report and masks the real
+# assertion result. run_all.py already forces this for children; do it here too
+# so the test is safe to run standalone.
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
+except Exception:
+    pass
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "skills" / "cmd-art"))
 sys.path.insert(0, str(ROOT / "skills" / "tui-ui"))
@@ -67,6 +77,12 @@ DOCS = [
 EFFECT_RE = re.compile(r"(\d+)\s+(?:terminal visual |fx )?effects\b", re.IGNORECASE)
 LISTALL_RE = re.compile(r"list all (\d+) effects", re.IGNORECASE)
 
+# CJK feature-paragraph phrasings of the same "<N> effects" claim. The 18->19
+# drift lived here in the localized READMEs and slipped past the English-only
+# regex above. Each alternative is the exact "effects" unit in that locale:
+#   zh-Hans "18 种效果" / zh-Hant "18 種效果" / ja "18 種のエフェクト" / ko "18개 이펙트"
+EFFECT_CJK_RE = re.compile(r"(\d+)\s*(?:种效果|種效果|種のエフェクト|개\s*이펙트)")
+
 # A wrong count is only real drift if the line is ASSERTING that count as fact.
 # Skip lines that are META-DISCUSSION of the drift itself (anti-drift reminders
 # like "any doc still saying 18 effects is STALE") — those correctly mention the
@@ -94,6 +110,9 @@ def _scan(text):
         for m in LISTALL_RE.finditer(line):
             if int(m.group(1)) != N_FX:
                 bad.append(f"line {i}: 'list all {m.group(1)} effects' (should be {N_FX})")
+        for m in EFFECT_CJK_RE.finditer(line):
+            if int(m.group(1)) != N_FX:
+                bad.append(f"line {i}: '{m.group(0)}' (should be {N_FX})")
     return bad
 
 
