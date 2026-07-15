@@ -1,22 +1,22 @@
 # SmartCLI — Handoff (承上启下)
 
-*Written 2026-07-08, last updated **2026-07-15**. This is the single document a fresh AI reads first to pick up SmartCLI without re-deriving anything. It records the **current release state**, what the project IS, what already WORKS (with the exact commands to see it), the brain (`knowledge/`), the hard-won rules that must never be re-lost, the environment, and the open tasks framed so you can start in one move. Baked-in truths (re-verified against code 2026-07-15): there are **THREE** skills, the live `fx` registry has **30** effects, `tui-ui` has **17** widgets, drive-tui has **8** recipes, and `knowledge/` has **143** `.md` files. **Read §9 (2026-07-15, v0.1.3→v0.1.7) first for the most recent work — god-tier fx, sextant+OKLab rendering, 2 new widgets, wait_change, spectrum_bars + cbonsai (catalog 30), MCP server + LIVE MCP Registry listing, Codecov + Read the Docs; then §8/§7 for the CI/CD, website, and POSIX history.***
+*Written 2026-07-08, last updated **2026-07-15**. This is the single document a fresh AI reads first to pick up SmartCLI without re-deriving anything. It records the **current release state**, what the project IS, what already WORKS (with the exact commands to see it), the brain (`knowledge/`), the hard-won rules that must never be re-lost, the environment, and the open tasks framed so you can start in one move. Baked-in truths (re-verified against code 2026-07-15): there are **THREE** skills, the live `fx` registry has **30** effects, `tui-ui` has **17** widgets, drive-tui has **8** recipes, and `knowledge/` has **143** `.md` files. **Read §9 (2026-07-15, v0.1.3→v0.1.8) first for the most recent work — god-tier fx, spectrum_bars + cbonsai (catalog 30), sextant+OKLab, wait_change + wait_any, Sixel graphics output, MCP server + LIVE MCP Registry listing, a Terminal-Bench adapter, Codecov + Read the Docs; then §8/§7 for the CI/CD, website, and POSIX history.***
 
 ---
 
-## 0. Release & current state (v0.1.7) — READ THIS FIRST
+## 0. Release & current state (v0.1.8) — READ THIS FIRST
 
-SmartCLI is **published and public**; latest release **v0.1.7** (2026-07-15). This section is the authoritative current-state record; anything older in this doc that contradicts it is stale. **The full arc of the 2026-07-15 work (v0.1.3 → v0.1.7) is in §9 — read it first for the most recent state.** v0.1.7 shipped the last two knowledge→effect ports (`spectrum_bars` + `cbonsai`, catalog 28→30) and listed the drive-tui server on the **official MCP Registry** (`io.github.dwgx/smartcli`, status active — see §9g).
+SmartCLI is **published and public**; latest release **v0.1.8** (2026-07-15). This section is the authoritative current-state record; anything older in this doc that contradicts it is stale. **The full arc of the 2026-07-15 work (v0.1.3 → v0.1.8) is in §9 — read it first for the most recent state.** v0.1.8 added `wait_any` (pexpect multi-marker wait), **Sixel graphics output** in tui-ui, and a **Terminal-Bench agent adapter** (`smartcli_tbench/`, not shipped in the wheel) — each with an independent adversarial review (see §9h). v0.1.7 shipped the last two knowledge→effect ports (`spectrum_bars` + `cbonsai`, catalog 30) and the **MCP Registry** listing (`io.github.dwgx/smartcli`, active — §9g).
 
 **Where it lives:**
 - **PyPI:** `pip install smartcli-toolkit` → https://pypi.org/project/smartcli-toolkit/ . The dist name is **`smartcli-toolkit`**; the **import package stays `smartcli_core`** (`from smartcli_core import PtySession`). Latest = **0.1.7** (the JSON index can lag a few minutes after a release — the `Publish to PyPI` workflow going green is the source of truth, not the index).
 - **MCP Registry:** **LIVE** — `io.github.dwgx/smartcli` on `registry.modelcontextprotocol.io` (published 2026-07-15 via `mcp-publisher`; ownership verified by the `mcp-name` marker in the PyPI README). MCP clients (Claude/Cursor/VS Code) + aggregators (Smithery/Glama/MCP.so) auto-discover it.
-- **GitHub:** public repo **github.com/dwgx/SmartCLI**, branch `main`, tags **v0.1.0 … v0.1.7** each with a matching GitHub Release.
+- **GitHub:** public repo **github.com/dwgx/SmartCLI**, branch `main`, tags **v0.1.0 … v0.1.8** each with a matching GitHub Release.
 - **Claude plugin marketplace:** `.claude-plugin/marketplace.json` is present → users run **`/plugin marketplace add dwgx/SmartCLI`**.
 - **skillhu.bz:** all 3 skills published — skillhu.bz/skill/cmd-art, skillhu.bz/skill/drive-tui, skillhu.bz/skill/tui-ui.
 - **Codecov:** live (badge in README, ~50% on the deterministic subset). **Read the Docs:** live at https://smartcli.readthedocs.io/ (mkdocs, separate from the hand-written showcase site on GitHub Pages).
 
-**Version consistency (VERSION = 0.1.7) — NINE sites must move together on a bump:** `pyproject.toml`, `smartcli_core/__init__.py` `__version__`, `skills/cmd-art/fx/__init__.py` `__version__`, all 3 `skills/*/SKILL.md` `version:` fields, `.claude-plugin/marketplace.json` plugin version, **`skills/drive-tui/_vendor/smartcli_core/__init__.py`** (the vendored copy — `test_vendor_sync` requires it byte-identical), and **`server.json`** (TWO version fields there: top-level + `packages[0].version`, both must equal the package version or the MCP-registry publish fails). After bumping, run `python tools/sync_vendor.py` then `python tests/test_vendor_sync.py`.
+**Version consistency (VERSION = 0.1.8) — NINE sites must move together on a bump:** `pyproject.toml`, `smartcli_core/__init__.py` `__version__`, `skills/cmd-art/fx/__init__.py` `__version__`, all 3 `skills/*/SKILL.md` `version:` fields, `.claude-plugin/marketplace.json` plugin version, **`skills/drive-tui/_vendor/smartcli_core/__init__.py`** (the vendored copy — `test_vendor_sync` requires it byte-identical), and **`server.json`** (TWO version fields there: top-level + `packages[0].version`, both must equal the package version or the MCP-registry publish fails). After bumping, run `python tools/sync_vendor.py` then `python tests/test_vendor_sync.py`.
 
 **CI / publishing (8 workflows — updated 2026-07-14, was 2: ci + publish):**
 - `.github/workflows/ci.yml` — **3-OS matrix** (windows-latest + ubuntu-latest + macos-latest × py3.11/3.12), ~12 deterministic gates on every push/PR: `verify_fx`, `test_fx_contract`, `test_readiness`, `test_degenerate_inputs`, `_sandbox_fuzz_core`, `test_vendor_sync`, **`test_doc_counts` (anti-drift)**, `_readme_literal`, tui-ui `self_test`, `fx list`, `ui widgets`, plus POSIX-only `_sandbox_posix_backend.py` on the non-Windows legs. (Was "Windows-only" in earlier drafts — no longer true; the Linux matrix listed as an OPEN TASK in §6#2 is DONE.)
@@ -492,7 +492,7 @@ verify + independent adversarial review + full-suite green).**
 
 ### 9e. Standing state after this session
 - **Regression: `python tests\run_all.py` = 27/27** (grew as tests were added).
-- **git clean, synced with origin.** Latest tag **v0.1.7** (§9g).
+- **git clean, synced with origin.** Latest tag **v0.1.8** (§9h; §9g = v0.1.7).
 - **The default `%TEMP%\smartcli_tui` dir often holds ONE session that is NOT ours**
   (`s10456_*`, a SaoMoLa/VRChat uploader). It's a live third-party process — do
   NOT close it. Probes use an isolated `SMARTCLI_TUI_DIR`, unaffected.
@@ -505,16 +505,18 @@ verify + independent adversarial review + full-suite green).**
    is LIVE on `registry.modelcontextprotocol.io` (status active). See §9g.
 2. **Launch** (human, owner-timed): copy ready in `docs/LAUNCH-COPY.md` — Show HN
    / r/commandline / awesome-list PRs. Proof reels + RTD + Codecov all live now.
-3. **Technical backlog from the design research** (any AI, high quality): tui-ui
-   reactive/declarative system + color degrade (Textual/Lipgloss), **Sixel/kitty
-   image output** (chafa/notcurses — `raster.py` has sextant now, no graphics
-   protocol yet — this is the next-biggest technical gap), **Terminal-Bench
-   integration** (turn "drives TUIs" into a number), and **`wait_any`** multi-marker
-   wait (pexpect-style, returns which pattern matched; `wait_change` single-marker
-   already shipped). The two knowledge→effect ports (spectrum-bars, cbonsai) are
-   **DONE in v0.1.7** (§9g) — catalog is now 30.
-4. **Real-terminal eyeball** of effort_selector cadence + a real-Mac/real-tmux
-   run remain the only unverified platform bits (see §6).
+3. **Technical backlog** — three big items shipped in v0.1.8 (§9h): **`wait_any`**
+   (pexpect multi-marker wait), **Sixel graphics output** (`ui/sixel.py`), and a
+   **Terminal-Bench adapter** (`smartcli_tbench/`). STILL OPEN from the design
+   research: tui-ui reactive/declarative system + color degrade (Textual/Lipgloss);
+   **kitty** graphics protocol (sixel done, kitty is the other image protocol);
+   running the Terminal-Bench score on CI (adapter + `bench.yml` ready — needs the
+   owner to add an LLM API-key secret and dispatch the workflow); a Harbor / TB-2.0
+   port (the current leaderboard uses a different agent interface — see §9h).
+4. **Real-terminal eyeball** of effort_selector cadence, a real-Mac/real-tmux run,
+   and a **real Windows-Terminal render of `python -m ui sixel`** remain unverified
+   platform bits (the sixel BYTES are spec-locked + reviewed; only the visual
+   render in a live WT tab is uneyeballed — it can't go through captured stdout).
 
 ### 9g. v0.1.7 — spectrum_bars + cbonsai (catalog 30) + MCP Registry LIVE
 - **Two new fx effects, the last two knowledge→effect ports** (catalog 28→30):
@@ -551,6 +553,45 @@ verify + independent adversarial review + full-suite green).**
   re-runs linguist on push).
 - Nine version sites bumped 0.1.6→0.1.7, vendored core re-synced (`test_vendor_sync`
   green), CHANGELOG entry added. Tag `v0.1.7` pushed → OIDC publish + Pages deploy.
+
+### 9h. v0.1.8 — wait_any + Sixel graphics + Terminal-Bench adapter (all reviewed)
+Three backlog items, each independently adversarially reviewed (subagent tried to
+disprove; findings fixed before ship).
+- **`wait_any`** (smartcli_core, DO-NOT-MODIFY exception — real-run + review + full
+  suite): pexpect `expect([...])`. `readiness.wait_any(patterns) -> (index, snap)`,
+  `-1` on timeout, earliest-in-list wins a same-poll tie, empty list short-circuits.
+  `PtySession.wait_any` + drive-tui daemon action + CLI `wait-any` (`--pattern`/
+  `--stdin`) + one-shot run step + MCP tool. `tests/test_wait_any.py` (mutation-
+  verified: 2 mutations caught). Review clean; added an empty-list short-circuit.
+  Live-PTY confirmed (index 0 on a real Python REPL). Vendored copy synced.
+- **Sixel graphics** (tui-ui, pure addition — zero regression surface). `ui/sixel.py`:
+  `encode_sixel(pixels)` / `raster_to_sixel(raster)` / `print_sixel` / `supports_sixel`
+  (DA1 probe). Band-based, 6x6x6 cube quant, RLE, P2=1 transparent, `char=0x3F+mask`
+  (bit0=TOP), colors 0..100%. `python -m ui sixel [image] [--probe]`. Spec locked by
+  `tests/test_sixel.py` (26 checks incl. DEC "HI" bit-math + round-trip decode;
+  mutation-verified). Review clean (esp. the DA1 param parser — splits on `;` before
+  membership, so `64`/`14` can't false-positive as attribute `4`). **Real WT render
+  NOT eyeballed** (captured stdout can't display sixel — see §9f#4); bytes are proven
+  correct. Exact spec/constants from a research pass (VT330/340 + Dankwardt + libsixel).
+- **Terminal-Bench adapter** (`smartcli_tbench/`, NOT in the wheel — `packages =
+  ["smartcli_core"]` only). Targets **classic `laude-institute/terminal-bench`**
+  (`BaseAgent.perform_task(instruction, session: TmuxSession)` — verified from source).
+  `driver.py` reimplements `wait_stable`/`wait_for`/`wait_any`/`wait_change` over
+  `capture_pane()`; `loop.py` = the perceive→decide→act→wait→confirm loop
+  parametrised by a `decide_fn`; `agent.py` = `SmartCliAgent(BaseAgent)` importing TB
+  lazily (module imports on a non-TB host → `SmartCliAgent=None`). Pure driver+loop
+  unit-tested WITHOUT Docker/TB/LLM (`tests/test_tbench_adapter.py`, 23 checks). Review
+  found a MEDIUM bug — `wait_stable` had dropped the core's `min_wait` floor, so a
+  slow command would settle on the echoed-command (pre-output) screen; FIXED with
+  `min_wait_sec` + a regression test, plus robustness fixes (lazy-import distinguishes
+  "not installed" from "broken install"; `poll_ms=0` fake-clock guard). CI
+  `bench.yml` (workflow_dispatch, ubuntu-latest) runs an oracle smoke test + the
+  scored subset — **needs the owner to add an LLM API-key secret + a `decide_fn`**.
+  **Biggest caveat:** the public leaderboard is now TB-2.0 / Harbor with a DIFFERENT
+  agent interface (tool/env-mediated, no raw tmux handle) — a classic-TB score is
+  real but NOT directly comparable to the 2.0 board; a Harbor port is separate work.
+- Nine version sites bumped 0.1.7→0.1.8, vendored core re-synced, CHANGELOG added.
+  `smartcli_tbench` is NEW and intentionally excluded from the wheel packaging.
 
 ---
 

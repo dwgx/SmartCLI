@@ -5,6 +5,45 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.8] - 2026-07-15
+
+Two capability additions and a benchmark adapter, each with an independent
+adversarial review pass. Closes the last of the pexpect feature gap, adds a true
+graphics protocol, and makes "drives TUIs" a runnable Terminal-Bench score.
+
+### Added
+- **`wait_any` — pexpect `expect([...])` multi-marker wait** (smartcli_core, made
+  under the DO-NOT-MODIFY exception: real-run-path + independent adversarial review
+  + full-suite green). Race several regexes and learn WHICH matched first: returns
+  `(index, snapshot)`, `-1` on timeout, earliest-in-list wins a same-poll tie, empty
+  list short-circuits. In `readiness.py` + `PtySession.wait_any` + the drive-tui
+  daemon action, CLI (`wait-any`, `--pattern`/`--stdin`), one-shot run step, and MCP
+  tool. `tests/test_wait_any.py` (mutation-verified); live-PTY confirmed.
+- **Sixel graphics output** (tui-ui, pure addition). `ui/sixel.py` encodes an RGB
+  pixel grid — including a `SubcellRaster.px` buffer via `raster_to_sixel` — to a
+  Sixel DCS string for terminals that support it (Windows Terminal >=1.22, xterm,
+  WezTerm, mlterm): band-based encoding, 6x6x6 cube quantization, RLE, transparent
+  zero-bits, `char=0x3F+mask` (bit0=top), 0..100 color scaling. Plus `supports_sixel`
+  (DA1 probe) and `python -m ui sixel [image] [--probe]`. Wire format locked to the
+  VT330/340 spec by `tests/test_sixel.py` (incl. the DEC "HI" bit-math + a round-trip
+  decode), mutation-verified, adversarially reviewed. The sub-cell glyph path
+  (half/quad/sextant/braille) still works everywhere; sixel is the upgrade where
+  available.
+- **Terminal-Bench agent adapter** (`smartcli_tbench/`, not shipped in the wheel).
+  A classic-`terminal-bench` `BaseAgent` that drives the harness's tmux session with
+  SmartCLI's perceive→decide→act→wait→confirm loop and its wait primitives
+  reimplemented over `capture_pane()` — the reliability the stock fire-and-forget
+  `naive` agent lacks. `driver.py`/`loop.py` are pure and unit-tested without Docker/
+  LLM (`tests/test_tbench_adapter.py`, adversarially reviewed — a stale-screen
+  `min_wait` guard was added from that review); `agent.py` imports terminal-bench
+  lazily. New `.github/workflows/bench.yml` runs the scored subset on CI ubuntu-latest
+  (oracle smoke test + `SmartCliAgent`, gated on an LLM API-key secret).
+
+### Changed
+- CI gains deterministic gates for `test_wait_any`, `test_sixel`, and
+  `test_tbench_adapter`; all three added to `run_all.py`. drive-tui + tui-ui SKILL.md
+  document the new verbs/commands. (Stale "19 effects" CI comments corrected to 30.)
+
 ## [0.1.7] - 2026-07-15
 
 The last two "knowledge → effect" ports, an MCP Registry listing, and a

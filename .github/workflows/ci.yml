@@ -51,6 +51,9 @@ jobs:
       - name: sixel wire-format lock (deterministic)
         run: python tests/test_sixel.py
 
+      - name: terminal-bench adapter driver+loop (deterministic)
+        run: python tests/test_tbench_adapter.py
+
       - name: degenerate-input regression locks
         run: python tests/test_degenerate_inputs.py
 

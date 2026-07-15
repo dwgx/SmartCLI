@@ -1,0 +1,92 @@
+name: Terminal-Bench
+
+# Runs the SmartCLI agent adapter against classic Terminal-Bench and uploads the
+# score. Manual / opt-in only — it needs Docker (Linux containers) and an LLM API
+# key, and each task spins a container, so it is NOT part of the per-push CI. Never
+# run this on the Windows dev box (no WSL/Docker there, and the CLAUDE.md red-line
+# forbids fanning out real processes locally); ubuntu-latest is the intended host.
+#
+# Trigger: Actions tab -> "Terminal-Bench" -> Run workflow. Provide the model and
+# the number of tasks. Requires repository secret ANTHROPIC_API_KEY (or adapt to
+# your model provider). Without the secret the job stops after the harness smoke
+# test (oracle agent), which needs no LLM.
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "Model for the SmartCLI agent's decide step"
+        default: "anthropic/claude-3-7-latest"
+        required: false
+      n_tasks:
+        description: "How many tasks to run (a small subset keeps it cheap)"
+        default: "5"
+        required: false
+      dataset_version:
+        description: "terminal-bench-core dataset version"
+        default: "0.1.1"
+        required: false
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      PYTHONIOENCODING: utf-8
+      # Surfaced at job level so the scored step's `if:` can test whether the
+      # secret is configured (a step-scoped env can't be read by that step's own if).
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # ubuntu-latest ships Docker; confirm the daemon is up (tasks are containers).
+      - name: Verify Docker
+        run: docker version
+
+      - name: Install terminal-bench
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install terminal-bench
+
+      # Harness smoke test — the 'oracle' agent replays each task's reference
+      # solution, so a green run here proves Docker + the harness + the task images
+      # work, WITHOUT needing an LLM key. Fail fast here if the environment is broken.
+      - name: Harness smoke test (oracle agent, no LLM)
+        run: |
+          tb run \
+            --agent oracle \
+            --dataset-name terminal-bench-core \
+            --dataset-version "${{ github.event.inputs.dataset_version }}" \
+            --n-tasks "${{ github.event.inputs.n_tasks }}" \
+            --output-path ./bench-oracle || true
+
+      # The real number: SmartCLI's adapter, loaded by import path (no TB fork).
+      # Gated on the API-key secret so a keyless run doesn't fail the job — it just
+      # skips the scored leg and leaves the oracle smoke result as the artifact.
+      - name: SmartCliAgent scored run
+        if: ${{ env.ANTHROPIC_API_KEY != '' }}
+        run: |
+          # smartcli_tbench must be importable by the harness process.
+          export PYTHONPATH="$PWD:$PYTHONPATH"
+          tb run \
+            --agent-import-path "smartcli_tbench.agent:SmartCliAgent" \
+            --model "${{ github.event.inputs.model }}" \
+            --dataset-name terminal-bench-core \
+            --dataset-version "${{ github.event.inputs.dataset_version }}" \
+            --n-tasks "${{ github.event.inputs.n_tasks }}" \
+            --output-path ./bench-smartcli
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: terminal-bench-results
+          path: |
+            ./bench-oracle
+            ./bench-smartcli
+          if-no-files-found: ignore

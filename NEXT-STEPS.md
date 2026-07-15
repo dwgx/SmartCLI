@@ -85,12 +85,14 @@ These are fully executable and verifiable on the current Windows machine.
   everywhere (see version list in snapshot) if you publish.
 - **Effort:** S
 
-### A4. pexpect-style multi-marker wait (wait-any returning which matched)  [S] — PARTIALLY SUPERSEDED
-- **Note (2026-07-15):** the higher-value `wait_change` primitive (block until the
-  screen content-hash changes from a baseline) shipped in v0.1.6 across
-  session/daemon/CLI/MCP (tests/test_wait_change.py). Multi-marker `wait_any`
-  (return WHICH of several patterns matched) is still a genuine open nicety —
-  design below stands. *(original task below)*
+### ~~A4. pexpect-style multi-marker wait (wait-any returning which matched)~~  [DONE 2026-07-15, v0.1.8]
+- **Result:** `wait_any(patterns) -> (index, snapshot)` shipped in v0.1.8 across
+  readiness.py + `PtySession.wait_any` + drive-tui daemon/CLI (`wait-any`,
+  `--pattern`/`--stdin`)/one-shot-run/MCP. `-1` on timeout, earliest-in-list wins a
+  same-poll tie, empty list short-circuits. `tests/test_wait_any.py` (mutation-
+  verified), independent adversarial review clean, live-PTY confirmed. Made under
+  the smartcli_core DO-NOT-MODIFY exception. `wait_change` (single-marker) shipped
+  earlier in v0.1.6. *(original task below, for reference)*
 - **Goal:** add a `wait_any(patterns) -> (index, match)` style API to the readiness
   layer so callers can wait on several possible outcomes at once (prompt vs error vs
   EOF), like pexpect's `expect([...])`.

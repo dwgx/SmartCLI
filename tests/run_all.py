@@ -161,6 +161,9 @@ def build_suite():
     suite.append(Test("test_sixel (sixel wire-format lock)",
                       [PY, str(TESTS / "test_sixel.py")], ROOT, 60,
                       optional=True))
+    suite.append(Test("test_tbench_adapter (driver+loop, no Docker)",
+                      [PY, str(TESTS / "test_tbench_adapter.py")], ROOT, 60,
+                      optional=True))
     suite.append(Test("_sandbox_fuzz_core (pure-memory fuzz)",
                       [PY, str(TESTS / "_sandbox_fuzz_core.py")], ROOT, 180,
                       optional=True))
