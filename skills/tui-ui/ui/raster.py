@@ -56,18 +56,35 @@ BRAILLE_BASE = 0x2800
 #   (U+1FB00..). +50% vertical resolution over quad, with two-color support.
 _MODE_DIMS = {"half": (1, 2), "quad": (2, 2), "braille": (2, 4), "sextant": (2, 3)}
 
-# sextant: 6-pixel mask -> glyph. Bit order matches the Unicode block layout:
-#   bit0=top-left, 1=top-right, 2=mid-left, 3=mid-right, 4=bot-left, 5=bot-right.
-# The block encodes all 64 masks EXCEPT all-empty (0 -> space) and all-full
-# (63 -> U+2588 full block); the 62 in between are U+1FB00 + (n-1), skipping the
-# two that would collide with space/full (n=0 and n=63).
+# sextant: 6-pixel mask -> glyph. Bit i of the mask = sextant position i+1 in
+# Unicode's numbering (1=TL,2=TR,3=ML,4=MR,5=BL,6=BR), so bit0=TL .. bit5=BR.
+#
+# The U+1FB00 block is NOT a dense mask+offset: it OMITS the two patterns that
+# already exist as half blocks (left column -> U+258C, right column -> U+2590),
+# so a naive `0x1FB00 + (mask-1)` misaligns 42 of 62 glyphs and overruns into
+# non-sextant diagonals. Build the table by READING each block glyph's
+# "BLOCK SEXTANT-<digits>" name and reconstructing its mask — this can't drift.
 def _build_sextant_glyphs():
+    import unicodedata
     glyphs = [" "] * 64
-    code = 0x1FB00
-    for mask in range(1, 63):
-        glyphs[mask] = chr(code)
-        code += 1
-    glyphs[63] = "█"     # full block
+    glyphs[0] = " "
+    glyphs[63] = "█"       # full block
+    glyphs[0b010101] = "▌"  # left column (TL+ML+BL = sextants 1,3,5, bits 0,2,4) = left half
+    glyphs[0b101010] = "▐"  # right column (TR+MR+BR = sextants 2,4,6, bits 1,3,5) = right half
+    for cp in range(0x1FB00, 0x1FB3C):   # the sextant range (before the diagonals)
+        try:
+            name = unicodedata.name(chr(cp))
+        except ValueError:
+            continue
+        prefix = "BLOCK SEXTANT-"
+        if not name.startswith(prefix):
+            continue
+        mask = 0
+        for d in name[len(prefix):]:
+            if d.isdigit():
+                mask |= 1 << (int(d) - 1)   # sextant N -> bit N-1
+        if 0 < mask < 63:
+            glyphs[mask] = chr(cp)
     return glyphs
 
 
@@ -79,7 +96,11 @@ SEXTANT_BITS = {
     (0, 2): 0x10, (1, 2): 0x20,
 }
 
-# Two colours in a quad cell closer than this (squared RGB dist) are "the same".
+# Two colours in a cell closer than this are treated as one. NOTE: _dist2 now
+# measures in OKLab (scaled by 255^2), which is perceptually uniform — so at a
+# fixed threshold two-color splitting is MORE sensitive in dark tones and LESS
+# in bright tones than the old raw-RGB metric. That's the intended OKLab
+# behavior (perceptual, not linear), not an equivalent of the old RGB split.
 _SPLIT_THRESHOLD = 48 * 48
 
 
@@ -88,6 +109,11 @@ def _srgb_to_oklab(c: RGB):
     Euclidean distance tracks perceived color difference far better than raw
     RGB — the quality lever chafa uses for its color matching. Ottosson 2020."""
     def lin(u):
+        # Clamp to the sRGB domain first: parse_color/set_pixel don't clip, so an
+        # out-of-range or negative channel could reach here, and a negative base
+        # to the **2.4 power would return a COMPLEX number that then crashes the
+        # <= threshold comparison. Clamp = correct sRGB behavior AND crash-safe.
+        u = 0.0 if u < 0 else (255.0 if u > 255 else u)
         u /= 255.0
         return u / 12.92 if u <= 0.04045 else ((u + 0.055) / 1.055) ** 2.4
     r, g, b = lin(c[0]), lin(c[1]), lin(c[2])
@@ -559,10 +585,37 @@ def _selftest() -> None:
     ok("sextant: two-color split gives fg+bg", fg2 is not None and bg2 is not None,
        f"glyph={g2!r} fg={fg2} bg={bg2}")
 
+    # --- sextant GLYPH MAPPING: the U+1FB00 block omits left/right columns
+    # (they're the half blocks U+258C/U+2590), so a naive offset misaligns 42 of
+    # 62 glyphs. Assert the exact mapping so a regression can't slip through
+    # (the earlier test only checked mask=1 and 63, which happened to be right).
+    import unicodedata as _ud
+    ok("sextant: mask 21 (left column) -> ▌ U+258C", SEXTANT_GLYPHS[21] == "▌",
+       f"got {SEXTANT_GLYPHS[21]!r}")
+    ok("sextant: mask 42 (right column) -> ▐ U+2590", SEXTANT_GLYPHS[42] == "▐",
+       f"got {SEXTANT_GLYPHS[42]!r}")
+    _sx_ok = True
+    for _m in range(1, 63):
+        _g = SEXTANT_GLYPHS[_m]
+        if _g == " " or "DIAGONAL" in _ud.name(_g, ""):
+            _sx_ok = False
+    ok("sextant: all 62 masks map to a real sextant/half glyph (no gaps/diagonals)",
+       _sx_ok)
+    ok("sextant: mask 3 (TL+TR) is BLOCK SEXTANT-12",
+       _ud.name(SEXTANT_GLYPHS[3], "") == "BLOCK SEXTANT-12", f"got {SEXTANT_GLYPHS[3]!r}")
+
     # --- OKLab perceptual distance sanity: near reds < threshold < red/blue -
     ok("oklab: near colors < split threshold < far colors",
        _dist2((255, 0, 0), (210, 10, 10)) < _SPLIT_THRESHOLD < _dist2((255, 0, 0), (0, 0, 255)),
        f"near={_dist2((255,0,0),(210,10,10)):.0f} far={_dist2((255,0,0),(0,0,255)):.0f}")
+
+    # --- OKLab must not crash on out-of-range / negative channels (no complex) -
+    _neg_ok = True
+    try:
+        _dist2((-5, 0, 0), (300, 128, 64))   # negative + over-255
+    except Exception:
+        _neg_ok = False
+    ok("oklab: out-of-range/negative channels don't crash", _neg_ok)
 
     # --- transparent cell is left untouched --------------------------------
     rt = SubcellRaster(2, 1, "half")

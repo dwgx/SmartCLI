@@ -10,6 +10,7 @@ Pure frame producer: (t, w, h) -> one frame string. No I/O, no ANSI modes.
 from __future__ import annotations
 
 import colorsys
+import math
 
 from ..core import RESET, rgb
 from ..base import Effect, FrameCtx, Param
@@ -52,8 +53,13 @@ def _grad(h, x, y, z):
 
 
 def _noise(x, y, z):
-    X, Y, Z = int(x) & 255, int(y) & 255, int(z) & 255
-    x -= int(x); y -= int(y); z -= int(z)
+    # floor (not int() truncation) so negative coordinates lattice correctly —
+    # int() truncates toward zero, giving a negative fractional part at x<0 and a
+    # visible seam at negative integer grid lines. Domain-warped/field effects
+    # sample negative coords heavily, so this matters.
+    xi, yi, zi = math.floor(x), math.floor(y), math.floor(z)
+    X, Y, Z = xi & 255, yi & 255, zi & 255
+    x -= xi; y -= yi; z -= zi
     u, v, w = _fade(x), _fade(y), _fade(z)
     p = _P
     A = p[X] + Y; AA = p[A] + Z; AB = p[A + 1] + Z

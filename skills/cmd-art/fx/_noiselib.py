@@ -46,18 +46,23 @@ def ridged(x, y, z, octaves=4):
     return 1.0 - abs(2.0 * n - 1.0)
 
 
-def domain_warp(x, y, t, warp=4.0):
+def domain_warp(x, y, t, warp=4.0, octaves=3):
     """IQ domain warping: f(p) = fbm(p + warp·q), q = fbm(p + offsets).
 
     Returns (f, qx, qy) in roughly [-1,1] each. q is the first warp field —
     callers use its magnitude/components to mix extra colors (nebula), or just
     take f for a flowing scalar field (fire/clouds). t animates the field.
+
+    ``octaves`` is passed to each of the 5 inner fbm calls; it defaults to 3
+    (not 4) because the warping already adds so much structure that the top
+    octave is barely visible — dropping it cuts per-pixel noise cost by ~25%,
+    which matters on large terminals (this is called once per cell per frame).
     """
-    qx = fbm(x, y, t)
-    qy = fbm(x + 5.2, y + 1.3, t)
-    rx = fbm(x + warp * qx + 1.7, y + warp * qy + 9.2, t)
-    ry = fbm(x + warp * qx + 8.3, y + warp * qy + 2.8, t)
-    f = fbm(x + warp * rx, y + warp * ry, t)
+    qx = fbm(x, y, t, octaves)
+    qy = fbm(x + 5.2, y + 1.3, t, octaves)
+    rx = fbm(x + warp * qx + 1.7, y + warp * qy + 9.2, t, octaves)
+    ry = fbm(x + warp * qx + 8.3, y + warp * qy + 2.8, t, octaves)
+    f = fbm(x + warp * rx, y + warp * ry, t, octaves)
     return f, qx, qy
 
 

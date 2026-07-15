@@ -54,8 +54,9 @@ class PreviewPane(Widget):
         if self.line_numbers and lines:
             gutter = len(str(len(lines))) + 1     # width of the line-number column
         n_body = region_h - body_top
+        top = max(0, self.top)              # negative scroll would wrap via -index
         for i in range(n_body):
-            li = self.top + i
+            li = top + i
             if li >= len(lines):
                 break
             y = body_top + i
