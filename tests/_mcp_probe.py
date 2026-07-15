@@ -106,9 +106,19 @@ def main() -> int:
         sid = ""
 
         # --- no leaked sessions in the isolated dir ---
-        r = list_sessions()
-        n = len(r.get("sessions", []))
-        check(r.get("ok") and n == 0, "no leaked sessions after close", detail=f"{n} listed")
+        # close() returns as soon as the daemon has SENT its ok reply; the daemon
+        # then unlinks its reg file in a finally block, so there's a brief window
+        # where `list` can still see it. Poll for it to clear (bounded) instead of
+        # asserting instantly — a marker/condition is a fact, a bare timing guess
+        # is not.
+        n = -1
+        for _ in range(20):  # up to ~5s
+            r = list_sessions()
+            n = len(r.get("sessions", []))
+            if r.get("ok") and n == 0:
+                break
+            time.sleep(0.25)
+        check(n == 0, "no leaked sessions after close (polled)", detail=f"{n} listed")
     finally:
         if sid:
             try:
