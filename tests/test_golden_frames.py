@@ -49,11 +49,30 @@ WIDTH, HEIGHT = 60, 12
 THEME = "dashboard"
 
 results: list[tuple[str, bool, str]] = []
+skipped: list[str] = []
+
+# Widgets whose rendered frame depends on an OPTIONAL dependency: their output
+# differs between "dep present" (real render) and "dep absent" (graceful stdlib
+# fallback), so a single baseline can't cover both. When the dep is missing we
+# SKIP the widget rather than fail — the baseline is only meaningful when the dep
+# matches the environment that generated it. (banner -> pyfiglet FIGlet fonts;
+# the baseline is the pyfiglet render. CI installs .[all] so it's exercised.)
+OPTIONAL_DEP = {"banner": "pyfiglet"}
+
+
+def _dep_available(mod: str) -> bool:
+    import importlib.util
+    return importlib.util.find_spec(mod) is not None
 
 
 def record(name: str, ok: bool, detail: str = "") -> None:
     results.append((name, ok, detail))
     print(f"{'PASS' if ok else 'FAIL'}  {name}" + (f"  -- {detail}" if detail else ""))
+
+
+def note_skip(name: str, detail: str) -> None:
+    skipped.append(name)
+    print(f"SKIP  {name}  -- {detail}")
 
 
 def render_widget(cls) -> str:
@@ -92,6 +111,14 @@ def _first_diff(a: str, b: str) -> str:
 
 def check_widget(cls, update: bool) -> None:
     key = cls.key
+    # If this widget's render depends on an optional dep that's absent, its
+    # fallback output won't match the baseline (generated with the dep present).
+    # Skip rather than fail — a missing optional dep is not a regression.
+    dep = OPTIONAL_DEP.get(key)
+    if dep and not _dep_available(dep) and not update:
+        note_skip(f"golden {key}", f"optional dep '{dep}' absent — baseline needs it")
+        return
+
     # Determinism gate: render twice, must be byte-identical. A widget that
     # depends on time/random would trip here instead of baking flakiness in.
     frame1 = render_widget(cls)
@@ -147,9 +174,10 @@ def main(argv: list[str]) -> int:
         check_widget(cls, update)
 
     failed = [r for r in results if not r[1]]
+    skip_note = f", {len(skipped)} skipped (optional dep absent)" if skipped else ""
     print(f"\n{len(results) - len(failed)}/{len(results)} widgets "
           f"{'baselined' if update else 'match golden frames'} "
-          f"(size {WIDTH}x{HEIGHT}, theme {THEME})")
+          f"(size {WIDTH}x{HEIGHT}, theme {THEME}){skip_note}")
     if failed and not update:
         print("golden-frame drift — review, then `--update` if intended:")
         for name, _ok, detail in failed:
