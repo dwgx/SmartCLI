@@ -20,6 +20,7 @@ Key tokens (``send_keys``) are mapped to escape bytes via :data:`KEY_MAP`.
 
 from __future__ import annotations
 
+import time
 from typing import List, Optional, Tuple, Union, Sequence
 
 from .pty_backend import PtyBackend, get_default_backend
@@ -295,3 +296,38 @@ class PtySession:
             flags=flags,
         )
         return matched, snap  # type: ignore[return-value]
+
+    def wait_change(
+        self,
+        baseline_hash: Optional[str] = None,
+        timeout_ms: int = 10000,
+        poll_ms: int = 30,
+    ) -> Tuple[bool, Snapshot]:
+        """Wait until the screen content changes away from ``baseline_hash``.
+
+        The precise "did my action land?" primitive: after sending input, block
+        until the screen's content hash differs from the baseline (by default,
+        the hash at the moment of the call). Returns (changed, snapshot) —
+        ``changed`` is False on timeout, and the snapshot is always the latest
+        screen so the caller can inspect it either way. Complements wait_stable
+        (settle) / wait_for (a specific marker): this catches ANY change, which
+        is what you want right after acting, and it can't false-positive on a
+        screen that was already showing the target text.
+
+        This is a thin session-level poll over the existing pump + content_hash;
+        it adds no new core state.
+        """
+        if baseline_hash is None:
+            # Baseline = the screen as it stands NOW, WITHOUT draining pending
+            # bytes first — otherwise the very output we're waiting for could be
+            # folded into the baseline and never register as a change.
+            baseline_hash = self.model.content_hash()
+        deadline = time.monotonic() + timeout_ms / 1000.0
+        poll_s = max(0.0, poll_ms / 1000.0)
+        while True:
+            self.pump()
+            if self.model.content_hash() != baseline_hash:
+                return True, self.snapshot()
+            if time.monotonic() >= deadline:
+                return False, self.snapshot()
+            time.sleep(poll_s)

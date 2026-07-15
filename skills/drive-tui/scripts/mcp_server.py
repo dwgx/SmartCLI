@@ -195,6 +195,27 @@ def wait_regex(sid: str, pattern: str, timeout_ms: int = 10000) -> dict:
 
 
 @mcp.tool(annotations=ToolAnnotations(
+    title="Wait for the screen to change",
+    readOnlyHint=True, destructiveHint=False, idempotentHint=True,
+    openWorldHint=False,
+))
+def wait_change(sid: str, baseline_hash: str = "", timeout_ms: int = 10000) -> dict:
+    """Block until the screen content changes, then snapshot.
+
+    The precise "did my action land?" primitive: call it right after send_line/
+    send_keys to wait for ANY change from the baseline (default: the screen at
+    call time; or pass a prior `hash` to change away from). Returns {"ok",
+    "changed", "hash", "alive", "text", "json"} — `hash` is the new screen hash,
+    reusable as the next baseline. Can't false-positive on text that was already
+    on screen, unlike wait_regex.
+    """
+    req = {"action": "wait_change", "timeout_ms": timeout_ms}
+    if baseline_hash:
+        req["baseline_hash"] = baseline_hash
+    return _call_session(sid, req, timeout=timeout_ms / 1000.0 + 15.0)
+
+
+@mcp.tool(annotations=ToolAnnotations(
     title="Wait for readiness",
     readOnlyHint=True, destructiveHint=False, idempotentHint=True,
     openWorldHint=False,

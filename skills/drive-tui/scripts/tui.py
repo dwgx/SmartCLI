@@ -173,6 +173,14 @@ def _handle(sess: PtySession, req: dict, expected_token: str) -> dict:
         return {"ok": True, "matched": matched, "alive": sess.is_alive(),
                 "text": snap.to_text(), "json": snap.to_json()}
 
+    if action == "wait_change":
+        changed, snap = sess.wait_change(
+            baseline_hash=req.get("baseline_hash"),
+            timeout_ms=int(req.get("timeout_ms", 10000)))
+        return {"ok": True, "changed": changed, "alive": sess.is_alive(),
+                "hash": sess.model.content_hash(),
+                "text": snap.to_text(), "json": snap.to_json()}
+
     if action == "alive":
         sess.pump()
         return {"ok": True, "alive": sess.is_alive()}
@@ -416,6 +424,17 @@ def cmd_wait_regex(args) -> int:
     return 0
 
 
+def cmd_wait_change(args) -> int:
+    req = {"action": "wait_change", "timeout_ms": args.timeout_ms}
+    if args.baseline_hash:
+        req["baseline_hash"] = args.baseline_hash
+    resp = _call(args.id, req, timeout=args.timeout_ms / 1000.0 + 15.0)
+    print(f"# changed={resp.get('changed')} hash={resp.get('hash')} "
+          f"alive={resp.get('alive')}", file=sys.stderr)
+    _print_snap(resp, args.json)
+    return 0
+
+
 def cmd_alive(args) -> int:
     resp = _call(args.id, {"action": "alive"})
     print("alive" if resp.get("alive") else "dead")
@@ -525,6 +544,18 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--timeout-ms", dest="timeout_ms", type=int, default=10000)
     sp.add_argument("--json", action="store_true")
     sp.set_defaults(func=cmd_wait_regex)
+
+    sp = sub.add_parser("wait-change",
+                        help="wait until the screen content changes (from a baseline "
+                             "hash, or from now), then snapshot — the precise "
+                             "'did my action land?' primitive")
+    sp.add_argument("--id", required=True)
+    sp.add_argument("--baseline-hash", dest="baseline_hash", default=None,
+                    help="hash to wait to change away from (default: the screen now). "
+                         "Pass the 'hash' from a prior snapshot/wait-change.")
+    sp.add_argument("--timeout-ms", dest="timeout_ms", type=int, default=10000)
+    sp.add_argument("--json", action="store_true")
+    sp.set_defaults(func=cmd_wait_change)
 
     sp = sub.add_parser("alive", help="check whether the child process is still running")
     sp.add_argument("--id", required=True)

@@ -152,6 +152,9 @@ def build_suite():
     suite.append(Test("test_char_width (width knobs + default stability)",
                       [PY, str(TESTS / "test_char_width.py")], ROOT, 60,
                       optional=True))
+    suite.append(Test("test_wait_change (drive-tui await-change primitive)",
+                      [PY, str(TESTS / "test_wait_change.py")], ROOT, 60,
+                      optional=True))
     suite.append(Test("_sandbox_fuzz_core (pure-memory fuzz)",
                       [PY, str(TESTS / "_sandbox_fuzz_core.py")], ROOT, 180,
                       optional=True))
