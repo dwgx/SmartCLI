@@ -17,8 +17,9 @@
 <!-- Show it works. Paste the relevant command output. -->
 - [ ] `python tests/run_all.py` is green (or the relevant subset, noted below)
 - [ ] For a new fx effect: `test_fx_contract.py` passes + it renders on the real run path
-- [ ] For a new widget: `python -m ui widgets` lists it + `self_test.py` still cell-accurate
-- [ ] Counts stay consistent if this changes effect/recipe/widget totals (docs + SKILL.md)
+- [ ] For a new widget: `python -m ui widgets` lists it + `self_test.py` still cell-accurate + `test_golden_frames.py` baseline updated (`--update`)
+- [ ] Counts stay consistent if this changes effect/recipe/widget totals (docs + SKILL.md; `test_doc_counts.py` passes)
+- [ ] Did not densely/concurrently spawn real PTYs while testing (verified serially, no leaked sessions)
 
 ## Notes
 <!-- Anything a reviewer should know: tradeoffs, follow-ups, platforms not yet verified. -->
