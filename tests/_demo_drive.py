@@ -116,6 +116,53 @@ SCRIPTS = {
         ("act — key 3: focus Local branches", ["3"], 0.6),
         ("act — Down: highlight feature/auth", ["Down"], 0.7),
     ]),
+    # nmtui — NetworkManager's curses wizard. A FORM/menu TUI: shows off driving
+    # a multi-screen wizard (the drive-tui sweet spot). Pkg: network-manager /
+    # networkmanager. It talks to NM over D-Bus; in a bare container the edit
+    # screens still render, which is what we're capturing.
+    "nmtui": (["nmtui"], 100, 30, r"(NetworkManager TUI|Edit a connection|Activate)", ["Escape"], [
+        ("perceive — nmtui main menu (Edit / Activate / hostname)", None, 1.2),
+        ("act — Down: move the selection (SS3 arrow)", ["Down"], 0.6),
+        ("act — Down: to 'Set system hostname'", ["Down"], 0.6),
+        ("act — Up: back to 'Edit a connection'", ["Up"], 0.6),
+        ("confirm — Enter: open the connection list", ["Enter"], 1.1),
+        ("act — Escape: back out to the menu", ["Escape"], 0.9),
+    ]),
+    # aptitude — the curses package manager. A dense multi-pane TUI with menus.
+    # Pkg: aptitude. Read-only browsing here (no install), so it's safe to drive.
+    "aptitude": (["aptitude"], 100, 30, r"(aptitude|Actions|Packages|Upgradable)", ["q"], [
+        ("perceive — aptitude package browser", None, 1.4),
+        ("act — Down: walk the category tree", ["Down"], 0.6),
+        ("act — Down: further down", ["Down"], 0.6),
+        ("confirm — Enter: expand a category", ["Enter"], 1.0),
+        ("act — Down: browse packages inside", ["Down"], 0.6),
+        ("act — Up: back up the list", ["Up"], 0.7),
+    ]),
+    # k9s — the Kubernetes curses UI. NOTE: needs a reachable cluster to show
+    # anything useful. Before recording, start a single-node cluster in the
+    # container (k3d/kind/minikube) and a couple of demo pods, or k9s just sits
+    # on a connection error. Highest setup cost of all targets — see the reel
+    # note in the module docstring. Pkg: k9s + a cluster.
+    "k9s": (["k9s"], 110, 32, r"(Context|Namespace|Pods|k9s|No resources)", [":", "q"], [
+        ("perceive — k9s: cluster resources view", None, 1.6),
+        ("act — type :pods to list pods", "type::pods", 0.6),
+        ("confirm — Enter: open the pods view", ["Enter"], 1.2),
+        ("act — Down: move down the pod list", ["Down"], 0.6),
+        ("act — Down: next pod", ["Down"], 0.6),
+        ("confirm — Enter: describe the pod", ["Enter"], 1.3),
+        ("act — Escape: back to the list", ["Escape"], 0.8),
+    ]),
+    # agent CLI — the "AI drives AI" narrative: SmartCLI driving another agent
+    # CLI's TUI. Set AGENT_CLI_CMD to the real CLI (e.g. "aider", "codex") when
+    # recording; it defaults to a harmless placeholder so the entry is valid
+    # without a specific tool. Many agent CLIs need an API key in the container.
+    "agent": ([os.environ.get("AGENT_CLI_CMD", "python3")], 100, 30,
+              r"(>>>|>|\?|assistant|model|help)", ["C-d", "q"], [
+        ("perceive — an agent CLI's prompt", None, 1.4),
+        ("act — type a request", "type:say hello and exit", 0.8),
+        ("confirm — Enter: send it", ["Enter"], 1.6),
+        ("act — read the reply", None, 1.4),
+    ]),
 }
 
 
@@ -185,7 +232,9 @@ def main() -> int:
     target = sys.argv[1] if len(sys.argv) > 1 else "htop"
     if target == "all":
         # strictly serial — one PTY session at a time, each closed before next.
-        for t in ("htop", "ncdu", "nano", "lazygit"):
+        # Low-setup targets only. k9s (needs a cluster) and agent (needs the CLI
+        # + often an API key) are opt-in by name: `python3 _demo_drive.py k9s`.
+        for t in ("htop", "ncdu", "nano", "lazygit", "nmtui", "aptitude"):
             drive_one(t)
         return 0
     return drive_one(target)
