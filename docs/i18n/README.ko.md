@@ -121,7 +121,7 @@ python -m fx show --seq "donut:fire:3,plasma::3"
 
 ```bash
 cd skills/tui-ui
-python -m ui widgets                       # list all 15 widgets
+python -m ui widgets                       # list all 17 widgets
 python -m ui gallery --width 100 --height 30
 python -m ui demo table --width 80 --height 12 --theme dashboard
 ```
@@ -166,7 +166,7 @@ ocean, synthwave, viridis, pastel, matrix-green, rainbow)에 걸쳐 제공합니
 순수한 프레임 생성자이며, `play`는 기본적으로 시간이 제한되어 있고 언제나 터미널을 원래대로 복원합니다.
 
 **`tui-ui`** (`skills/tui-ui`) — 웹처럼 동작하는 터미널 레이아웃 엔진으로, tmux에 안전한
-ANSI 프레임을 내보냅니다(SGR 컬러 런 + 줄바꿈만 사용하며, 커서 이동이나 대체 화면은 없습니다). **15개
+ANSI 프레임을 내보냅니다(SGR 컬러 런 + 줄바꿈만 사용하며, 커서 이동이나 대체 화면은 없습니다). **17개
 위젯**(badge, banner, braille_chart, card, gradient_rule, kv, meter, panel,
 progress, radial_glow, rule, slider_track, table, tabs, tree)을 실제 **엔진** 위에서 제공합니다:
 `field.py`(셰이더 컴포지터), `raster.py`(서브 셀 단위 half/quad/braille 픽셀),
@@ -194,7 +194,7 @@ SmartCLI/
   smartcli_core/           shared PTY + pyte engine (importable package)
   skills/cmd-art/          fx effect package and CLI (28 effects, 8 themes)
   skills/drive-tui/        TUI pattern library and PTY driver CLI (8 recipes)
-  skills/tui-ui/           terminal UI layout engine and widgets (15 widgets)
+  skills/tui-ui/           terminal UI layout engine and widgets (17 widgets)
   tools/screenshot/        pyte -> PNG smoke-test harness
   tools/agentcli/          agent-CLI control validation harness
   knowledge/               122-note knowledge graph (see knowledge/INDEX.md)

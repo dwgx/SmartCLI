@@ -38,7 +38,7 @@ SmartCLI is **published and public** as of 2026-07-12. This section is the autho
 
 **cmd-art skill (`skills/cmd-art/`).** Helps a human design CMD/terminal visual effects and ASCII art from a one-line request, via `fx` — a "living-template" engine: an `Effect` ABC + `@register` decorator + pkgutil auto-discovery, so effects, themes, and multi-effect shows all compose. Pure Python stdlib (optional `pyfiglet`/`PIL`), truecolor tuned for Windows Terminal. CLI is `python -m fx <list|show|play|gallery|random|show --seq/--script>`; `play` is **bounded by default** (10s on a TTY), degrades to one plain frame on non-TTY, and always restores the terminal via try/finally. Effects are **pure frame producers** (return one full frame; never print/sleep/touch ANSI modes — the play loop owns the terminal). 8 themes; a legacy `scripts/ascii_fx.py` shim preserves the old surface.
 
-**tui-ui skill (`skills/tui-ui/`).** A web-like terminal UI layout engine + widgets emitting **tmux-safe ANSI frames** (SGR color runs + newlines only — no cursor moves, no alt-screen). You compose a tree of renderables (CSS box model margin→border→padding→content, border-box default; `VStack/HStack/Grid/Page` with `Fr` fractional units); it resolves sizes, composites cell grids, and serializes **once**. Everything is display-cell accurate (CJK/emoji/ZWJ/VS16/flag-pairs via `ui.core.width()`, never `len()`), so columns never desync. Beyond widgets it has a real **ENGINE**: `field.py` (CellField shader — LinearGradient/RadialGlow/Ripple/Plasma + Over/Add/Mask/Translate compositors, ASPECT=2 distance), `raster.py` (sub-cell half/quad/braille pixels), `box_junction.py` (edge-algebra auto-connecting `┼┬┤`), `color_model.py` (honest truecolor→256→16→mono degrade). It produces *frames*; something else owns the terminal (contrast drive-tui). **15 widgets live** (11 core + 4 in `ui/widgets_ext/`: `gradient_rule`, `radial_glow`, `slider_track`, `braille_chart`).
+**tui-ui skill (`skills/tui-ui/`).** A web-like terminal UI layout engine + widgets emitting **tmux-safe ANSI frames** (SGR color runs + newlines only — no cursor moves, no alt-screen). You compose a tree of renderables (CSS box model margin→border→padding→content, border-box default; `VStack/HStack/Grid/Page` with `Fr` fractional units); it resolves sizes, composites cell grids, and serializes **once**. Everything is display-cell accurate (CJK/emoji/ZWJ/VS16/flag-pairs via `ui.core.width()`, never `len()`), so columns never desync. Beyond widgets it has a real **ENGINE**: `field.py` (CellField shader — LinearGradient/RadialGlow/Ripple/Plasma + Over/Add/Mask/Translate compositors, ASPECT=2 distance), `raster.py` (sub-cell half/quad/braille pixels), `box_junction.py` (edge-algebra auto-connecting `┼┬┤`), `color_model.py` (honest truecolor→256→16→mono degrade). It produces *frames*; something else owns the terminal (contrast drive-tui). **17 widgets live** (11 core + 6 in `ui/widgets_ext/`: `gradient_rule`, `radial_glow`, `slider_track`, `braille_chart`).
 
 **Knowledge graph (`knowledge/`).** A navigable wiki-link graph — **140 `.md` files**, of which **122 concept/works entries** (120 unique slugs; `tmux-capture-pane` intentionally ×3), plus 7 READMEs, INDEX, and 10 `sources/` research digests. Each note carries an exact formula/sequence/constant, a **Source:**, and double-bracketed cross-links. Core discipline is lane-selection: **replica task → measure ground truth first** (start at `[[hard-lessons]]` + `[[effort-selector]]`); **creative task → compose the four primitives** (start at `[[rendering-model]]`). Integrity (re-checked 2026-07-13): 0 dangling links (every `[[slug]]` resolves; the only bracketed non-links are the literal `[[filename-slug]]`/`[[links]]`/`[[see also]]` syntax examples in the section READMEs). A handful of digest-level uncertainties are still honestly marked `*(verify)*` in `INDEX.md` (neo/sl/notcurses/chafa) — see §3 for the correct status.
 
@@ -89,7 +89,7 @@ python tools\screenshot\sweep.py           # outputs under tools/screenshot/out/
 **tui-ui — cell-accurate layout, self_test green.**
 ```
 cd skills\tui-ui
-python -m ui widgets                       # 15 widgets
+python -m ui widgets                       # 17 widgets
 python -m ui gallery --width 100 --height 30
 python self_test.py                        # 30 rows × exactly 100 cells, no fr drift
 ```
@@ -446,7 +446,7 @@ ConPTY/pywinpty and Linux/mac use posix pty). The skills:
   - cmd-art    : DESIGN terminal visuals via `python -m fx` — 28 effects, 8 themes,
                  pure frame-producer Effect ABC + @register auto-discovery.
   - tui-ui     : web-like cell-accurate layout engine emitting tmux-safe ANSI frames
-                 (SGR + newlines only). 15 widgets + ENGINE (field/raster/box_junction/
+                 (SGR + newlines only). 17 widgets + ENGINE (field/raster/box_junction/
                  color_model). Produces frames; something else owns the terminal.
 The BRAIN is knowledge\ (140 md files, 122 concept/works entries, 0 dangling links):
 a wiki-link graph of formulas+sources+cross-links. The LESSONS are in
@@ -512,7 +512,7 @@ VERIFY WHAT YOU SHIP (all should exit 0):
   python skills\tui-ui\examples\effort_selector.py --once --stage ultracode --frame 1
   python skills\drive-tui\scripts\tui.py start --cmd "python" --cols 80 --rows 24
     -> wait-regex --id <SID> ">>> " --timeout-ms 15000 -> send-line -> snapshot -> close
-  cd skills\tui-ui && python -m ui widgets && python self_test.py   # 15 widgets
+  cd skills\tui-ui && python -m ui widgets && python self_test.py   # 17 widgets
   python skills\tui-ui\ui\box_junction.py                          # box_junction _selftest
   python tests\verify_fx.py && python tests\_readme_literal.py && python tests\probe_pty_fx.py
 Then open the visual result in a real Windows Terminal and show the user before calling

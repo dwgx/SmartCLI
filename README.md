@@ -159,7 +159,7 @@ python -m fx show --seq "donut:fire:3,plasma::3"
 
 ```bash
 cd skills/tui-ui
-python -m ui widgets                       # list all 15 widgets
+python -m ui widgets                       # list all 17 widgets
 python -m ui gallery --width 100 --height 30
 python -m ui demo table --width 80 --height 12 --theme dashboard
 ```
@@ -241,7 +241,7 @@ SmartCLI/
   smartcli_core/           shared PTY + pyte engine (importable package)
   skills/cmd-art/          fx effect package and CLI (28 effects, 8 themes)
   skills/drive-tui/        TUI pattern library and PTY driver CLI (8 recipes)
-  skills/tui-ui/           terminal UI layout engine and widgets (15 widgets)
+  skills/tui-ui/           terminal UI layout engine and widgets (17 widgets)
   tools/screenshot/        pyte -> PNG smoke-test harness
   tools/agentcli/          agent-CLI control validation harness
   knowledge/               122-note knowledge graph (see knowledge/INDEX.md)
