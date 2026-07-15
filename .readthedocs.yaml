@@ -1,0 +1,24 @@
+# Read the Docs build config for the mkdocs-material site.
+#
+# TO GO LIVE (the one step only you can do): sign in at https://readthedocs.org,
+# "Import a Project", connect dwgx/SmartCLI. RTD auto-detects this file and
+# mkdocs.yml — no further config needed. The showcase site (docs/site/, deployed
+# by pages.yml) is separate and unaffected; this is the reference-docs site.
+version: 2
+
+build:
+  os: ubuntu-24.04
+  tools:
+    python: "3.12"
+  jobs:
+    # Assemble docs/*.md from the canonical sources (README, SKILL.md files,
+    # CHANGELOG, knowledge/INDEX) before mkdocs runs, so the site never drifts.
+    pre_build:
+      - python tools/build_docs.py
+
+mkdocs:
+  configuration: mkdocs.yml
+
+python:
+  install:
+    - requirements: docs/requirements.txt

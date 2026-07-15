@@ -46,6 +46,20 @@ markdown_extensions:
   - pymdownx.highlight
   - pymdownx.superfences
 
+# docs/ also holds the showcase site (docs/site/), the localized READMEs
+# (docs/i18n/, GitHub-flavored with anchors mkdocs can't resolve), and
+# hand-written packaging/launch notes. None of those are pages of THIS
+# reference site — only the generated stubs in the nav are. Exclude the rest so
+# mkdocs doesn't try to render them (and so a build isn't buried in warnings
+# about GitHub-relative links that are correct on GitHub).
+exclude_docs: |
+  site/
+  i18n/
+  requirements.txt
+  PACKAGING-NOTES.md
+  MACOS-VERIFY.md
+  LAUNCH-COPY.md
+
 # The nav maps existing repo docs into a site. mkdocs reads Markdown from docs_dir
 # (default: docs/), so these use paths relative to the repo via the include below.
 # Simplest path: keep authoring in the repo root/README and let RTD render them.
