@@ -65,6 +65,27 @@ def _noise(x, y, z):
                  _lerp(u, _grad(p[AB + 1], x, y - 1, z - 1), _grad(p[BB + 1], x - 1, y - 1, z - 1))))
 
 
+_OCTAVES = 4          # fractal Brownian motion: sum of octaves for natural depth
+_LACUNARITY = 2.0     # frequency multiplier per octave
+_GAIN = 0.5           # amplitude falloff per octave
+# Normalizer so fBm output stays in ~[-1,1]: sum of gains 0.5+0.25+...
+_FBM_NORM = sum(_GAIN ** o for o in range(_OCTAVES))
+
+
+def _fbm(x, y, z):
+    """Fractal Brownian motion: stack octaves of noise at rising frequency and
+    falling amplitude — the standard trick that turns one flat noise layer into
+    something with large shapes AND fine detail (clouds, terrain)."""
+    total = 0.0
+    freq = 1.0
+    amp = 1.0
+    for _ in range(_OCTAVES):
+        total += _noise(x * freq, y * freq, z * freq) * amp
+        freq *= _LACUNARITY
+        amp *= _GAIN
+    return total / _FBM_NORM
+
+
 def _perlin_frame(t, width, height, palette, theme, scale):
     z = t * 0.3
     lines = []
@@ -74,7 +95,7 @@ def _perlin_frame(t, width, height, palette, theme, scale):
         ny = row * scale * 2.0   # ×2: cells are ~2:1, keep the field isotropic
         for col in range(width):
             nx = col * scale
-            n = (_noise(nx, ny, z) + 1.0) * 0.5   # [-1,1] -> [0,1]
+            n = (_fbm(nx, ny, z) + 1.0) * 0.5     # fBm [-1,1] -> [0,1]
             n = 0.0 if n < 0 else (1.0 if n > 1 else n)
             if palette == "rgb":
                 rf, gf, bf = colorsys.hsv_to_rgb(n, 0.8, 1.0)

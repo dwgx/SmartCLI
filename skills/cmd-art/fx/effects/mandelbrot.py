@@ -17,7 +17,7 @@ from ..base import Effect, FrameCtx, Param
 from ..registry import register
 
 MAX_ITER = 90
-ESCAPE_R2 = 4.0
+_LOG2 = math.log(2.0)
 # A classic zoom target on the boundary (Seahorse Valley edge).
 TARGET_X, TARGET_Y = -0.743643887037, 0.131825904205
 
@@ -36,15 +36,20 @@ def _mandel_frame(t, width, height, palette, theme, speed):
             x0 = TARGET_X + (col / max(1, width - 1) - 0.5) * span_x
             x = y = 0.0
             i = 0
-            while x * x + y * y <= ESCAPE_R2 and i < MAX_ITER:
+            m2 = 0.0
+            while m2 <= 256.0 and i < MAX_ITER:   # large bailout for smooth term
                 xt = x * x - y * y + x0
                 y = 2.0 * x * y + y0
                 x = xt
+                m2 = x * x + y * y
                 i += 1
             if i >= MAX_ITER:
                 c = (0, 0, 0)                        # inside -> black
             else:
-                n = i / MAX_ITER
+                # Continuous iteration count -> no concentric banding.
+                nu = math.log(math.log(m2) * 0.5) / _LOG2
+                n = (i + 1 - nu) / MAX_ITER
+                n = 0.0 if n < 0 else (1.0 if n > 1 else n)
                 if palette == "rgb":
                     rf, gf, bf = colorsys.hsv_to_rgb(n, 1.0, 1.0)
                     c = (int(rf * 255), int(gf * 255), int(bf * 255))

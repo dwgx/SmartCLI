@@ -18,7 +18,7 @@ from ..base import Effect, FrameCtx, Param
 from ..registry import register
 
 MAX_ITER = 80          # escape cap (kept modest — a full screen of pixels/frame)
-ESCAPE_R2 = 4.0        # |z|^2 > 4 means escaped
+_LOG2 = math.log(2.0)
 
 
 def _julia_frame(t, width, height, palette, theme, speed):
@@ -39,15 +39,24 @@ def _julia_frame(t, width, height, palette, theme, speed):
             zx = (col / max(1, width - 1) - 0.5) * span_x
             zy = zy0
             i = 0
-            while zx * zx + zy * zy <= ESCAPE_R2 and i < MAX_ITER:
+            m2 = zx * zx + zy * zy
+            # Iterate to a larger bailout (R=2^8) so the smooth term below is
+            # accurate — the continuous escape estimate needs |z| well past 2.
+            while m2 <= 256.0 and i < MAX_ITER:
                 xt = zx * zx - zy * zy + cx
                 zy = 2.0 * zx * zy + cy
                 zx = xt
+                m2 = zx * zx + zy * zy
                 i += 1
             if i >= MAX_ITER:
                 c = (0, 0, 0)                      # inside the set -> black
             else:
-                n = i / MAX_ITER                   # escape ratio -> color
+                # Smooth (continuous) iteration count: kills the concentric
+                # color banding of raw integer counts by measuring HOW FAR past
+                # bailout the orbit landed. nu = log2(log|z|); smooth = i+1-nu.
+                nu = math.log(math.log(m2) * 0.5) / _LOG2
+                n = (i + 1 - nu) / MAX_ITER
+                n = 0.0 if n < 0 else (1.0 if n > 1 else n)
                 if palette == "rgb":
                     rf, gf, bf = colorsys.hsv_to_rgb(n, 1.0, 1.0)
                     c = (int(rf * 255), int(gf * 255), int(bf * 255))
