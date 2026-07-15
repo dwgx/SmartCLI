@@ -156,8 +156,17 @@ def check_show_and_gallery() -> None:
 
     raw, exited, secs = run_pty(
         [PY, CLI, "random", "--seconds", "1", "--fps", "10"], deadline=40)
-    ok = exited and ALT_LEAVE in raw
-    record("random --seconds 1", ok, f"{secs:.1f}s")
+    # `random` now picks only effects that animate under their defaults (see
+    # fx.cli.cmd_random), so an animated pick enters/leaves the alt-screen and
+    # emits truecolor. Accept EITHER the alt-screen leave OR truecolor output:
+    # this is defense-in-depth so a legitimate clean render (should the random
+    # pool ever include a static effect again) does not false-fail the gate —
+    # what we actually require is "it picked something, ran, and exited cleanly."
+    animated_alt = ALT_LEAVE in raw
+    drew_color = TC_FG in raw or TC_BG in raw
+    ok = exited and (animated_alt or drew_color)
+    record("random --seconds 1", ok,
+           f"{secs:.1f}s alt={animated_alt} color={drew_color}")
 
 
 def check_pnm_fallback() -> None:

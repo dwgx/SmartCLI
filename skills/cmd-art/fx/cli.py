@@ -218,7 +218,16 @@ def cmd_gallery(args) -> int:
 
 
 def cmd_random(args) -> int:
-    animated = [c for c in registry.all_effects() if c.animated]
+    # Pick only effects that ACTUALLY animate under their default params. The
+    # class attribute `animated` is a coarse capability flag (e.g. text3d sets it
+    # True but only animates when its `shimmer` param is on, which defaults off),
+    # whereas `is_animated(param_defaults())` is what `_run_effect` uses to decide
+    # play-vs-static. Selecting on the class flag could pick text3d, which then
+    # renders as a single static frame — surprising for a "random" show, and the
+    # exact source of the verify_fx `random --seconds 1` flake (a static pick
+    # never enters/leaves the alt-screen).
+    animated = [c for c in registry.all_effects()
+                if c.is_animated(c.param_defaults())]
     cls = _random.choice(animated)
     args.theme = args.theme or _random.choice(theme_names())
     print(f"random pick: {cls.name} / theme {args.theme}", file=sys.stderr)
