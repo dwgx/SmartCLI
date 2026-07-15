@@ -1,0 +1,34 @@
+# Codecov config. Coverage here is ADVISORY — the source of truth for "is it
+# working" is the deterministic test suite (tests/run_all.py), which gates CI.
+# Codecov reports the number and trend; it must not block a PR on a coverage
+# delta, because the measured % is the deterministic subset only (the PTY probes
+# and fuzz sandbox don't compose with coverage's process-startup hook — see
+# tools/coverage_run.py), so it under-counts the real exercised code.
+
+coverage:
+  status:
+    project:
+      default:
+        # Report, don't fail: never red a PR purely on a coverage change.
+        informational: true
+        target: auto
+    patch:
+      default:
+        informational: true
+
+# Only the shipped source is the denominator; everything else is noise. Mirrors
+# the omit list in .coveragerc.
+ignore:
+  - "tests/**"
+  - "tools/**"
+  - "**/_vendor/**"
+  - "**/examples/**"
+  - "research/**"
+  - "docs/**"
+  - "smartcli_core/__main__.py"   # diagnostics entrypoint, not library API
+
+# Keep PR comments light-touch: a compact report, and don't nag when there's no
+# coverage change.
+comment:
+  layout: "reach, diff, files"
+  require_changes: true
