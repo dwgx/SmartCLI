@@ -5,6 +5,38 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4] - 2026-07-15
+
+New MCP server (the biggest adoption lever in the backlog), a real fx bug fix, a
+golden-frame regression suite for tui-ui, multi-process coverage, and the
+contributor onramp.
+
+### Added
+- **MCP server over the drive-tui daemon** (`skills/drive-tui/scripts/mcp_server.py`,
+  `pip install "smartcli-toolkit[mcp]"`). Exposes the daemon's verb surface as 11
+  MCP tools (`start`, `list_sessions`, `snapshot`, `send_text`, `send_line`,
+  `send_keys`, `wait_regex`, `wait_ready`, `alive`, `resize`, `close`) so any MCP
+  client can drive interactive TUIs. It reuses the CLI's client layer, so the
+  per-session capability token is attached automatically and no verb is exposed
+  unauthenticated. Covered end-to-end by `tests/_mcp_probe.py`.
+- **Golden-frame snapshot regression for tui-ui** (`tests/test_golden_frames.py`
+  + `tests/golden/`). Every widget is rendered to a deterministic frame and
+  diffed against a committed baseline (`--update` to regenerate); locks all 15
+  widgets against silent visual regressions.
+- **Multi-process test coverage** (`tools/coverage_run.py` + `.coveragerc` +
+  `sitecustomize.py`) over the script-style suite, wired into CI with a Codecov
+  upload. Measures the deterministic, instrument-friendly gates.
+- **Contributor onramp**: `CONTRIBUTING.md`, `SECURITY.md`, and a Read-the-Docs
+  config (`.readthedocs.yaml` + `tools/build_docs.py`) that assembles the mkdocs
+  site from the canonical sources.
+
+### Fixed
+- **`fx random` could pick a static effect** (`text3d`, whose `animated` class
+  flag is True but whose `is_animated(defaults)` is False). It now selects only
+  effects that actually animate under their defaults — matching the "play a
+  random effect" promise and removing the `verify_fx` `random --seconds 1` flake
+  at its source. `verify_fx`'s assertion was also broadened as defense-in-depth.
+
 ## [0.1.3] - 2026-07-14
 
 Documentation accuracy, anti-drift hardening, and test-suite coverage. No
