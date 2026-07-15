@@ -52,15 +52,74 @@ BRAILLE_BITS = {
 BRAILLE_BASE = 0x2800
 
 # Cells to pixels for each mode: (px_per_col, px_per_row).
-_MODE_DIMS = {"half": (1, 2), "quad": (2, 2), "braille": (2, 4)}
+#   sextant: 2x3 px/cell via the Unicode 13 "Symbols for Legacy Computing" block
+#   (U+1FB00..). +50% vertical resolution over quad, with two-color support.
+_MODE_DIMS = {"half": (1, 2), "quad": (2, 2), "braille": (2, 4), "sextant": (2, 3)}
+
+# sextant: 6-pixel mask -> glyph. Bit order matches the Unicode block layout:
+#   bit0=top-left, 1=top-right, 2=mid-left, 3=mid-right, 4=bot-left, 5=bot-right.
+# The block encodes all 64 masks EXCEPT all-empty (0 -> space) and all-full
+# (63 -> U+2588 full block); the 62 in between are U+1FB00 + (n-1), skipping the
+# two that would collide with space/full (n=0 and n=63).
+def _build_sextant_glyphs():
+    glyphs = [" "] * 64
+    code = 0x1FB00
+    for mask in range(1, 63):
+        glyphs[mask] = chr(code)
+        code += 1
+    glyphs[63] = "█"     # full block
+    return glyphs
+
+
+SEXTANT_GLYPHS = _build_sextant_glyphs()
+# (col, row) -> bit for the 2x3 grid.
+SEXTANT_BITS = {
+    (0, 0): 0x01, (1, 0): 0x02,
+    (0, 1): 0x04, (1, 1): 0x08,
+    (0, 2): 0x10, (1, 2): 0x20,
+}
 
 # Two colours in a quad cell closer than this (squared RGB dist) are "the same".
 _SPLIT_THRESHOLD = 48 * 48
 
 
-def _dist2(a: RGB, b: RGB) -> int:
-    """Squared RGB distance — cheap perceptual-ish nearness for colour splits."""
-    return (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2
+def _srgb_to_oklab(c: RGB):
+    """sRGB (0..255) -> OKLab (L,a,b). OKLab is a perceptual space where
+    Euclidean distance tracks perceived color difference far better than raw
+    RGB — the quality lever chafa uses for its color matching. Ottosson 2020."""
+    def lin(u):
+        u /= 255.0
+        return u / 12.92 if u <= 0.04045 else ((u + 0.055) / 1.055) ** 2.4
+    r, g, b = lin(c[0]), lin(c[1]), lin(c[2])
+    l = 0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b
+    m = 0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b
+    s = 0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b
+    l_, m_, s_ = l ** (1 / 3), m ** (1 / 3), s ** (1 / 3)
+    return (0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_,
+            1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_,
+            0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_)
+
+
+# Cache OKLab conversions — the raster resolves the same colors many times.
+_OKLAB_CACHE: dict = {}
+
+
+def _oklab(c: RGB):
+    v = _OKLAB_CACHE.get(c)
+    if v is None:
+        v = _srgb_to_oklab(c)
+        if len(_OKLAB_CACHE) < 8192:
+            _OKLAB_CACHE[c] = v
+    return v
+
+
+def _dist2(a: RGB, b: RGB) -> float:
+    """Perceptual squared distance in OKLab (scaled to ~RGB-squared range so the
+    existing _SPLIT_THRESHOLD stays meaningful). Falls back gracefully."""
+    la, aa, ba = _oklab(a)
+    lb, ab, bb = _oklab(b)
+    # OKLab deltas are ~[0,1]; scale by 255^2 so thresholds tuned in RGB² still apply.
+    return ((la - lb) ** 2 + (aa - ab) ** 2 + (ba - bb) ** 2) * (255.0 ** 2)
 
 
 def _avg(colors: Sequence[RGB]) -> RGB:
@@ -253,6 +312,40 @@ class SubcellRaster:
             lit_mask |= 1 << i
         return (QUAD_GLYPHS[lit_mask ^ mask], _avg(grp_b), _avg(grp_a))
 
+    def _resolve_sextant(self, block) -> Tuple[Optional[str], Optional[RGB], Optional[RGB]]:
+        """2x3 pixels -> U+1FB00 sextant glyph. Same two-colour majority split as
+        quad (bigger cluster = fg + mask bits, minority = bg), but over 6 pixels
+        for +50% vertical resolution."""
+        # flatten in bit order: (0,0),(1,0),(0,1),(1,1),(0,2),(1,2)
+        cells = [(SEXTANT_BITS[(i, j)], block[j][i])
+                 for j in range(3) for i in range(2)]
+        lit = [(bit, c) for bit, c in cells if c is not None]
+        if not lit:
+            return (None, None, None)
+        colors = [c for _, c in lit]
+        seed_a = colors[0]
+        seed_b = max(colors, key=lambda c: _dist2(c, seed_a))
+        if _dist2(seed_a, seed_b) <= _SPLIT_THRESHOLD:
+            mask = 0
+            for bit, _ in lit:
+                mask |= bit
+            return (SEXTANT_GLYPHS[mask], _avg(colors), None)
+        grp_a: List[RGB] = []
+        grp_b: List[RGB] = []
+        mask = 0
+        for bit, c in lit:
+            if _dist2(c, seed_a) <= _dist2(c, seed_b):
+                grp_a.append(c)
+                mask |= bit
+            else:
+                grp_b.append(c)
+        if len(grp_a) >= len(grp_b):
+            return (SEXTANT_GLYPHS[mask], _avg(grp_a), _avg(grp_b))
+        lit_mask = 0
+        for bit, _ in lit:
+            lit_mask |= bit
+        return (SEXTANT_GLYPHS[lit_mask ^ mask], _avg(grp_b), _avg(grp_a))
+
     def _resolve_braille(self, block) -> Tuple[Optional[str], Optional[RGB], Optional[RGB]]:
         """2x4 pixels -> U+2800 + 8-dot mask. fg = average of lit pixels, no bg."""
         mask = 0
@@ -275,6 +368,8 @@ class SubcellRaster:
             return self._resolve_half(block)
         if self.mode == "quad":
             return self._resolve_quad(block)
+        if self.mode == "sextant":
+            return self._resolve_sextant(block)
         return self._resolve_braille(block)
 
     # -- write resolved pixels into a Canvas -------------------------------
@@ -441,6 +536,33 @@ def _selftest() -> None:
     rq.set_pixel(1, 1, WHITE)  # + BR -> ▚ (TL+BR)
     gq2, _, _ = rq.resolve_cell(0, 0)
     ok("quad: TL+BR pixels -> ▚", gq2 == "▚", f"glyph={gq2!r}")
+
+    # --- sextant mode: 2x3 pixels -> U+1FB00 block, +50% vertical res -------
+    rs = SubcellRaster(6, 2, "sextant")   # pw=12, ph=6 -> 2x3 px per cell
+    ok("sextant: cell is 2x3 px", rs.pxc == 2 and rs.pxr == 3,
+       f"pxc={rs.pxc} pxr={rs.pxr}")
+    rs1 = SubcellRaster(1, 1, "sextant")
+    rs1.set_pixel(0, 0, WHITE)            # top-left px -> bit0 -> glyphs[1]
+    gs, _, _ = rs1.resolve_cell(0, 0)
+    ok("sextant: TL pixel -> U+1FB00", gs == SEXTANT_GLYPHS[1], f"glyph={gs!r}")
+    for i in range(2):                    # all 6 px lit -> full block
+        for j in range(3):
+            rs1.set_pixel(i, j, WHITE)
+    gsf, _, _ = rs1.resolve_cell(0, 0)
+    ok("sextant: all 6 px -> full block █", gsf == "█", f"glyph={gsf!r}")
+    # two-color split: top row red, bottom row blue -> fg/bg both set
+    rs2 = SubcellRaster(1, 1, "sextant")
+    for i in range(2):
+        rs2.set_pixel(i, 0, (255, 0, 0))
+        rs2.set_pixel(i, 2, (0, 0, 255))
+    g2, fg2, bg2 = rs2.resolve_cell(0, 0)
+    ok("sextant: two-color split gives fg+bg", fg2 is not None and bg2 is not None,
+       f"glyph={g2!r} fg={fg2} bg={bg2}")
+
+    # --- OKLab perceptual distance sanity: near reds < threshold < red/blue -
+    ok("oklab: near colors < split threshold < far colors",
+       _dist2((255, 0, 0), (210, 10, 10)) < _SPLIT_THRESHOLD < _dist2((255, 0, 0), (0, 0, 255)),
+       f"near={_dist2((255,0,0),(210,10,10)):.0f} far={_dist2((255,0,0),(0,0,255)):.0f}")
 
     # --- transparent cell is left untouched --------------------------------
     rt = SubcellRaster(2, 1, "half")
