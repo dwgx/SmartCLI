@@ -5,6 +5,40 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.6] - 2026-07-15
+
+Six new "god-tier" effects, two new widgets, a rendering-quality pass, a new
+drive-tui wait primitive, and a website upgrade — all through a two-reviewer
+code-review pass that caught and fixed a high-severity bug before release.
+
+### Added
+- **Six new fx effects** (28 total): three noise-composition **field** effects —
+  `flames` (rising domain-warped heat convection + physical black-body color),
+  `water` (sum-of-sines swell + caustic net), `nebula` (domain-warped gas
+  filaments + multi-color mixing + stars) — and three **TTE-style text intros**
+  — `text_flyin`, `text_converge`, `text_decrypt` — built on a new TextEffect
+  base and a shared `easing.py` (14 canonical easings). Fractal effects
+  (`julia`/`mandelbrot`) gained smooth/continuous iteration coloring; `perlin`
+  gained fBm. Noise techniques (domain warping, ridged noise, black-body ramp)
+  live in a shared `_noiselib`.
+- **Two new tui-ui widgets** (17 total): `FuzzyFilterList` (fzf-style subsequence
+  fuzzy filter with match highlighting) and `PreviewPane` (its companion content
+  preview).
+- **`sextant` sub-cell blitter** (2x3, +50% vertical resolution over quad) and
+  **OKLab perceptual color distance** for color clustering (chafa's quality
+  lever).
+- **`wait_change`** in drive-tui (CLI / MCP / daemon): block until the screen
+  content changes — the precise "did my action land?" primitive.
+- Website playground shows a copy-able `python -m fx play <effect>` command.
+
+### Fixed
+- **sextant glyph mapping** was wrong for 42/62 masks (the U+1FB00 block omits
+  the left/right-column patterns, which are the half blocks U+258C/U+2590) —
+  found in review, rebuilt from the Unicode names, now asserted exactly.
+- OKLab color distance no longer crashes on out-of-range/negative channels.
+- `perlin` noise uses `math.floor` (not truncation), fixing negative-coordinate
+  seams the field effects hit constantly.
+
 ## [0.1.5] - 2026-07-15
 
 Three new effects, a device-query fix in the core, diagnostics, width knobs, MCP
