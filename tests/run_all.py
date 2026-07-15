@@ -137,7 +137,7 @@ def build_suite():
     suite.append(Test("test_degenerate_inputs (regression locks)",
                       [PY, str(TESTS / "test_degenerate_inputs.py")], ROOT, 60,
                       optional=True))
-    suite.append(Test("test_fx_contract (19 fx x sizes)",
+    suite.append(Test("test_fx_contract (22 fx x sizes)",
                       [PY, str(TESTS / "test_fx_contract.py")], ROOT, 120,
                       optional=True))
     suite.append(Test("test_doc_counts (docs match code, anti-drift)",

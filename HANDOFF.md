@@ -22,7 +22,7 @@ SmartCLI is **published and public** as of 2026-07-12. This section is the autho
 - Other workflows: `pages.yml` (deploy docs/site), `docker.yml` (GHCR image), `codeql.yml` (security scan), `lint.yml`, `release-drafter.yml`.
 - publish.yml OIDC — ✅ **WORKING (verified 2026-07-13):** the one-time setup is done — a Trusted Publisher is registered on PyPI (owner `dwgx`, **repo `SmartCLI`** — the GitHub repo name, NOT the PyPI dist name; that mismatch was the original `invalid-publisher` bug) and the `pypi` GitHub Environment exists. A `workflow_dispatch` run (29245353129) completed green: the OIDC handshake succeeded and the publish step ran against `upload.pypi.org` (0.1.2 files were `skip-existing`-skipped as already present). So **tag-push auto-publish now works**: bump the version everywhere, `git tag vX.Y.Z && git push origin vX.Y.Z`. `skip-existing:true` is set so a re-run on an existing version is a no-op, not an error. (Historical: v0.1.0/0.1.1/0.1.2 were originally uploaded **manually with `twine --disable-progress-bar`** because OIDC was not yet configured — no longer necessary.)
 
-**Live counts (re-verified against code 2026-07-13):** cmd-art **19 effects / 8 themes** (solarsystem was added 2026-07-13, after the v0.1.2 tag — that is why older lines say 18); drive-tui **8 recipes**; tui-ui **15 widgets** (11 core + 4 in `ui/widgets_ext/`, incl. `braille_chart.py`); knowledge **122-note graph** (**140 `.md` files**). Any doc that still says **18 effects** or **14 widgets** is STALE — `python -m fx list` prints 19, `python -m ui widgets` prints 15.
+**Live counts (re-verified against code 2026-07-13):** cmd-art **22 effects / 8 themes** (solarsystem was added 2026-07-13, after the v0.1.2 tag — that is why older lines say 18); drive-tui **8 recipes**; tui-ui **15 widgets** (11 core + 4 in `ui/widgets_ext/`, incl. `braille_chart.py`); knowledge **122-note graph** (**140 `.md` files**). Any doc that still says **18 effects** or **14 widgets** is STALE — `python -m fx list` prints 19, `python -m ui widgets` prints 15.
 
 **Security note:** a PyPI API token's plaintext appeared in a prior session's chat. The owner chose **not** to revoke it. Recommended action still stands: revoke it and rely on the OIDC publish workflow (after the one-time Trusted-Publisher setup above).
 
@@ -48,7 +48,7 @@ SmartCLI is **published and public** as of 2026-07-12. This section is the autho
 
 Run everything from repo root `D:\Project\SmartCLI` unless a `cd` is shown. Set `PYTHONIOENCODING=utf-8` on Windows first (the CLIs also auto-reconfigure stdout).
 
-**cmd-art — 19 effects, all render.**
+**cmd-art — 22 effects, all render.**
 ```
 cd skills\cmd-art
 python -m fx list            # 19: banner_scroll, boids, cube, decrypt, donut, fire,
@@ -59,7 +59,7 @@ python -m fx gallery         # one frame of each
 python -m fx play donut --seconds 5
 python -m fx show --seq "donut:fire:3,plasma::3"
 ```
-Themes: mono, fire, ocean, synthwave, viridis, pastel, matrix-green, rainbow. Verified by `python tests\verify_fx.py` — **27/27 pass** (19 effects + 8 fixed checks; is_animated routing mirrors the CLI).
+Themes: mono, fire, ocean, synthwave, viridis, pastel, matrix-green, rainbow. Verified by `python tests\verify_fx.py` — **30/30 pass** (22 effects + 8 fixed checks; is_animated routing mirrors the CLI).
 
 **effort_selector replica — violet-ripple selector.**
 ```
@@ -119,12 +119,12 @@ Missing external tools = skipped, not failed. Six scenarios: repl/confirm/progre
 # deterministic / mutation-verified suite (all GENUINE, not false-green):
 python tests\test_readiness.py          # virtual-clock unit tests + blank-gate locks (#1)
 python tests\test_degenerate_inputs.py  # the degenerate-input regression locks above
-python tests\test_fx_contract.py        # 19 effects x sizes, exact frame contract (enumerates all_effects())
+python tests\test_fx_contract.py        # 22 effects x sizes, exact frame contract (enumerates all_effects())
 python tests\_drive_probe6.py           # pager/form/wizard driven LIVE
 python tests\_tui_cli_probe.py          # drive-tui CLI + token-auth
 python skills\tui-ui\ui\box_junction.py # box_junction _selftest (module-level)
 # standing regression gate (must stay exit-0):
-python tests\verify_fx.py               # 27/27 (19 effects + 8 fixed checks); known random-seconds flake — rerun once
+python tests\verify_fx.py               # 30/30 (22 effects + 8 fixed checks); known random-seconds flake — rerun once
 python tests\_readme_literal.py         python tests\probe_pty_fx.py
 ```
 Plus: 3 external-AI fixes (2026-07-07) still exit 0 — README literal import-order crash, verify_fx dispatch, repl_session settle-loop (documented in `AUDIT-REPORT.md`; those did NOT touch `smartcli_core` — the authorized core changes above came later, in v0.1.1/v0.1.2).
@@ -443,7 +443,7 @@ ConPTY/pywinpty and Linux/mac use posix pty). The skills:
                  never blind-sleep. CLI scripts/tui.py (persistent daemon + one-shot run)
                  + 8 importable recipes (repl, menu_select, pager, search_filter,
                  confirm, form, progress, wizard).
-  - cmd-art    : DESIGN terminal visuals via `python -m fx` — 19 effects, 8 themes,
+  - cmd-art    : DESIGN terminal visuals via `python -m fx` — 22 effects, 8 themes,
                  pure frame-producer Effect ABC + @register auto-discovery.
   - tui-ui     : web-like cell-accurate layout engine emitting tmux-safe ANSI frames
                  (SGR + newlines only). 15 widgets + ENGINE (field/raster/box_junction/
@@ -508,7 +508,7 @@ real tmux host. Rely on WebSearch/WebFetch (codex dispatcher is dead).
 
 VERIFY WHAT YOU SHIP (all should exit 0):
   python tests\run_all.py                # unified runner (readiness/degenerate/fx-contract/probes)
-  cd skills\cmd-art && python -m fx list && python -m fx gallery   # 19 effects
+  cd skills\cmd-art && python -m fx list && python -m fx gallery   # 22 effects
   python skills\tui-ui\examples\effort_selector.py --once --stage ultracode --frame 1
   python skills\drive-tui\scripts\tui.py start --cmd "python" --cols 80 --rows 24
     -> wait-regex --id <SID> ">>> " --timeout-ms 15000 -> send-line -> snapshot -> close

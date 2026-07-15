@@ -20,7 +20,7 @@ Render and design terminal visual effects with `fx`, a living-template engine: a
 - User wants a static ASCII title/banner with a color gradient, or an image turned into ASCII.
 - User wants to invent a new console effect (drop one file in `fx/effects/`).
 
-## The 19 effects (registry names)
+## The 22 effects (registry names)
 Run `python -m fx list` for the live catalog. Names + aliases as registered:
 
 | name | kind | what | aliases |
@@ -32,6 +32,9 @@ Run `python -m fx list` for the live catalog. Names + aliases as registered:
 | `tunnel` | anim | demoscene tunnel fly-through | |
 | `starfield` | anim | perspective starfield warp | |
 | `plasma` | anim | full-screen sine interference field | `wave` |
+| `julia` | anim | animated Julia-set fractal (morphing c) | `juliaset` |
+| `mandelbrot` | anim | infinite zoom into the Mandelbrot set | `mandel` |
+| `perlin` | anim | flowing Perlin gradient-noise field (clouds) | `noise`, `clouds` |
 | `fire` | anim | demoscene fire (heat buffer + cooling) | |
 | `rain` | anim | matrix digital rain | |
 | `life` | anim | Conway's Game of Life, toroidal | `game_of_life` |
@@ -114,6 +117,11 @@ Play a timed sequence of segments in ONE alt-screen (no flicker between segments
 `--seconds-per` sets the default per-segment duration; `--theme` is the fallback for segments without one. Each segment gets a local clock (t restarts at 0). `Split` is a combinator built from two real effects, not a registered effect.
 
 ## Knowledge base — look before you build
+**Not sure how to render something? Start at `knowledge/effects/choosing-an-effect.md`**
+— it maps "I want to show X" to a direction, the exact-formula note, and the
+shipped effect you can reuse or take apart (reuse as-is, tune params, or compose
+your own from the primitives it cites). From there, or directly:
+
 Before inventing or tuning an effect, consult the SmartCLI knowledge graph at
 `D:/Project/SmartCLI/knowledge/INDEX.md`. Its `effects/` domain carries exact-formula
 notes for most of what ships here — [[donut-torus]], [[plasma]], [[fire-lode]] /
