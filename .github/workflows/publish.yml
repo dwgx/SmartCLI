@@ -54,7 +54,7 @@ jobs:
        !contains(github.ref_name, 'a') &&
        !contains(github.ref_name, 'b'))
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Python
         uses: actions/setup-python@v5
