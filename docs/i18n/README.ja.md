@@ -111,7 +111,7 @@ set PYTHONIOENCODING=utf-8
 
 ```bash
 cd skills/cmd-art
-python -m fx list                          # list all 28 effects
+python -m fx list                          # list all 30 effects
 python -m fx play donut --seconds 5        # play one effect (bounded)
 python -m fx gallery                       # one frame of each effect
 python -m fx show --seq "donut:fire:3,plasma::3"
@@ -159,9 +159,9 @@ s.close()
 ## Features
 
 **`cmd-art`**（`skills/cmd-art`）— 「リビングテンプレート」型のエフェクトエンジン。`Effect` ABC +
-`@register` デコレータ + 自動検出で構成されます。**28 種のエフェクト**（donut、solarsystem、fire、plasma、rain、
+`@register` デコレータ + 自動検出で構成されます。**30 種のエフェクト**（donut、solarsystem、fire、plasma、rain、
 starfield、tunnel、text3d、cube、sphere、boids、life、fireworks、sparkle、decrypt、
-gradient_text、banner_scroll、image2ascii、typewriter、julia、mandelbrot、perlin、flames、water、nebula、text_flyin、text_converge、text_decrypt）を **8 種のテーマ**（mono、fire、
+gradient_text、banner_scroll、image2ascii、typewriter、julia、mandelbrot、perlin、flames、water、nebula、text_flyin、text_converge、text_decrypt、spectrum_bars、cbonsai）を **8 種のテーマ**（mono、fire、
 ocean、synthwave、viridis、pastel、matrix-green、rainbow）にわたって備えます。エフェクトは純粋な
 フレームプロデューサであり、`play` はデフォルトで時間制限付きで、常にターミナルを元の状態へ復元します。
 
@@ -193,7 +193,7 @@ wiki リンクグラフ。各ノートは出典と相互リンクを持ちます
 ```text
 SmartCLI/
   smartcli_core/           shared PTY + pyte engine (importable package)
-  skills/cmd-art/          fx effect package and CLI (28 effects, 8 themes)
+  skills/cmd-art/          fx effect package and CLI (30 effects, 8 themes)
   skills/drive-tui/        TUI pattern library and PTY driver CLI (8 recipes)
   skills/tui-ui/           terminal UI layout engine and widgets (17 widgets)
   tools/screenshot/        pyte -> PNG smoke-test harness

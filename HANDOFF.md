@@ -49,7 +49,7 @@ SmartCLI is **published and public**; latest release **v0.1.6** (2026-07-15). Th
 
 Run everything from repo root `D:\Project\SmartCLI` unless a `cd` is shown. Set `PYTHONIOENCODING=utf-8` on Windows first (the CLIs also auto-reconfigure stdout).
 
-**cmd-art — 28 effects, all render.**
+**cmd-art — 30 effects, all render.**
 ```
 cd skills\cmd-art
 python -m fx list            # 28: banner_scroll, boids, cube, decrypt, donut, fire,
@@ -62,7 +62,7 @@ python -m fx gallery         # one frame of each
 python -m fx play donut --seconds 5
 python -m fx show --seq "donut:fire:3,plasma::3"
 ```
-Themes: mono, fire, ocean, synthwave, viridis, pastel, matrix-green, rainbow. Verified by `python tests\verify_fx.py` — **36/36 pass** (28 effects + 8 fixed checks; is_animated routing mirrors the CLI). New in v0.1.4-v0.1.6: fractals `julia`/`mandelbrot` (smooth coloring) + `perlin`; noise-composition fields `flames`/`water`/`nebula` (domain warping + black-body/caustics, shared `_noiselib.py`); TTE-style text intros `text_flyin`/`text_converge`/`text_decrypt` (on `_texteffect.py` + shared `easing.py`).
+Themes: mono, fire, ocean, synthwave, viridis, pastel, matrix-green, rainbow. Verified by `python tests\verify_fx.py` — **38/38 pass** (30 effects + 8 fixed checks; is_animated routing mirrors the CLI). New in v0.1.4-v0.1.6: fractals `julia`/`mandelbrot` (smooth coloring) + `perlin`; noise-composition fields `flames`/`water`/`nebula` (domain warping + black-body/caustics, shared `_noiselib.py`); TTE-style text intros `text_flyin`/`text_converge`/`text_decrypt` (on `_texteffect.py` + shared `easing.py`). New in v0.1.7: `spectrum_bars` (cava log-bins + gravity smoothing + eighth-blocks) and `cbonsai` (procedural branching turtle) — the last two knowledge→effect ports.
 
 **effort_selector replica — violet-ripple selector.**
 ```
@@ -122,12 +122,12 @@ Missing external tools = skipped, not failed. Six scenarios: repl/confirm/progre
 # deterministic / mutation-verified suite (all GENUINE, not false-green):
 python tests\test_readiness.py          # virtual-clock unit tests + blank-gate locks (#1)
 python tests\test_degenerate_inputs.py  # the degenerate-input regression locks above
-python tests\test_fx_contract.py        # 28 effects x sizes, exact frame contract (enumerates all_effects())
+python tests\test_fx_contract.py        # 30 effects x sizes, exact frame contract (enumerates all_effects())
 python tests\_drive_probe6.py           # pager/form/wizard driven LIVE
 python tests\_tui_cli_probe.py          # drive-tui CLI + token-auth
 python skills\tui-ui\ui\box_junction.py # box_junction _selftest (module-level)
 # standing regression gate (must stay exit-0):
-python tests\verify_fx.py               # 36/36 (28 effects + 8 fixed checks); known random-seconds flake — rerun once
+python tests\verify_fx.py               # 38/38 (30 effects + 8 fixed checks); known random-seconds flake — rerun once
 python tests\_readme_literal.py         python tests\probe_pty_fx.py
 ```
 Plus: 3 external-AI fixes (2026-07-07) still exit 0 — README literal import-order crash, verify_fx dispatch, repl_session settle-loop (documented in `AUDIT-REPORT.md`; those did NOT touch `smartcli_core` — the authorized core changes above came later, in v0.1.1/v0.1.2).
@@ -196,7 +196,7 @@ Ranked by impact/effort. The v0.1.2 release, the deterministic/mutation-verified
 4. **[DONE 2026-07-15, v0.1.6] Await-change wait primitive** — `wait_change` (not multi-marker, but the higher-value "did my action land?" primitive pilotty/termscope converged on): block until the screen content-hash changes from a baseline. In session/daemon/CLI (`wait-change`)/MCP. `tests/test_wait_change.py`. Multi-marker `wait-any` remains a smaller open nicety.
 5. **[DONE 2026-07-15, v0.1.4] Golden-frame snapshot test** — `tests/test_golden_frames.py` + `tests/golden/*.txt`: every widget rendered to a deterministic frame, diffed against a committed baseline (`--update` to regen), renders twice to reject non-determinism. Skips widgets whose optional dep is absent (banner→pyfiglet).
 6. **[DONE 2026-07-15, v0.1.6] Shared `easing.py`** — 14 canonical Penner easings, used by the text effects. (A `Gradient(stops,…)` builder was NOT separately done; theme.gradient already covers most of it.)
-7. **[S-M, STILL OPEN] Ship `spectrum-bars` + `cbonsai` effects** — the knowledge notes `[[spectrum-bars]]` / `[[procedural-branching]]` are ready building blocks. Add each as a pure-frame `fx` effect; verify with `test_fx_contract.py`. (28 effects exist; these two knowledge notes are the remaining "knowledge → effect" gaps.)
+7. **[DONE 2026-07-15, v0.1.7] Ship `spectrum_bars` + `cbonsai` effects** — the knowledge notes `[[spectrum-bars]]` / `[[procedural-branching]]` were the ready building blocks. Both shipped as pure-frame `fx` effects (`skills/cmd-art/fx/effects/spectrum_bars.py` + `cbonsai.py`): `spectrum_bars` = cava's log-bins + gravity/integral smoothing + eighth-block sub-cell render over a synthesized signal (aliases `spectrum`/`bars`); `cbonsai` = the stochastic branching turtle (lifeStart 32, multiplier 5, cooldown-gated shoots), seeded RNG generates the whole tree once as an ordered draw-event list, each frame reveals the grown prefix (deterministic). Both pass `test_fx_contract.py` (30 effects x 6 sizes x 5 contracts = 150/150). Catalog 28→30; these were the last two "knowledge → effect" gaps.
 8. **[PARTIAL] Docs site + contributor onramp:** `CONTRIBUTING.md` + `SECURITY.md` DONE (v0.1.4); Codecov badge live; **Read the Docs is LIVE** at https://smartcli.readthedocs.io/ (mkdocs, via `.readthedocs.yaml` + `tools/build_docs.py` which rewrites repo-relative links to absolute GitHub URLs). Still open: `TestPyPI`/`conda-forge`/`Homebrew` publishing (configs prepared, human steps in `docs/PACKAGING-NOTES.md`).
 
 **Discoverability (0 stars today):** the README top now carries **real re-driven proof reels** (lazygit/htop/ncdu/nano as 60/30fps MP4+WebM video, not GIFs, incl. Windows/macOS/Linux variants + dialog/vim) — the "record a demo" chore is DONE. Remaining: Show HN / r/commandline / `awesome-claude-code` + `awesome-cli-apps` PRs (copy ready in `docs/LAUNCH-COPY.md`, owner-gated). A calibrated `/deep-research` prompt list exists (anchors: conch, terminal-bench, plotille, TTE, PyPI trusted publishing) — worth saving as `RESEARCH-PROMPTS.md`.
@@ -544,7 +544,7 @@ ConPTY/pywinpty and Linux/mac use posix pty). The skills:
                  never blind-sleep. CLI scripts/tui.py (persistent daemon + one-shot run)
                  + 8 importable recipes (repl, menu_select, pager, search_filter,
                  confirm, form, progress, wizard).
-  - cmd-art    : DESIGN terminal visuals via `python -m fx` — 28 effects, 8 themes,
+  - cmd-art    : DESIGN terminal visuals via `python -m fx` — 30 effects, 8 themes,
                  pure frame-producer Effect ABC + @register auto-discovery.
   - tui-ui     : web-like cell-accurate layout engine emitting tmux-safe ANSI frames
                  (SGR + newlines only). 17 widgets + ENGINE (field/raster/box_junction/
@@ -611,7 +611,7 @@ real tmux host. Rely on WebSearch/WebFetch (codex dispatcher is dead).
 
 VERIFY WHAT YOU SHIP (all should exit 0):
   python tests\run_all.py                # unified runner (readiness/degenerate/fx-contract/probes)
-  cd skills\cmd-art && python -m fx list && python -m fx gallery   # 28 effects
+  cd skills\cmd-art && python -m fx list && python -m fx gallery   # 30 effects
   python skills\tui-ui\examples\effort_selector.py --once --stage ultracode --frame 1
   python skills\drive-tui\scripts\tui.py start --cmd "python" --cols 80 --rows 24
     -> wait-regex --id <SID> ">>> " --timeout-ms 15000 -> send-line -> snapshot -> close

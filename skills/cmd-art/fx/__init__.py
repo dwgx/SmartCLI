@@ -30,4 +30,4 @@ __all__ = [
     "Theme", "THEMES", "get_theme", "theme_names",
 ]
 
-__version__ = "0.1.6"
+__version__ = "0.1.7"

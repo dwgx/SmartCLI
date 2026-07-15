@@ -3,7 +3,7 @@
 SmartCLI is a local Python toolkit for terminal agents and terminal UI work.
 It has three skills over a shared PTY/pyte core:
 
-- `cmd-art` (`skills/cmd-art`): 28 terminal visual effects via `python -m fx`.
+- `cmd-art` (`skills/cmd-art`): 30 terminal visual effects via `python -m fx`.
 - `drive-tui` (`skills/drive-tui`): classify and drive real interactive TUI screens.
 - `tui-ui` (`skills/tui-ui`): web-like terminal layout/widgets that render tmux-safe ANSI frames.
 

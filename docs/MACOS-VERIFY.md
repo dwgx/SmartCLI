@@ -60,10 +60,10 @@ python tests/_sandbox_posix_backend.py ; echo "exit=$?"
 ## 3. Deterministic suite (safe, no interactive PTY)
 
 ```sh
-PYTHONIOENCODING=utf-8 python tests/test_fx_contract.py     # 19 effects x sizes
+PYTHONIOENCODING=utf-8 python tests/test_fx_contract.py     # 30 effects x sizes
 PYTHONIOENCODING=utf-8 python tests/_readme_literal.py
 ( cd skills/tui-ui && python self_test.py && python -m ui widgets )   # 15 widgets
-( cd skills/cmd-art && python -m fx list )                            # 19 effects
+( cd skills/cmd-art && python -m fx list )                            # 30 effects
 python skills/tui-ui/ui/box_junction.py
 ```
 All should exit 0 and are pure/deterministic — fine to run together.

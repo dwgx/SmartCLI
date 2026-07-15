@@ -8,7 +8,7 @@ description: >-
   banners, rainbow/lolcat gradient text, starfield, tunnel, fireworks,
   image-to-ASCII, and more. Use when the request is for a terminal animation, ANSI/CLI art, or
   a new console effect. Pure Python stdlib; truecolor.
-version: 0.1.6
+version: 0.1.7
 ---
 
 # cmd-art
@@ -20,7 +20,7 @@ Render and design terminal visual effects with `fx`, a living-template engine: a
 - User wants a static ASCII title/banner with a color gradient, or an image turned into ASCII.
 - User wants to invent a new console effect (drop one file in `fx/effects/`).
 
-## The 28 effects (registry names)
+## The 30 effects (registry names)
 Run `python -m fx list` for the live catalog. Names + aliases as registered:
 
 | name | kind | what | aliases |
@@ -38,6 +38,7 @@ Run `python -m fx list` for the live catalog. Names + aliases as registered:
 | `flames` | anim | noise-convection fire, black-body color (vs cellular `fire`) | `firefield`, `bonfire` |
 | `water` | anim | water surface: sum-of-sines swell + caustic net | `ocean`, `waves` |
 | `nebula` | anim | domain-warped gas nebula: filaments, multi-color, stars | `galaxy`, `cosmos` |
+| `spectrum_bars` | anim | audio-style spectrum meter: log bins, gravity smoothing, eighth-blocks | `spectrum`, `bars` |
 | `text_flyin` | anim | text intro: characters fly in and land | `flyin` |
 | `text_converge` | anim | text intro: characters converge from a scattered cloud | `converge` |
 | `text_decrypt` | anim | text intro: cells churn glyphs, then lock to the word | `decrypt_text` |
@@ -45,6 +46,7 @@ Run `python -m fx list` for the live catalog. Names + aliases as registered:
 | `rain` | anim | matrix digital rain | |
 | `life` | anim | Conway's Game of Life, toroidal | `game_of_life` |
 | `boids` | anim | Reynolds flocking | |
+| `cbonsai` | anim | procedural ASCII bonsai grown by a stochastic branching turtle | |
 | `fireworks` | anim | rising shells → gravity sparks | |
 | `sparkle` | anim | dim text under bright glints | |
 | `text3d` | anim* | big figlet/block banner, gradient; shimmer animates | `banner` |

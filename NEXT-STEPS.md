@@ -32,7 +32,7 @@ non-negotiable and overrides any shortcut that looks faster.
   skills/cmd-art/fx/__init__.py, all 3 skills/*/SKILL.md, marketplace.json,
   _vendor/smartcli_core/__init__.py, server.json (2 fields). After a bump run
   tools/sync_vendor.py + tests/test_vendor_sync.py. VERIFIED.
-- Live counts (re-verified against code 2026-07-15): cmd-art **28 effects / 8 themes**;
+- Live counts (re-verified against code 2026-07-15): cmd-art **30 effects / 8 themes**;
   drive-tui **8 recipes** (patterns/recipes/); tui-ui **17 widgets** (11 core + 6 in
   ui/widgets_ext/); knowledge **143 md files**. `python -m fx list` = 28,
   `python -m ui widgets` = 17. Anti-drift gate (test_doc_counts.py) enforces the
@@ -106,7 +106,17 @@ These are fully executable and verifiable on the current Windows machine.
   full recipe suite green).
 - **Effort:** S
 
-### A7. Ship spectrum-bars + cbonsai effects in cmd-art  [S-M]
+### ~~A7. Ship spectrum-bars + cbonsai effects in cmd-art~~  [DONE 2026-07-15, v0.1.7]
+- **Result:** both shipped as pure-frame effects. `skills/cmd-art/fx/effects/spectrum_bars.py`
+  = cava's log-spaced bins + gravity-fall/integral smoothing + eighth-block
+  (`U+2581..U+2588`) sub-cell render over a synthesized moving-sine signal
+  (aliases `spectrum`/`bars`, viridis theme). `skills/cmd-art/fx/effects/cbonsai.py`
+  = the [[procedural-branching]] stochastic turtle (lifeStart 32, multiplier 5,
+  five branch types, cooldown-gated shoots); a seeded RNG generates the whole tree
+  once as an ordered draw-event list and each frame reveals the "grown" prefix, so
+  it animates AND is deterministic (matrix-green theme). Catalog 28→30. Both pass
+  `test_fx_contract.py` (30 effects x 6 sizes x 5 contracts = 150/150) + the anti-drift
+  `test_doc_counts` gate (9 shipping docs bumped 28→30). *(original task below)*
 - **Goal:** add two new effects to reach a rounder catalog: an audio-style
   `spectrum-bars` and a procedural `cbonsai`-style branching tree.
 - **Why it matters:** cheap catalog growth; the knowledge notes `[[spectrum-bars]]` and
@@ -150,7 +160,7 @@ These are fully executable and verifiable on the current Windows machine.
   real duplication pain shows up. *(original task below)*
 - **Goal:** factor the repeated easing curves and gradient math into reusable
   `easing.py` and a `Gradient(stops, steps, direction)` builder.
-- **Why it matters:** removes duplication across the 28 effects, makes new effects (A7)
+- **Why it matters:** removes duplication across the 30 effects, makes new effects (A7)
   cheaper, and is a clean public sub-API.
 - **First step:** grep skills/cmd-art/fx/ for inline lerp/ease/gradient math to find
   the duplication; design the smallest API that covers existing call sites; refactor
@@ -364,7 +374,7 @@ Every task above is done under these rules. They override any faster-looking sho
    concurrent path.
 
 5. **Quality only goes UP.** Never trade a passing gate for speed. Regression gates
-   that must stay exit-0: verify_fx.py (36/36 = 28 effects + 8 fixed checks; known
+   that must stay exit-0: verify_fx.py (38/38 = 30 effects + 8 fixed checks; known
    random-seconds flake — rerun once), _readme_literal.py, probe_pty_fx.py, tests/run_all.py.
 
 6. **The smartcli_core modification rule.** smartcli_core was DO-NOT-MODIFY. Changes

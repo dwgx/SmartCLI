@@ -6,3 +6,27 @@
 *.jpg binary
 *.gif binary
 *.ico binary
+
+# ---------------------------------------------------------------------------
+# GitHub linguist: language-bar accuracy
+#
+# By default linguist marks everything under docs/ as "documentation" and
+# excludes it from the language stats, so the hand-written showcase site
+# (docs/site/*.html + assets/*.js, with CSS inlined in the HTML) counted for
+# NOTHING — the bar read ~99% Python despite a real multi-language site. Force
+# the site's actual source to be detected so the bar reflects the real mix.
+docs/site/**/*.html linguist-detectable=true
+docs/site/**/*.js   linguist-detectable=true
+docs/site/**/*.css  linguist-detectable=true
+
+# The 4 localized index pages (zh-Hans/zh-Hant/ja/ko) are structure-preserving
+# translations of index.html — real files, but counting all five would inflate
+# HTML fivefold over what was actually authored. Mark the translations as
+# generated so only the canonical English index.html feeds the language bar.
+docs/site/index.zh-Hans.html linguist-generated=true
+docs/site/index.zh-Hant.html linguist-generated=true
+docs/site/index.ja.html      linguist-generated=true
+docs/site/index.ko.html      linguist-generated=true
+
+# Vendored copy of the core — not this repo's authored code; keep it out of stats.
+skills/drive-tui/_vendor/** linguist-vendored=true

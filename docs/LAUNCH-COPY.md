@@ -71,7 +71,7 @@ GIF/site link + "MIT, on PyPI". Check each list's CONTRIBUTING before opening.
 **Body:**
 > Built a Python toolkit that models the terminal as a live `pyte` cell grid instead of a byte stream, so it can perceive what a full-screen TUI is actually showing (highlighted row, cursor, alt-screen) and drive it step by step. The GIF is it driving a real lazygit session on Linux.
 >
-> It also ships an effects engine (19 effects / 8 themes — solarsystem, donut, fire, rain, all rendered through the project's own pipeline, no screen recorder) and 15 cell-accurate UI widgets, since the same screen model feeds both perceiving and drawing. Runs on Windows (ConPTY) and Linux.
+> It also ships an effects engine (30 effects / 8 themes — solarsystem, donut, fire, rain, all rendered through the project's own pipeline, no screen recorder) and 17 cell-accurate UI widgets, since the same screen model feeds both perceiving and drawing. Runs on Windows (ConPTY) and Linux.
 >
 > MIT, `pip install smartcli-toolkit`, live playground and all the GIFs: dwgx.github.io/SmartCLI. Known limits are in LIMITATIONS.md — curious what breaks on your setup.
 

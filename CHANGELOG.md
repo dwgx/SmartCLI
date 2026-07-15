@@ -5,6 +5,35 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.7] - 2026-07-15
+
+The last two "knowledge → effect" ports, an MCP Registry listing, and a
+docs/website accuracy pass. Catalog grows to 30 effects.
+
+### Added
+- **Two new fx effects** (30 total): `spectrum_bars` — an audio-style spectrum
+  meter over a synthesized signal, faithful to cava's pipeline (log-spaced bins,
+  gravity-fall + integral smoothing, eighth-block `U+2581..U+2588` sub-cell
+  vertical resolution; aliases `spectrum`/`bars`) — and `cbonsai` — a procedural
+  ASCII bonsai grown by a stochastic branching turtle (the cbonsai recursion:
+  lifeStart 32, multiplier 5, five branch types, cooldown-gated side shoots). The
+  whole tree is generated once with a seeded RNG as an ordered draw-event list and
+  each frame reveals the "grown" prefix, so it animates and is fully deterministic.
+  Both ship as pure frame producers and pass the frame contract at all sizes.
+- **Official MCP Registry listing** — `io.github.dwgx/smartcli` is now published
+  on `registry.modelcontextprotocol.io`, so MCP clients (Claude / Cursor / VS Code)
+  and aggregators (Smithery / Glama / MCP.so) auto-discover the drive-tui server.
+
+### Changed
+- Docs + showcase site reconciled to the 30-effect catalog (READMEs in all five
+  languages, both SKILL/USAGE, the site's effect-count stat across all five
+  localized pages, and the anti-drift `test_doc_counts` gate).
+- `server.json` `description` trimmed to the registry's 100-char limit.
+- `.gitattributes` now marks the `docs/site` sources (HTML/JS/CSS) as
+  `linguist-detectable` and the localized translations / vendored core as
+  generated/vendored, so GitHub's language bar reflects the real HTML+JS+Python
+  mix instead of reading ~99% Python.
+
 ## [0.1.6] - 2026-07-15
 
 Six new "god-tier" effects, two new widgets, a rendering-quality pass, a new
