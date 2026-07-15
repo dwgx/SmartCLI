@@ -216,6 +216,25 @@ def wait_change(sid: str, baseline_hash: str = "", timeout_ms: int = 10000) -> d
 
 
 @mcp.tool(annotations=ToolAnnotations(
+    title="Wait for any of several patterns",
+    readOnlyHint=True, destructiveHint=False, idempotentHint=True,
+    openWorldHint=False,
+))
+def wait_any(sid: str, patterns: list[str], timeout_ms: int = 10000) -> dict:
+    """Wait for ANY of `patterns` to appear on screen (pexpect expect([...]) style).
+
+    Race several possible outcomes at once — e.g. patterns=["\\\\$ $", "Error",
+    "Password:"] — and learn WHICH happened. Patterns are scanned in list order
+    each poll, so the earliest in the list wins a same-poll tie (put the most
+    specific first). Returns {"ok", "index", "matched", "alive", "text", "json"}
+    where `index` is the 0-based position of the matched pattern, or -1 on timeout.
+    """
+    return _call_session(sid, {"action": "wait_any", "patterns": patterns,
+                               "timeout_ms": timeout_ms},
+                         timeout=timeout_ms / 1000.0 + 15.0)
+
+
+@mcp.tool(annotations=ToolAnnotations(
     title="Wait for readiness",
     readOnlyHint=True, destructiveHint=False, idempotentHint=True,
     openWorldHint=False,

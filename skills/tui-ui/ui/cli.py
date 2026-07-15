@@ -141,6 +141,50 @@ def cmd_gallery(args) -> int:
     return 0
 
 
+def _demo_raster(cols: int, rows: int):
+    """A small self-contained RGB test image (no PIL): a smooth hue/brightness
+    gradient with a bright disc, so `ui sixel` shows something without a file."""
+    from .raster import SubcellRaster
+    r = SubcellRaster(cols, rows, "quad")
+    pw, ph = max(1, r.pw), max(1, r.ph)
+    for y in range(r.ph):
+        for x in range(r.pw):
+            red = int(255 * x / pw)
+            grn = int(255 * y / ph)
+            blu = int(255 * (1 - x / pw))
+            r.px[y][x] = (red, grn, blu)
+    # a white disc so a shape is visible
+    cx, cy, rad = r.pw / 2, r.ph / 2, min(r.pw, r.ph) / 4
+    r.disc(cx, cy, rad, (255, 255, 255))
+    return r
+
+
+def cmd_sixel(args) -> int:
+    _enable_vt()
+    from .sixel import raster_to_sixel, supports_sixel
+
+    if args.probe:
+        res = supports_sixel()
+        label = {True: "yes", False: "no", None: "unknown"}[res]
+        print(f"sixel support (DA1 probe): {label}")
+        return 0
+
+    if args.image:
+        from .raster import from_image
+        try:
+            raster = from_image(args.image, args.cols, args.rows, mode=args.mode)
+        except RuntimeError as exc:  # PIL missing — clear message, not a traceback
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+    else:
+        raster = _demo_raster(args.cols, args.rows)
+
+    sys.stdout.write(raster_to_sixel(raster))
+    sys.stdout.write("\n")
+    sys.stdout.flush()
+    return 0
+
+
 # --------------------------------------------------------------------------
 # parser
 # --------------------------------------------------------------------------
@@ -166,6 +210,21 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--height", type=int, default=30)
     sp.add_argument("--theme", help=f"palette ({', '.join(theme_names())})")
     sp.set_defaults(func=cmd_gallery)
+
+    sp = sub.add_parser("sixel",
+                        help="emit a Sixel bitmap (true graphics) for a terminal "
+                             "that supports it (Windows Terminal >=1.22, xterm, "
+                             "WezTerm, mlterm). With no image, draws a demo gradient.")
+    sp.add_argument("image", nargs="?",
+                    help="image file to render (PNG/JPG via Pillow); omit for a demo")
+    sp.add_argument("--cols", type=int, default=40, help="width in terminal cells")
+    sp.add_argument("--rows", type=int, default=20, help="height in terminal cells")
+    sp.add_argument("--mode", default="quad",
+                    choices=("half", "quad", "sextant", "braille"),
+                    help="sub-cell pixel density used to sample the image")
+    sp.add_argument("--probe", action="store_true",
+                    help="just report whether this terminal advertises sixel (DA1)")
+    sp.set_defaults(func=cmd_sixel)
 
     return p
 

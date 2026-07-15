@@ -19,6 +19,7 @@ from .core import (BOX_STYLES, Canvas, Cell, Theme, THEMES, draw_border,
                    get_theme, gradient, parse_color, rgb, theme_names, width)
 from .box import Box, Fr
 from .layout import Grid, HStack, Page, Stack, VStack, grid, resolve_tracks
+from .sixel import encode_sixel, print_sixel, raster_to_sixel, supports_sixel
 from . import registry
 
 __all__ = [
@@ -26,4 +27,6 @@ __all__ = [
     "get_theme", "theme_names", "gradient", "parse_color", "rgb", "width",
     "Box", "Fr", "VStack", "HStack", "Stack", "Grid", "grid", "Page",
     "resolve_tracks", "registry",
+    # sixel graphics output
+    "encode_sixel", "raster_to_sixel", "print_sixel", "supports_sixel",
 ]

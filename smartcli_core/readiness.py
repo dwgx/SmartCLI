@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import re
 import time
-from typing import Callable, Optional, Tuple
+from typing import Callable, Optional, Sequence, Tuple
 
 # Callable aliases (documentation only)
 ReadFn = Callable[[], bytes]      # pump: read+feed one batch, return bytes read
@@ -152,6 +152,67 @@ def wait_for_regex(
             return True, get_snapshot_fn()
         if now >= deadline:
             return False, get_snapshot_fn()
+        time.sleep(poll)
+
+
+def wait_any(
+    read_fn: ReadFn,
+    get_text_fn: TextFn,
+    get_snapshot_fn: Callable[[], object],
+    patterns: Sequence[str],
+    timeout_ms: int = 10000,
+    poll_ms: int = 30,
+    min_wait_ms: int = 0,
+    flags: int = 0,
+) -> Tuple[int, object]:
+    """Pump reads until ANY of ``patterns`` matches the screen, or timeout.
+
+    The pexpect ``expect([...])`` analogue: race several possible outcomes
+    (prompt vs error vs EOF banner) and report WHICH one appeared first. Patterns
+    are scanned **in list order** each poll, so when two would match on the same
+    poll the earliest in the list wins (deterministic, documented) — order the
+    list most-specific-first if that matters.
+
+    Args:
+        read_fn: called each poll to read+feed a batch.
+        get_text_fn: returns the current screen text searched by the regexes.
+        get_snapshot_fn: builds the :class:`Snapshot` returned to the caller.
+        patterns: regexes searched against the whole screen text, in priority order.
+        timeout_ms: hard ceiling.
+        poll_ms: sleep between polls when idle.
+        min_wait_ms: ignore matches before this much time has elapsed (guards
+            against matching a stale prior prompt right after sending input).
+        flags: extra ``re`` flags (``re.I`` etc.) applied to every pattern.
+
+    Returns:
+        ``(index, snapshot)`` — ``index`` is the 0-based position in ``patterns``
+        of the pattern that matched, or ``-1`` on timeout. An empty ``patterns``
+        list can never match, so it returns ``(-1, snapshot)`` immediately (one
+        pump, no spin to the deadline). The snapshot is always the current screen
+        so the caller can act on the last state either way.
+    """
+    rxs = [re.compile(p, flags) for p in patterns]
+    if not rxs:
+        # Nothing to match — pump once (so the snapshot is fresh) and report the
+        # timeout sentinel now instead of spinning the whole timeout window.
+        read_fn()
+        return -1, get_snapshot_fn()
+    poll = poll_ms / 1000.0
+    min_wait = min_wait_ms / 1000.0
+    start = time.monotonic()
+    deadline = start + (timeout_ms / 1000.0)
+
+    while True:
+        now = time.monotonic()
+        read_fn()
+        elapsed = now - start
+        if elapsed >= min_wait:
+            text = get_text_fn()
+            for i, rx in enumerate(rxs):
+                if rx.search(text):
+                    return i, get_snapshot_fn()
+        if now >= deadline:
+            return -1, get_snapshot_fn()
         time.sleep(poll)
 
 

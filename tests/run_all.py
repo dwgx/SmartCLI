@@ -155,6 +155,12 @@ def build_suite():
     suite.append(Test("test_wait_change (drive-tui await-change primitive)",
                       [PY, str(TESTS / "test_wait_change.py")], ROOT, 60,
                       optional=True))
+    suite.append(Test("test_wait_any (pexpect-style multi-marker wait)",
+                      [PY, str(TESTS / "test_wait_any.py")], ROOT, 60,
+                      optional=True))
+    suite.append(Test("test_sixel (sixel wire-format lock)",
+                      [PY, str(TESTS / "test_sixel.py")], ROOT, 60,
+                      optional=True))
     suite.append(Test("_sandbox_fuzz_core (pure-memory fuzz)",
                       [PY, str(TESTS / "_sandbox_fuzz_core.py")], ROOT, 180,
                       optional=True))

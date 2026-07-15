@@ -39,11 +39,17 @@ jobs:
       # Crown-jewel DETERMINISTIC gates — pure/in-memory, no PTY spawn, so they
       # run reliably on every OS and now gate every PR (previously these
       # mutation-proof / contract / fuzz suites weren't wired into CI at all).
-      - name: fx frame contract (19 effects x sizes)
+      - name: fx frame contract (30 effects x sizes)
         run: python tests/test_fx_contract.py
 
       - name: readiness virtual-clock + blank-gate locks
         run: python tests/test_readiness.py
+
+      - name: wait_any multi-marker wait (deterministic)
+        run: python tests/test_wait_any.py
+
+      - name: sixel wire-format lock (deterministic)
+        run: python tests/test_sixel.py
 
       - name: degenerate-input regression locks
         run: python tests/test_degenerate_inputs.py
@@ -54,7 +60,7 @@ jobs:
       - name: drive-tui vendored core == canonical
         run: python tests/test_vendor_sync.py
 
-      - name: doc counts match code (anti-drift, fx 18->19 guard)
+      - name: doc counts match code (anti-drift, fx=30 guard)
         run: python tests/test_doc_counts.py
 
       - name: README literal import-order check

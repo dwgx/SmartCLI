@@ -24,7 +24,7 @@ import time
 from typing import List, Optional, Tuple, Union, Sequence
 
 from .pty_backend import PtyBackend, get_default_backend
-from .readiness import wait_for_regex, wait_ready, wait_until_stable
+from .readiness import wait_any, wait_for_regex, wait_ready, wait_until_stable
 from .screen_model import ScreenModel
 from .snapshot import Snapshot, build_snapshot
 
@@ -296,6 +296,33 @@ class PtySession:
             flags=flags,
         )
         return matched, snap  # type: ignore[return-value]
+
+    def wait_any(
+        self,
+        patterns: Sequence[str],
+        timeout_ms: int = 10000,
+        poll_ms: int = 30,
+        min_wait_ms: int = 0,
+        flags: int = 0,
+    ) -> Tuple[int, Snapshot]:
+        """Wait for ANY of ``patterns`` (pexpect ``expect([...])`` style).
+
+        Returns ``(index, snapshot)`` where ``index`` is the 0-based position of
+        the pattern that matched (earliest in the list wins a same-poll tie), or
+        ``-1`` on timeout. The snapshot is always the current screen. See
+        :func:`readiness.wait_any`.
+        """
+        index, snap = wait_any(
+            read_fn=self.pump,
+            get_text_fn=self.model.text,
+            get_snapshot_fn=self.snapshot,
+            patterns=patterns,
+            timeout_ms=timeout_ms,
+            poll_ms=poll_ms,
+            min_wait_ms=min_wait_ms,
+            flags=flags,
+        )
+        return index, snap  # type: ignore[return-value]
 
     def wait_change(
         self,

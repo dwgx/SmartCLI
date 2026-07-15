@@ -181,6 +181,14 @@ def _handle(sess: PtySession, req: dict, expected_token: str) -> dict:
                 "hash": sess.model.content_hash(),
                 "text": snap.to_text(), "json": snap.to_json()}
 
+    if action == "wait_any":
+        index, snap = sess.wait_any(
+            list(req.get("patterns", [])),
+            timeout_ms=int(req.get("timeout_ms", 10000)))
+        return {"ok": True, "index": index, "matched": index >= 0,
+                "alive": sess.is_alive(),
+                "text": snap.to_text(), "json": snap.to_json()}
+
     if action == "alive":
         sess.pump()
         return {"ok": True, "alive": sess.is_alive()}
@@ -303,6 +311,16 @@ def _run_steps(cmd, steps, cols: int, rows: int) -> int:
                 matched, snap = sess.wait_for(
                     step["pattern"], timeout_ms=int(step.get("timeout_ms", 10000)))
                 emit(f"step{i}:wait_regex", snap, f"matched={matched} alive={sess.is_alive()}")
+            elif act == "wait_any":
+                index, snap = sess.wait_any(
+                    list(step.get("patterns", [])),
+                    timeout_ms=int(step.get("timeout_ms", 10000)))
+                emit(f"step{i}:wait_any", snap, f"index={index} alive={sess.is_alive()}")
+            elif act == "wait_change":
+                changed, snap = sess.wait_change(
+                    baseline_hash=step.get("baseline_hash"),
+                    timeout_ms=int(step.get("timeout_ms", 10000)))
+                emit(f"step{i}:wait_change", snap, f"changed={changed} alive={sess.is_alive()}")
             elif act == "snapshot":
                 sess.pump()
                 emit(f"step{i}:snapshot", sess.snapshot(), f"alive={sess.is_alive()}")
@@ -435,6 +453,27 @@ def cmd_wait_change(args) -> int:
     return 0
 
 
+def cmd_wait_any(args) -> int:
+    # Patterns via repeated --pattern, or one-per-line on stdin (--stdin) so MSYS
+    # Git-bash path-conversion can't mangle a regex like "/foo" into "D:/.../foo".
+    patterns = list(args.pattern or [])
+    if args.stdin:
+        patterns += [ln for ln in sys.stdin.read().splitlines() if ln]
+    if not patterns:
+        print("error: wait-any needs at least one --pattern (or --stdin)",
+              file=sys.stderr)
+        return 2
+    resp = _call(args.id, {"action": "wait_any", "patterns": patterns,
+                           "timeout_ms": args.timeout_ms},
+                 timeout=args.timeout_ms / 1000.0 + 15.0)
+    idx = resp.get("index", -1)
+    hit = patterns[idx] if idx is not None and idx >= 0 else None
+    print(f"# index={idx} matched={resp.get('matched')} pattern={hit!r} "
+          f"alive={resp.get('alive')}", file=sys.stderr)
+    _print_snap(resp, args.json)
+    return 0
+
+
 def cmd_alive(args) -> int:
     resp = _call(args.id, {"action": "alive"})
     print("alive" if resp.get("alive") else "dead")
@@ -556,6 +595,20 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--timeout-ms", dest="timeout_ms", type=int, default=10000)
     sp.add_argument("--json", action="store_true")
     sp.set_defaults(func=cmd_wait_change)
+
+    sp = sub.add_parser("wait-any",
+                        help="wait for ANY of several regexes (pexpect expect([...]) "
+                             "style); reports WHICH matched first, then snapshot")
+    sp.add_argument("--id", required=True)
+    sp.add_argument("--pattern", action="append",
+                    help="a regex to race (repeat for several; earliest in the "
+                         "list wins a same-poll tie)")
+    sp.add_argument("--stdin", action="store_true",
+                    help="also read patterns one-per-line from stdin (MSYS "
+                         "path-conversion-safe for regexes containing slashes)")
+    sp.add_argument("--timeout-ms", dest="timeout_ms", type=int, default=10000)
+    sp.add_argument("--json", action="store_true")
+    sp.set_defaults(func=cmd_wait_any)
 
     sp = sub.add_parser("alive", help="check whether the child process is still running")
     sp.add_argument("--id", required=True)

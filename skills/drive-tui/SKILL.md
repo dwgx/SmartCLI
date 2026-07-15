@@ -59,7 +59,7 @@ A detached daemon owns one live program; each command connects over a localhost-
    `python skills/drive-tui/scripts/tui.py list`
    `python skills/drive-tui/scripts/tui.py close --id <SID>`   (always close when done)
 
-Subcommands: `start`, `snapshot`, `send-text`, `send-line`, `keys`, `wait`, `wait-regex`, `alive`, `close`, `list`. `wait`/`wait-regex` print liveness + reason to stderr and the snapshot to stdout.
+Subcommands: `start`, `snapshot`, `send-text`, `send-line`, `keys`, `wait`, `wait-regex`, `wait-change`, `wait-any`, `alive`, `close`, `list`. The `wait*` verbs print liveness + reason/index to stderr and the snapshot to stdout. `wait-change` blocks until the screen changes from a baseline (the "did my action land?" primitive); `wait-any` races several `--pattern` regexes (pexpect `expect([...])` style) and reports WHICH matched first (index on stderr) — order patterns most-specific-first, since the earliest in the list wins a same-poll tie.
 
 ### B. One-shot script (batch, non-interactive)
 When you already know the whole sequence, run it in a single process against a fresh program. No session to manage. Write a JSON list of steps to a file and run:

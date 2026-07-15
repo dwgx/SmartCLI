@@ -41,7 +41,18 @@ python -m ui widgets                                  # list widgets
 python -m ui demo <name> --width 60 --height 12       # render one widget
 python -m ui gallery --width 100 --height 30           # the showcase dashboard "page"
 python -m ui demo table --theme synthwave              # --theme applies a palette
+python -m ui sixel image.png --cols 40 --rows 20      # TRUE-graphics bitmap (sixel)
+python -m ui sixel --probe                             # does this terminal support sixel?
 ```
+
+Beyond sub-cell glyphs, tui-ui can emit **true bitmap graphics via Sixel** for
+terminals that support it (Windows Terminal ≥1.22, xterm, WezTerm, mlterm): the
+`ui.sixel` module encodes any RGB pixel grid — including a `SubcellRaster.px`
+buffer, via `raster_to_sixel(raster)` — to a DCS escape string
+(`encode_sixel(pixels)` / `print_sixel(...)`). `supports_sixel()` runs a DA1 probe
+(returns True/False/None-unknown). This is the graphics-protocol escape hatch above
+the half/quad/sextant/braille sub-cell rendering; the sub-cell path still works on
+every terminal, sixel is the upgrade where available.
 
 Or by path from anywhere (a PEP-366 prelude bootstraps the package):
 `python skills/tui-ui/ui/cli.py gallery`
