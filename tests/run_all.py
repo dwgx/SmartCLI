@@ -105,6 +105,11 @@ def build_suite():
     # one-shot run + no-leak. Real ConPTY like the probes above, so generous.
     suite.append(Test("_tui_cli_probe (drive-tui CLI end-to-end)",
                       [PY, str(TESTS / "_tui_cli_probe.py")], ROOT, 180))
+    # MCP server end-to-end: drives a real session through the MCP tool surface
+    # (token auto-attached, no-leak). Optional — needs the `mcp` package.
+    suite.append(Test("_mcp_probe (drive-tui MCP server end-to-end)",
+                      [PY, str(TESTS / "_mcp_probe.py")], ROOT, 180,
+                      optional=True))
 
     # --- tui-ui: top-level self-tests (run from skills/tui-ui) -------------
     suite.append(Test("tui-ui self_test.py",
@@ -137,6 +142,9 @@ def build_suite():
                       optional=True))
     suite.append(Test("test_doc_counts (docs match code, anti-drift)",
                       [PY, str(TESTS / "test_doc_counts.py")], ROOT, 60,
+                      optional=True))
+    suite.append(Test("test_golden_frames (tui-ui widget snapshots)",
+                      [PY, str(TESTS / "test_golden_frames.py")], ROOT, 60,
                       optional=True))
     suite.append(Test("_sandbox_fuzz_core (pure-memory fuzz)",
                       [PY, str(TESTS / "_sandbox_fuzz_core.py")], ROOT, 180,

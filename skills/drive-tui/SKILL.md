@@ -9,7 +9,7 @@ description: >-
   spinners, password fields, curses UIs), or when a piped command hangs or
   prints nothing.
 allowed-tools: Bash, Read
-version: 0.1.3
+version: 0.1.4
 ---
 
 # drive-tui
@@ -72,6 +72,18 @@ Step objects (executed in order; each `wait_*`/`snapshot` prints a snapshot):
 - `{"action":"wait_ready","marker":"regex"}` — wait for marker OR stability (marker optional).
 - `{"action":"wait_regex","pattern":"regex","timeout_ms":10000}` — wait strictly for the regex.
 - `{"action":"snapshot"}` — print the current screen.
+
+### C. MCP server (drive from any MCP client)
+`scripts/mcp_server.py` exposes the same verb surface as MCP tools, so any MCP
+client (Claude Desktop, an agent framework) can drive TUIs without shelling out.
+It reuses the CLI's client layer, so the **per-session capability token is
+attached automatically** and no verb is exposed unauthenticated. Install the
+extra and run it (stdio transport):
+`pip install "smartcli-toolkit[mcp]"`
+`python skills/drive-tui/scripts/mcp_server.py`
+Tools: `start`, `list_sessions`, `snapshot`, `send_text`, `send_line`,
+`send_keys`, `wait_regex`, `wait_ready`, `alive`, `resize`, `close` — a 1:1 map
+of the daemon verbs. The same perceive → decide → act loop applies.
 
 ## Silent / background operation — driving without disturbing the user
 

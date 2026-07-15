@@ -9,6 +9,7 @@
 [![PyPI](https://img.shields.io/pypi/v/smartcli-toolkit?color=orange)](https://pypi.org/project/smartcli-toolkit/)
 [![Python](https://img.shields.io/pypi/pyversions/smartcli-toolkit?color=blue)](https://pypi.org/project/smartcli-toolkit/)
 [![CI](https://github.com/dwgx/SmartCLI/actions/workflows/ci.yml/badge.svg)](https://github.com/dwgx/SmartCLI/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/dwgx/SmartCLI/branch/main/graph/badge.svg)](https://codecov.io/gh/dwgx/SmartCLI)
 [![License: MIT](https://img.shields.io/pypi/l/smartcli-toolkit?color=green)](LICENSE)
 [![Downloads](https://img.shields.io/pypi/dm/smartcli-toolkit?color=blueviolet)](https://pypi.org/project/smartcli-toolkit/)
 [![Skills: 3](https://img.shields.io/badge/skills-3-purple)](#features)
@@ -155,6 +156,14 @@ python skills/drive-tui/scripts/tui.py wait-regex --id <SID> ">>> " --timeout-ms
 python skills/drive-tui/scripts/tui.py send-line --id <SID> "print(6*7)"
 python skills/drive-tui/scripts/tui.py snapshot --id <SID>
 python skills/drive-tui/scripts/tui.py close --id <SID>
+```
+
+Or drive from any MCP client — the same verbs as MCP tools, with the
+per-session token attached automatically:
+
+```bash
+pip install "smartcli-toolkit[mcp]"
+python skills/drive-tui/scripts/mcp_server.py     # stdio MCP server
 ```
 
 ### As a library
