@@ -20,7 +20,7 @@ Render and design terminal visual effects with `fx`, a living-template engine: a
 - User wants a static ASCII title/banner with a color gradient, or an image turned into ASCII.
 - User wants to invent a new console effect (drop one file in `fx/effects/`).
 
-## The 22 effects (registry names)
+## The 28 effects (registry names)
 Run `python -m fx list` for the live catalog. Names + aliases as registered:
 
 | name | kind | what | aliases |
@@ -35,6 +35,12 @@ Run `python -m fx list` for the live catalog. Names + aliases as registered:
 | `julia` | anim | animated Julia-set fractal (morphing c) | `juliaset` |
 | `mandelbrot` | anim | infinite zoom into the Mandelbrot set | `mandel` |
 | `perlin` | anim | flowing Perlin gradient-noise field (clouds) | `noise`, `clouds` |
+| `flames` | anim | noise-convection fire, black-body color (vs cellular `fire`) | `firefield`, `bonfire` |
+| `water` | anim | water surface: sum-of-sines swell + caustic net | `ocean`, `waves` |
+| `nebula` | anim | domain-warped gas nebula: filaments, multi-color, stars | `galaxy`, `cosmos` |
+| `text_flyin` | anim | text intro: characters fly in and land | `flyin` |
+| `text_converge` | anim | text intro: characters converge from a scattered cloud | `converge` |
+| `text_decrypt` | anim | text intro: cells churn glyphs, then lock to the word | `decrypt_text` |
 | `fire` | anim | demoscene fire (heat buffer + cooling) | |
 | `rain` | anim | matrix digital rain | |
 | `life` | anim | Conway's Game of Life, toroidal | `game_of_life` |

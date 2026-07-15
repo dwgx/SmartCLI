@@ -109,7 +109,7 @@ set PYTHONIOENCODING=utf-8
 
 ```bash
 cd skills/cmd-art
-python -m fx list                          # list all 22 effects
+python -m fx list                          # list all 28 effects
 python -m fx play donut --seconds 5        # play one effect (bounded)
 python -m fx gallery                       # one frame of each effect
 python -m fx show --seq "donut:fire:3,plasma::3"
@@ -158,9 +158,9 @@ s.close()
 
 **`cmd-art`**（`skills/cmd-art`）— 一套「活範本」效果引擎：`Effect` ABC +
 `@register` 裝飾器 + 自動探索。橫跨 **8 種主題**（mono、fire、
-ocean、synthwave、viridis、pastel、matrix-green、rainbow）的 **22 種效果**（donut、solarsystem、fire、plasma、rain、
+ocean、synthwave、viridis、pastel、matrix-green、rainbow）的 **28 種效果**（donut、solarsystem、fire、plasma、rain、
 starfield、tunnel、text3d、cube、sphere、boids、life、fireworks、sparkle、decrypt、
-gradient_text、banner_scroll、image2ascii、typewriter、julia、mandelbrot、perlin）。這些效果是純粹的畫格
+gradient_text、banner_scroll、image2ascii、typewriter、julia、mandelbrot、perlin、flames、water、nebula、text_flyin、text_converge、text_decrypt）。這些效果是純粹的畫格
 產生器；`play` 預設有時間界限，且一定會還原終端機狀態。
 
 **`tui-ui`**（`skills/tui-ui`）— 一套類 web 的終端機版面引擎，輸出對 tmux 安全的
@@ -191,7 +191,7 @@ session`）。這是三個技能底下那個可重用、可匯入的基礎。
 ```text
 SmartCLI/
   smartcli_core/           shared PTY + pyte engine (importable package)
-  skills/cmd-art/          fx effect package and CLI (22 effects, 8 themes)
+  skills/cmd-art/          fx effect package and CLI (28 effects, 8 themes)
   skills/drive-tui/        TUI pattern library and PTY driver CLI (8 recipes)
   skills/tui-ui/           terminal UI layout engine and widgets (15 widgets)
   tools/screenshot/        pyte -> PNG smoke-test harness

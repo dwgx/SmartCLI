@@ -149,7 +149,7 @@ backend, and dependency versions — run it and paste the output when filing a b
 
 ```bash
 cd skills/cmd-art
-python -m fx list                          # list all 22 effects
+python -m fx list                          # list all 28 effects
 python -m fx play donut --seconds 5        # play one effect (bounded)
 python -m fx gallery                       # one frame of each effect
 python -m fx show --seq "donut:fire:3,plasma::3"
@@ -205,9 +205,9 @@ suite, see **[`README-USAGE.md`](README-USAGE.md)**.
 ## Features
 
 **`cmd-art`** (`skills/cmd-art`) — a "living-template" effect engine: an `Effect` ABC +
-`@register` decorator + auto-discovery. **22 effects** (donut, solarsystem, fire, plasma,
+`@register` decorator + auto-discovery. **28 effects** (donut, solarsystem, fire, plasma,
 rain, starfield, tunnel, text3d, cube, sphere, boids, life, fireworks, sparkle, decrypt,
-gradient_text, banner_scroll, image2ascii, typewriter, julia, mandelbrot, perlin) across **8 themes** (mono, fire,
+gradient_text, banner_scroll, image2ascii, typewriter, julia, mandelbrot, perlin, flames, water, nebula, text_flyin, text_converge, text_decrypt) across **8 themes** (mono, fire,
 ocean, synthwave, viridis, pastel, matrix-green, rainbow). Effects are pure frame
 producers; `play` is bounded by default and always restores the terminal.
 
@@ -239,7 +239,7 @@ cross-links. See [`knowledge/INDEX.md`](knowledge/INDEX.md).
 ```text
 SmartCLI/
   smartcli_core/           shared PTY + pyte engine (importable package)
-  skills/cmd-art/          fx effect package and CLI (22 effects, 8 themes)
+  skills/cmd-art/          fx effect package and CLI (28 effects, 8 themes)
   skills/drive-tui/        TUI pattern library and PTY driver CLI (8 recipes)
   skills/tui-ui/           terminal UI layout engine and widgets (15 widgets)
   tools/screenshot/        pyte -> PNG smoke-test harness
