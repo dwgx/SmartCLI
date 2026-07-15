@@ -49,7 +49,7 @@ def strip_ansi(s: str) -> str:
     return _ANSI_RE.sub("", s)
 
 
-def _char_width_stdlib(ch: str) -> int:
+def _char_width_stdlib(ch: str, ambiguous_wide: bool = False) -> int:
     """Per-codepoint cell width via unicodedata (stdlib fallback for wcwidth).
 
     Mirrors ``wcwidth.wcwidth`` for a single scalar so it matches what a VT
@@ -57,6 +57,8 @@ def _char_width_stdlib(ch: str) -> int:
       * NUL / combining / ZWJ (U+200D) / variation selectors (U+FE0E/U+FE0F) -> 0
       * other C0/C1 controls -> -1 (unprintable)
       * East-Asian Wide/Fullwidth (incl. emoji, regional indicators) -> 2
+      * East-Asian Ambiguous ('A') -> 1 by default (the glibc/most-terminal
+        convention), or 2 when ``ambiguous_wide`` is set (CJK-locale terminals)
       * everything else -> 1
     """
     o = ord(ch)
@@ -69,12 +71,16 @@ def _char_width_stdlib(ch: str) -> int:
         return 0
     if unicodedata.combining(ch):
         return 0
-    if unicodedata.east_asian_width(ch) in ("W", "F"):
+    eaw = unicodedata.east_asian_width(ch)
+    if eaw in ("W", "F"):
+        return 2
+    if ambiguous_wide and eaw == "A":
         return 2
     return 1
 
 
-def char_width(ch: str) -> int:
+def char_width(ch: str, *, unicode_version: str = "auto",
+               ambiguous_wide: bool = False) -> int:
     """Terminal cell advance of a single scalar: 0, 1, or 2 (controls -> 0).
 
     THE per-codepoint primitive. Prefers ``wcwidth.wcwidth`` (the exact table
@@ -84,19 +90,35 @@ def char_width(ch: str) -> int:
     the terminal cell grid is per-codepoint, so a ZWJ emoji or a flag pair
     consumes the sum of its scalar widths (e.g. a regional-indicator flag = 4
     cells), and the engine must agree or every column behind it desyncs.
+
+    Width is a *coordination* problem — different terminals ship different
+    Unicode DB versions, and there is no shared source of truth. The knobs let a
+    caller pin the answer to its own terminal (defaults reproduce the previous
+    behavior exactly, so existing baselines are byte-identical):
+      * ``unicode_version`` — pin wcwidth's Unicode table (e.g. "9.0.0"); "auto"
+        uses the newest bundled. No effect on the stdlib fallback (one built-in
+        version only).
+      * ``ambiguous_wide`` — count East-Asian Ambiguous glyphs as 2 cells (a
+        CJK-locale terminal) instead of the default 1 (glibc/most terminals).
     """
     if not ch:
         return 0
     c0 = ch[0]
     if _wcwidth_pkg is not None:
-        w = _wcwidth_pkg(c0)
+        try:
+            w = _wcwidth_pkg(c0, unicode_version=unicode_version,
+                             ambiguous_width=2 if ambiguous_wide else 1)
+        except TypeError:
+            # Older wcwidth without the keyword args — fall back to the basic call.
+            w = _wcwidth_pkg(c0)
         if w is not None:
             return 0 if w < 0 else w
-    w = _char_width_stdlib(c0)
+    w = _char_width_stdlib(c0, ambiguous_wide=ambiguous_wide)
     return 0 if w < 0 else w
 
 
-def width(s: str) -> int:
+def width(s: str, *, unicode_version: str = "auto",
+          ambiguous_wide: bool = False) -> int:
     """Display-cell width of *s* (ANSI stripped first). Never negative.
 
     THE width function the whole engine uses instead of ``len``. Defined as the
@@ -105,9 +127,13 @@ def width(s: str) -> int:
     is what keeps table columns / padding aligned with the rendered grid: a
     measurement can never disagree with what actually gets drawn. It also
     matches the terminal (pyte/tmux advance per codepoint via ``wcwidth``).
+
+    ``unicode_version`` / ``ambiguous_wide`` are forwarded to :func:`char_width`
+    (see there); the defaults reproduce the previous behavior byte-for-byte.
     """
     s = strip_ansi(s)
-    return sum(char_width(ch) for ch in s)
+    return sum(char_width(ch, unicode_version=unicode_version,
+                          ambiguous_wide=ambiguous_wide) for ch in s)
 
 
 def _visible_len_fallback(s: str) -> int:

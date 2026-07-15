@@ -69,6 +69,7 @@ DETERMINISTIC_TESTS = [
     "test_doc_counts.py",
     "test_golden_frames.py",
     "test_cpr_reply.py",
+    "test_char_width.py",
     "test_vendor_sync.py",
     "_readme_literal.py",
 ]
