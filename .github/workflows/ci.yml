@@ -108,8 +108,14 @@ jobs:
       - name: Run coverage over the deterministic gates
         run: python tools/coverage_run.py --xml
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           files: ./coverage.xml
+          # Tokenless uploads on a plain push are rate-limited/unsupported now
+          # (v4/v5 only allow it for fork PRs), so use the repo upload token.
+          # Add it once: Codecov -> the repo -> copy CODECOV_TOKEN, then GitHub
+          # repo Settings -> Secrets and variables -> Actions -> new secret
+          # named CODECOV_TOKEN. Until it exists this step soft-fails (advisory).
+          token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
         continue-on-error: true

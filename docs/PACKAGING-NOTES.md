@@ -43,35 +43,50 @@ The image publishes automatically, but GHCR packages start **private**. To make 
 public: GitHub → your profile → Packages → `smartcli` → Package settings → change
 visibility to Public. (One-time.)
 
-### Docs site — `mkdocs.yml`
-Prepared. To go live pick ONE:
-- **Read the Docs:** sign in at readthedocs.org → Import Project → connect
-  `dwgx/SmartCLI`. Add `.readthedocs.yaml` (starter below) to pin the build.
-- **GitHub Pages (mkdocs):** `pip install mkdocs-material && mkdocs gh-deploy` —
-  but Pages is already used by the showcase site, so move/subpath it first.
+### Docs site on Read the Docs — READY, one web step to go live
 
-The `nav:` in `mkdocs.yml` references `docs/*.md` stubs that don't exist yet.
-Simplest fix at build time (copies the real docs in):
-```sh
-mkdir -p docs && cp README.md docs/index.md && cp README-USAGE.md docs/usage.md
-cp skills/cmd-art/SKILL.md docs/skills-cmd-art.md
-cp skills/drive-tui/SKILL.md docs/skills-drive-tui.md
-cp skills/tui-ui/SKILL.md docs/skills-tui-ui.md
-cp knowledge/INDEX.md docs/knowledge.md && cp CHANGELOG.md docs/changelog.md
-```
+Everything is committed and verified: `mkdocs.yml` (with `exclude_docs` so the
+showcase site / i18n / notes aren't treated as pages), `.readthedocs.yaml`
+(runs `tools/build_docs.py` in `pre_build`), `docs/requirements.txt`, and
+`tools/build_docs.py` (assembles `docs/*.md` from README / the SKILL.md files /
+CHANGELOG / knowledge/INDEX at build time, so the site never drifts). Local
+`python -m mkdocs build` succeeds.
 
-Starter `.readthedocs.yaml`:
-```yaml
-version: 2
-build:
-  os: ubuntu-24.04
-  tools: {python: "3.12"}
-mkdocs:
-  configuration: mkdocs.yml
-python:
-  install:
-    - requirements: docs/requirements.txt   # mkdocs-material
-```
+**To go live (≈1 minute, only you can do the OAuth):**
+1. Go to https://readthedocs.org and **Sign up / Log in with GitHub** (this is
+   the one-time OAuth authorize step — an API token can't replace it).
+2. Click **Import a Project** → the wizard lists your GitHub repos → pick
+   **dwgx/SmartCLI** (or "Import Manually" with repo URL
+   `https://github.com/dwgx/SmartCLI`).
+3. Accept the defaults and **Build** — RTD auto-detects `.readthedocs.yaml`, runs
+   `tools/build_docs.py`, then `mkdocs build`. No config to fill in.
+4. (Optional) In the RTD project's Admin → set the default version and add the
+   docs URL to the GitHub repo's "Website" field.
+
+The showcase site (docs/site/, deployed by `pages.yml`) is separate and
+unaffected — this adds a second, reference-docs site.
+
+Local preview: `pip install mkdocs-material && python tools/build_docs.py && python -m mkdocs serve`.
+
+### Coverage badge on Codecov — READY, add one secret
+
+CI's `coverage` job runs `tools/coverage_run.py --xml` and uploads to Codecov
+(`codecov/codecov-action@v5`). Codecov's tokenless upload no longer works for
+plain pushes (only fork PRs), so it needs the repo upload token.
+
+**To light up the badge (≈2 minutes):**
+1. At https://app.codecov.io/github/dwgx (already logged in) open **SmartCLI**
+   → **Settings / Configuration** → copy the **CODECOV_TOKEN** (repo upload
+   token). If SmartCLI isn't listed, click **"Add new repository" / "Activate"**
+   first (public repo, no cost).
+2. In GitHub: repo **Settings → Secrets and variables → Actions → New repository
+   secret**, name it exactly **`CODECOV_TOKEN`**, paste the value.
+3. Re-run CI (push any commit, or Actions → CI → Re-run). The `coverage` job then
+   uploads with the token and the README badge fills in (currently ~50% — the
+   deterministic subset; see `tools/coverage_run.py`).
+
+Until the secret exists the upload soft-fails (the job is `continue-on-error`),
+so CI stays green and the badge just reads "unknown".
 
 ### conda-forge — `packaging/conda-forge/recipe/meta.yaml`
 Draft ready. Fill the sdist `sha256` (command in the file header), copy into a fork
