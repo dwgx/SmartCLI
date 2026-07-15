@@ -38,6 +38,47 @@ MAPPING = [
 ]
 
 
+import re
+
+GH_BLOB = "https://github.com/dwgx/SmartCLI/blob/main/"
+# A markdown link whose target is a repo-relative path (not http(s):, not a #
+# anchor, not a mailto). These are correct on GitHub but dangling on the docs
+# site — especially the localized READMEs (docs/i18n/*.md), which are excluded
+# from the site by mkdocs.yml, so the language switcher would 404. Rewrite them
+# to absolute GitHub URLs so every such link resolves from the site too.
+_LINK_RE = re.compile(r"(\]\()(?!https?://|#|mailto:)([^)]+)(\))")
+
+
+def _rewrite_repo_links(text: str, src_rel: str) -> str:
+    src_dir = "/".join(src_rel.split("/")[:-1])  # dir of the source doc in the repo
+
+    def repl(m: re.Match) -> str:
+        target = m.group(2)
+        anchor = ""
+        if "#" in target:
+            target, anchor = target.split("#", 1)
+            anchor = "#" + anchor
+        if not target:  # pure in-page anchor like (#section)
+            return m.group(0)
+        # Resolve the link relative to the SOURCE doc's directory, then normalize
+        # ../ segments, so e.g. README-USAGE's "skills/x" and an i18n file's
+        # "../../LICENSE" both land on the right repo path.
+        base = src_dir
+        parts = (base.split("/") if base else []) + target.split("/")
+        stack: list[str] = []
+        for p in parts:
+            if p in ("", "."):
+                continue
+            if p == "..":
+                if stack:
+                    stack.pop()
+            else:
+                stack.append(p)
+        return f"{m.group(1)}{GH_BLOB}{'/'.join(stack)}{anchor}{m.group(3)}"
+
+    return _LINK_RE.sub(repl, text)
+
+
 def main() -> int:
     DOCS.mkdir(parents=True, exist_ok=True)
     missing = []
@@ -46,7 +87,9 @@ def main() -> int:
         if not src.exists():
             missing.append(src_rel)
             continue
-        shutil.copyfile(src, DOCS / dst_name)
+        text = src.read_text(encoding="utf-8")
+        text = _rewrite_repo_links(text, src_rel)
+        (DOCS / dst_name).write_text(text, encoding="utf-8")
         print(f"  {src_rel} -> docs/{dst_name}")
     if missing:
         print(f"error: missing source docs: {', '.join(missing)}", file=sys.stderr)
