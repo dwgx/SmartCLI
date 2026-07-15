@@ -1,0 +1,21 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.dwgx/smartcli",
+  "title": "SmartCLI drive-tui",
+  "description": "Drive interactive terminal programs (TUIs, REPLs, menus) through a PTY: perceive the pyte screen model, send keys, wait for readiness. Exposes the drive-tui daemon's verb surface (start/snapshot/send/keys/wait/close) as MCP tools.",
+  "repository": {
+    "url": "https://github.com/dwgx/SmartCLI",
+    "source": "github"
+  },
+  "version": "0.1.4",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "smartcli-toolkit",
+      "version": "0.1.4",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

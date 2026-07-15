@@ -88,6 +88,38 @@ plain pushes (only fork PRs), so it needs the repo upload token.
 Until the secret exists the upload soft-fails (the job is `continue-on-error`),
 so CI stays green and the badge just reads "unknown".
 
+### MCP Registry — `server.json` (READY, one ordering caveat)
+
+The drive-tui MCP server (`skills/drive-tui/scripts/mcp_server.py`) can be listed
+on the official registry (`registry.modelcontextprotocol.io`), which Smithery /
+Glama / MCP.so and the Claude/Cursor/VS Code clients auto-discover — the highest-
+leverage free distribution channel for this project. Prepared and committed:
+- **`server.json`** (repo root): name `io.github.dwgx/smartcli`, `registryType:
+  pypi`, identifier `smartcli-toolkit`. Its `version` must equal the package
+  version (a mismatch is the #1 publish failure — keep it in lockstep with the
+  6-site bump).
+- **PyPI ownership marker**: an `<!-- mcp-name: io.github.dwgx/smartcli -->`
+  comment is in `README.md`. The registry verifies ownership by reading this
+  string from the **published package's description** (= the README on PyPI).
+
+**Ordering caveat (important):** PyPI verification reads the README of the
+*published* release. The marker landed after 0.1.4, so it isn't on PyPI yet.
+→ **Publish one more PyPI release first** (so the README-with-marker becomes the
+PyPI description), keep `server.json`'s version in step, then register.
+
+**To publish (≈3 minutes, needs a GitHub device-code login only you can do):**
+1. Ensure the current PyPI release's description contains the `mcp-name` marker
+   (i.e. it shipped after this commit). Bump `server.json` `version` to match.
+2. Install the CLI: `brew install mcp-publisher` (or grab the binary from the
+   registry's GitHub releases).
+3. `mcp-publisher login github` → open the printed URL, enter the device code.
+4. `mcp-publisher publish` (run from the repo root, next to `server.json`).
+5. Verify: `curl "https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.dwgx/smartcli"`.
+
+This can later be automated on tag-push with the "Publish MCP Server" GitHub
+Action (composes server.json + publishes via OIDC), matching our existing
+tag-push release flow.
+
 ### conda-forge — `packaging/conda-forge/recipe/meta.yaml`
 Draft ready. Fill the sdist `sha256` (command in the file header), copy into a fork
 of `conda-forge/staged-recipes` under `recipes/smartcli-toolkit/`, open a PR. A
