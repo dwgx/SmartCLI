@@ -1,0 +1,59 @@
+# Coverage config for SmartCLI's script-style, multi-process test suite.
+#
+# tests/run_all.py shells out to each self-test as a SEPARATE subprocess, so a
+# single in-process coverage run would miss almost everything. The pattern here
+# is coverage.py's documented multi-process recipe:
+#   * parallel=true            -> each process writes its own .coverage.<host>.<pid>
+#   * COVERAGE_PROCESS_START   -> set by tools/coverage_run.py so every subprocess
+#                                 auto-starts coverage via sitecustomize.py
+#   * `coverage combine`       -> merge all the per-process data files afterwards
+# See tools/coverage_run.py for the driver that ties this together.
+
+[run]
+branch = true
+parallel = true
+relative_files = true
+# The four shipped source trees. Everything else (tests, tools, research,
+# examples, the vendored copy) is excluded from the denominator on purpose.
+source =
+    smartcli_core
+    skills/cmd-art/fx
+    skills/tui-ui/ui
+    skills/drive-tui/patterns
+omit =
+    */__pycache__/*
+    */_vendor/*
+    */tests/*
+    */examples/*
+    # _drive_probe2.py creates this broken recipe module on the fly to test
+    # fault-isolated discovery, then deletes it — coverage records its import but
+    # can't find the (now-gone) source at report time. Omit it so the report
+    # doesn't error on a deliberately-transient file.
+    */recipes/zzbroken_probe.py
+
+[paths]
+# Map the different ways the same source is imported (from repo root vs. from
+# inside a skill dir via sys.path.insert) onto one canonical path so combine
+# doesn't double-count a file under two names.
+smartcli_core =
+    smartcli_core/
+    */smartcli_core/
+fx =
+    skills/cmd-art/fx/
+    */fx/
+ui =
+    skills/tui-ui/ui/
+    */ui/
+patterns =
+    skills/drive-tui/patterns/
+    */patterns/
+
+[report]
+show_missing = false
+skip_covered = false
+precision = 1
+exclude_lines =
+    pragma: no cover
+    if __name__ == .__main__.:
+    raise NotImplementedError
+    if TYPE_CHECKING:

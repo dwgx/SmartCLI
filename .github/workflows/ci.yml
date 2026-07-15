@@ -80,3 +80,32 @@ jobs:
       - name: POSIX pty backend sandbox
         if: runner.os != 'Windows'
         run: python tests/_sandbox_posix_backend.py
+
+  # Coverage over the DETERMINISTIC subset (no PTY/fuzz — those don't compose
+  # with coverage's process-startup hook; see tools/coverage_run.py). One OS is
+  # enough — coverage of pure-logic gates is OS-independent. Advisory: it reports
+  # a number and uploads to Codecov, it does not gate the build.
+  coverage:
+    name: coverage (deterministic subset)
+    runs-on: ubuntu-latest
+    env:
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install "coverage[toml]>=7.0"
+      - name: Run coverage over the deterministic gates
+        run: python tools/coverage_run.py --xml
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.xml
+          fail_ci_if_error: false
+        continue-on-error: true
