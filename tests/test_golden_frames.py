@@ -70,6 +70,13 @@ def _baseline_path(key: str) -> Path:
     return GOLDEN_DIR / f"{key}.txt"
 
 
+def _read_lf(path: Path) -> str:
+    """Read a baseline, normalizing any CRLF to LF so the comparison is
+    platform-independent (a Windows checkout may present CRLF; the rendered
+    frame is always LF)."""
+    return path.read_text(encoding="utf-8").replace("\r\n", "\n")
+
+
 def _first_diff(a: str, b: str) -> str:
     """Human-pointable description of where two frames first differ."""
     al, bl = a.splitlines(), b.splitlines()
@@ -99,8 +106,13 @@ def check_widget(cls, update: bool) -> None:
     if update:
         GOLDEN_DIR.mkdir(parents=True, exist_ok=True)
         existed = path.exists()
-        old = path.read_text(encoding="utf-8") if existed else None
-        path.write_text(frame1, encoding="utf-8")
+        old = _read_lf(path) if existed else None
+        # Write with LF newlines explicitly (newline="") so a Windows run doesn't
+        # bake CRLF into the baseline — the rendered frame uses \n, and git
+        # normalizes these files to LF (.gitattributes), so the baseline must be
+        # LF on every platform or the check would drift CRLF-vs-LF across OSes.
+        with open(path, "w", encoding="utf-8", newline="") as fh:
+            fh.write(frame1)
         state = "unchanged" if old == frame1 else ("updated" if existed else "created")
         record(f"golden {key}", True, f"baseline {state}")
         return
@@ -109,7 +121,7 @@ def check_widget(cls, update: bool) -> None:
         record(f"golden {key}", False,
                f"NO baseline at {path.relative_to(ROOT)} — run with --update")
         return
-    baseline = path.read_text(encoding="utf-8")
+    baseline = _read_lf(path)
     if frame1 == baseline:
         record(f"golden {key}", True, f"matches baseline ({len(frame1)} bytes)")
     else:
