@@ -41,6 +41,7 @@ import tui as _tui  # noqa: E402  (tui.py in the same dir)
 
 try:
     from mcp.server.fastmcp import FastMCP
+    from mcp.types import ToolAnnotations
 except ImportError:
     sys.stderr.write(
         "error: the 'mcp' package is required for the MCP server.\n"
@@ -68,7 +69,11 @@ def _call_session(sid: str, req: dict, timeout: float = 30.0) -> dict:
         return {"ok": False, "error": str(exc)}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(
+    title="Start a TUI session",
+    readOnlyHint=False, destructiveHint=False, idempotentHint=False,
+    openWorldHint=True,  # spawns an arbitrary external program
+))
 def start(cmd: str, cols: int = 100, rows: int = 24, sid: str = "") -> dict:
     """Spawn a program in a new detached, persistent session and return its id.
 
@@ -87,7 +92,11 @@ def start(cmd: str, cols: int = 100, rows: int = 24, sid: str = "") -> dict:
     return {"ok": True, "sid": new_sid}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(
+    title="List active sessions",
+    readOnlyHint=True, destructiveHint=False, idempotentHint=True,
+    openWorldHint=False,
+))
 def list_sessions() -> dict:
     """List active drive-tui sessions (id, port, pid, command)."""
     proc = subprocess.run([PY, TUI_PY, "list"], capture_output=True, text=True,
@@ -103,7 +112,11 @@ def list_sessions() -> dict:
     return {"ok": True, "sessions": sessions}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(
+    title="Snapshot the screen",
+    readOnlyHint=True, destructiveHint=False, idempotentHint=True,
+    openWorldHint=False,
+))
 def snapshot(sid: str, as_json: bool = False) -> dict:
     """Read a semantic snapshot of the session's current screen.
 
@@ -120,25 +133,42 @@ def snapshot(sid: str, as_json: bool = False) -> dict:
     return out
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(
+    title="Close a session",
+    readOnlyHint=False, destructiveHint=True,  # terminates the child process
+    idempotentHint=True,  # closing an already-closed session is a no-op
+    openWorldHint=False,
+))
 def close(sid: str) -> dict:
     """Terminate a session and its daemon. Always close sessions when done."""
     return _call_session(sid, {"action": "close"})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(
+    title="Type text",
+    readOnlyHint=False, destructiveHint=False, idempotentHint=False,
+    openWorldHint=False,
+))
 def send_text(sid: str, text: str) -> dict:
     """Type literal text into the session (no Enter). Use for filling fields."""
     return _call_session(sid, {"action": "send_text", "text": text})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(
+    title="Type a line",
+    readOnlyHint=False, destructiveHint=False, idempotentHint=False,
+    openWorldHint=False,
+))
 def send_line(sid: str, text: str) -> dict:
     """Type text followed by Enter — the common 'run this command' action."""
     return _call_session(sid, {"action": "send_line", "text": text})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(
+    title="Send key tokens",
+    readOnlyHint=False, destructiveHint=False, idempotentHint=False,
+    openWorldHint=False,
+))
 def send_keys(sid: str, keys: list[str]) -> dict:
     """Send key tokens, e.g. ["Down", "Down", "Enter"], ["C-c"], ["M-x"].
 
@@ -148,7 +178,11 @@ def send_keys(sid: str, keys: list[str]) -> dict:
     return _call_session(sid, {"action": "send_keys", "keys": keys})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(
+    title="Wait for a regex",
+    readOnlyHint=True,  # waiting/observing doesn't change the program
+    destructiveHint=False, idempotentHint=True, openWorldHint=False,
+))
 def wait_regex(sid: str, pattern: str, timeout_ms: int = 10000) -> dict:
     """Block until `pattern` (a regex) appears on screen, then snapshot.
 
@@ -160,7 +194,11 @@ def wait_regex(sid: str, pattern: str, timeout_ms: int = 10000) -> dict:
                          timeout=timeout_ms / 1000.0 + 15.0)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(
+    title="Wait for readiness",
+    readOnlyHint=True, destructiveHint=False, idempotentHint=True,
+    openWorldHint=False,
+))
 def wait_ready(sid: str, marker: str = "", max_wait_ms: int = 10000,
                quiet_ms: int = 200) -> dict:
     """Wait for a regex `marker` OR for the screen to go quiet (stable), then
@@ -170,13 +208,22 @@ def wait_ready(sid: str, marker: str = "", max_wait_ms: int = 10000,
                          timeout=max_wait_ms / 1000.0 + 15.0)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(
+    title="Check if alive",
+    readOnlyHint=True, destructiveHint=False, idempotentHint=True,
+    openWorldHint=False,
+))
 def alive(sid: str) -> dict:
     """Check whether the session's child process is still running."""
     return _call_session(sid, {"action": "alive"})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(
+    title="Resize the terminal",
+    readOnlyHint=False, destructiveHint=False,
+    idempotentHint=True,  # resizing to the same size again is a no-op
+    openWorldHint=False,
+))
 def resize(sid: str, cols: int, rows: int) -> dict:
     """Resize the session's terminal to cols x rows."""
     return _call_session(sid, {"action": "resize", "cols": cols, "rows": rows})
