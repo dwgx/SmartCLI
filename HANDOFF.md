@@ -1,21 +1,22 @@
 # SmartCLI — Handoff (承上启下)
 
-*Written 2026-07-08, last updated **2026-07-15**. This is the single document a fresh AI reads first to pick up SmartCLI without re-deriving anything. It records the **current release state**, what the project IS, what already WORKS (with the exact commands to see it), the brain (`knowledge/`), the hard-won rules that must never be re-lost, the environment, and the open tasks framed so you can start in one move. Baked-in truths (re-verified against code 2026-07-15): there are **THREE** skills, the live `fx` registry has **28** effects, `tui-ui` has **17** widgets, drive-tui has **8** recipes, and `knowledge/` has **143** `.md` files. **Read §9 (2026-07-15, v0.1.3→v0.1.6) first for the most recent work — god-tier fx, sextant+OKLab rendering, 2 new widgets, wait_change, MCP server + registry, Codecov + Read the Docs; then §8/§7 for the CI/CD, website, and POSIX history.***
+*Written 2026-07-08, last updated **2026-07-15**. This is the single document a fresh AI reads first to pick up SmartCLI without re-deriving anything. It records the **current release state**, what the project IS, what already WORKS (with the exact commands to see it), the brain (`knowledge/`), the hard-won rules that must never be re-lost, the environment, and the open tasks framed so you can start in one move. Baked-in truths (re-verified against code 2026-07-15): there are **THREE** skills, the live `fx` registry has **30** effects, `tui-ui` has **17** widgets, drive-tui has **8** recipes, and `knowledge/` has **143** `.md` files. **Read §9 (2026-07-15, v0.1.3→v0.1.7) first for the most recent work — god-tier fx, sextant+OKLab rendering, 2 new widgets, wait_change, spectrum_bars + cbonsai (catalog 30), MCP server + LIVE MCP Registry listing, Codecov + Read the Docs; then §8/§7 for the CI/CD, website, and POSIX history.***
 
 ---
 
-## 0. Release & current state (v0.1.6) — READ THIS FIRST
+## 0. Release & current state (v0.1.7) — READ THIS FIRST
 
-SmartCLI is **published and public**; latest release **v0.1.6** (2026-07-15). This section is the authoritative current-state record; anything older in this doc that contradicts it is stale. **The full arc of the 2026-07-15 work (v0.1.3 → v0.1.6) is in §9 — read it first for the most recent state.**
+SmartCLI is **published and public**; latest release **v0.1.7** (2026-07-15). This section is the authoritative current-state record; anything older in this doc that contradicts it is stale. **The full arc of the 2026-07-15 work (v0.1.3 → v0.1.7) is in §9 — read it first for the most recent state.** v0.1.7 shipped the last two knowledge→effect ports (`spectrum_bars` + `cbonsai`, catalog 28→30) and listed the drive-tui server on the **official MCP Registry** (`io.github.dwgx/smartcli`, status active — see §9g).
 
 **Where it lives:**
-- **PyPI:** `pip install smartcli-toolkit` → https://pypi.org/project/smartcli-toolkit/ . The dist name is **`smartcli-toolkit`**; the **import package stays `smartcli_core`** (`from smartcli_core import PtySession`). Latest = **0.1.6** (the JSON index can lag a few minutes after a release — the `Publish to PyPI` workflow going green is the source of truth, not the index).
-- **GitHub:** public repo **github.com/dwgx/SmartCLI**, branch `main`, tags **v0.1.0 … v0.1.6** each with a matching GitHub Release.
+- **PyPI:** `pip install smartcli-toolkit` → https://pypi.org/project/smartcli-toolkit/ . The dist name is **`smartcli-toolkit`**; the **import package stays `smartcli_core`** (`from smartcli_core import PtySession`). Latest = **0.1.7** (the JSON index can lag a few minutes after a release — the `Publish to PyPI` workflow going green is the source of truth, not the index).
+- **MCP Registry:** **LIVE** — `io.github.dwgx/smartcli` on `registry.modelcontextprotocol.io` (published 2026-07-15 via `mcp-publisher`; ownership verified by the `mcp-name` marker in the PyPI README). MCP clients (Claude/Cursor/VS Code) + aggregators (Smithery/Glama/MCP.so) auto-discover it.
+- **GitHub:** public repo **github.com/dwgx/SmartCLI**, branch `main`, tags **v0.1.0 … v0.1.7** each with a matching GitHub Release.
 - **Claude plugin marketplace:** `.claude-plugin/marketplace.json` is present → users run **`/plugin marketplace add dwgx/SmartCLI`**.
 - **skillhu.bz:** all 3 skills published — skillhu.bz/skill/cmd-art, skillhu.bz/skill/drive-tui, skillhu.bz/skill/tui-ui.
 - **Codecov:** live (badge in README, ~50% on the deterministic subset). **Read the Docs:** live at https://smartcli.readthedocs.io/ (mkdocs, separate from the hand-written showcase site on GitHub Pages).
 
-**Version consistency (VERSION = 0.1.6) — NINE sites must move together on a bump:** `pyproject.toml`, `smartcli_core/__init__.py` `__version__`, `skills/cmd-art/fx/__init__.py` `__version__`, all 3 `skills/*/SKILL.md` `version:` fields, `.claude-plugin/marketplace.json` plugin version, **`skills/drive-tui/_vendor/smartcli_core/__init__.py`** (the vendored copy — `test_vendor_sync` requires it byte-identical), and **`server.json`** (TWO version fields there: top-level + `packages[0].version`, both must equal the package version or the MCP-registry publish fails). After bumping, run `python tools/sync_vendor.py` then `python tests/test_vendor_sync.py`.
+**Version consistency (VERSION = 0.1.7) — NINE sites must move together on a bump:** `pyproject.toml`, `smartcli_core/__init__.py` `__version__`, `skills/cmd-art/fx/__init__.py` `__version__`, all 3 `skills/*/SKILL.md` `version:` fields, `.claude-plugin/marketplace.json` plugin version, **`skills/drive-tui/_vendor/smartcli_core/__init__.py`** (the vendored copy — `test_vendor_sync` requires it byte-identical), and **`server.json`** (TWO version fields there: top-level + `packages[0].version`, both must equal the package version or the MCP-registry publish fails). After bumping, run `python tools/sync_vendor.py` then `python tests/test_vendor_sync.py`.
 
 **CI / publishing (8 workflows — updated 2026-07-14, was 2: ci + publish):**
 - `.github/workflows/ci.yml` — **3-OS matrix** (windows-latest + ubuntu-latest + macos-latest × py3.11/3.12), ~12 deterministic gates on every push/PR: `verify_fx`, `test_fx_contract`, `test_readiness`, `test_degenerate_inputs`, `_sandbox_fuzz_core`, `test_vendor_sync`, **`test_doc_counts` (anti-drift)**, `_readme_literal`, tui-ui `self_test`, `fx list`, `ui widgets`, plus POSIX-only `_sandbox_posix_backend.py` on the non-Windows legs. (Was "Windows-only" in earlier drafts — no longer true; the Linux matrix listed as an OPEN TASK in §6#2 is DONE.)
@@ -491,7 +492,7 @@ verify + independent adversarial review + full-suite green).**
 
 ### 9e. Standing state after this session
 - **Regression: `python tests\run_all.py` = 27/27** (grew as tests were added).
-- **git clean, synced with origin.** Latest tag v0.1.6.
+- **git clean, synced with origin.** Latest tag **v0.1.7** (§9g).
 - **The default `%TEMP%\smartcli_tui` dir often holds ONE session that is NOT ours**
   (`s10456_*`, a SaoMoLa/VRChat uploader). It's a live third-party process — do
   NOT close it. Probes use an isolated `SMARTCLI_TUI_DIR`, unaffected.
@@ -500,19 +501,56 @@ verify + independent adversarial review + full-suite green).**
   trust a subagent's "passed" — re-verify.
 
 ### 9f. NEXT — what's genuinely left (see the continuation prompt below for the framed version)
-1. **MCP Registry publish** (human, ~3 min): `server.json` is ready and the
-   mcp-name marker shipped in v0.1.6's PyPI README, so ownership verification
-   will pass. Install `mcp-publisher`, `login github` (device code), `publish`.
-   Steps in `docs/PACKAGING-NOTES.md`. Highest-leverage free distribution.
+1. **[DONE 2026-07-15, v0.1.7] MCP Registry publish** — `io.github.dwgx/smartcli`
+   is LIVE on `registry.modelcontextprotocol.io` (status active). See §9g.
 2. **Launch** (human, owner-timed): copy ready in `docs/LAUNCH-COPY.md` — Show HN
    / r/commandline / awesome-list PRs. Proof reels + RTD + Codecov all live now.
 3. **Technical backlog from the design research** (any AI, high quality): tui-ui
-   reactive/declarative system + color degrade (Textual/Lipgloss), Sixel/kitty
-   image output (chafa/notcurses — `raster.py` has sextant now, no graphics
-   protocol yet), Terminal-Bench integration (turn "drives TUIs" into a number),
-   the two remaining knowledge→effect ports (spectrum-bars, cbonsai).
+   reactive/declarative system + color degrade (Textual/Lipgloss), **Sixel/kitty
+   image output** (chafa/notcurses — `raster.py` has sextant now, no graphics
+   protocol yet — this is the next-biggest technical gap), **Terminal-Bench
+   integration** (turn "drives TUIs" into a number), and **`wait_any`** multi-marker
+   wait (pexpect-style, returns which pattern matched; `wait_change` single-marker
+   already shipped). The two knowledge→effect ports (spectrum-bars, cbonsai) are
+   **DONE in v0.1.7** (§9g) — catalog is now 30.
 4. **Real-terminal eyeball** of effort_selector cadence + a real-Mac/real-tmux
    run remain the only unverified platform bits (see §6).
+
+### 9g. v0.1.7 — spectrum_bars + cbonsai (catalog 30) + MCP Registry LIVE
+- **Two new fx effects, the last two knowledge→effect ports** (catalog 28→30):
+  - `spectrum_bars` (`skills/cmd-art/fx/effects/spectrum_bars.py`, aliases
+    `spectrum`/`bars`): cava's meter pipeline over a synthesized moving-sine
+    signal — log-spaced pseudo-bins, gravity-fall + integral smoothing (the
+    reusable half of `cavacore.c`), eighth-block `U+2581..U+2588` sub-cell
+    vertical resolution. Bass-tilt envelope so lows sit higher, like real audio.
+  - `cbonsai` (`skills/cmd-art/fx/effects/cbonsai.py`): the `[[procedural-branching]]`
+    stochastic turtle — lifeStart 32, multiplier 5, five branch types
+    (trunk/shootL/shootR/dying/dead), cooldown-gated side shoots, direction→glyph
+    selection. Because an Effect is a PURE frame producer (no per-char nanosleep),
+    a seeded RNG generates the WHOLE tree once as an ordered draw-event list and
+    each frame reveals the "grown" prefix — so it animates AND is deterministic.
+  - Both pass `test_fx_contract.py` (30 effects × 6 sizes × 5 contracts = 150/150,
+    incl. 1×1/2×2 no-crash + 20×8 no-overflow) and were verified LIVE in a real
+    PTY (`verify_fx.py spectrum_bars cbonsai` = 2/2: alt-screen enter/leave +
+    truecolor + self-exit). Zero PTY leaks confirmed after (CLAUDE.md red-line).
+- **MCP Registry: PUBLISHED & LIVE.** `io.github.dwgx/smartcli` on
+  `registry.modelcontextprotocol.io`, status **active**. Flow used (repeatable):
+  installed `mcp-publisher` v1.8.0 (Windows amd64 binary → `~/bin/`), `mcp-publisher
+  validate server.json` (caught: registry caps `description` at **100 chars** — ours
+  was 234; trimmed to 98), `mcp-publisher login github` (device code, must run to
+  completion so the token lands in `~/.config/mcp-publisher/` — a login interrupted
+  mid-authorize does NOT persist the token), `mcp-publisher publish`. Ownership
+  verified via the `mcp-name` marker in the PyPI README (was already in 0.1.6's).
+- **Docs + site reconciled to 30**: READMEs (5 langs), SKILL/USAGE, MACOS-VERIFY,
+  LAUNCH-COPY, and the showcase site's effect-count stat on all 5 localized pages
+  (was a stale **19**). `test_doc_counts` green (fx=30).
+- **`.gitattributes` language-bar fix**: `docs/site` sources (HTML/JS/CSS) marked
+  `linguist-detectable`; localized translations + vendored core marked
+  generated/vendored. Was reading ~99% Python because linguist excludes `docs/`
+  by default — now reflects the real HTML+JS+Python mix (takes effect after GitHub
+  re-runs linguist on push).
+- Nine version sites bumped 0.1.6→0.1.7, vendored core re-synced (`test_vendor_sync`
+  green), CHANGELOG entry added. Tag `v0.1.7` pushed → OIDC publish + Pages deploy.
 
 ---
 
@@ -577,10 +615,11 @@ wait; raw Ctrl-C is unreliable on ConPTY — recover with close+start.
 The codex subagent dispatcher (192.168.11.4:8990) is QUOTA-EXHAUSTED / DEAD — do all live
 research with built-in WebSearch / WebFetch, do not block on codex.
 
-RELEASE STATE (latest v0.1.6, 2026-07-15): PUBLIC. PyPI `pip install smartcli-toolkit`
-(import stays smartcli_core); GitHub github.com/dwgx/SmartCLI (tags v0.1.0…v0.1.6 +
+RELEASE STATE (latest v0.1.7, 2026-07-15): PUBLIC. PyPI `pip install smartcli-toolkit`
+(import stays smartcli_core); GitHub github.com/dwgx/SmartCLI (tags v0.1.0…v0.1.7 +
 Releases); 3 skills on skillhu.bz; `/plugin marketplace add dwgx/SmartCLI`; Codecov +
-Read the Docs (smartcli.readthedocs.io) live. VERSION 0.1.6 must stay consistent across
+Read the Docs (smartcli.readthedocs.io) live; MCP Registry LIVE (io.github.dwgx/smartcli).
+VERSION 0.1.7 must stay consistent across
 NINE sites: pyproject / smartcli_core __init__ / fx __init__ / 3 SKILL.md /
 marketplace.json / _vendor/smartcli_core/__init__ / server.json (2 fields there). After a
 bump run `python tools/sync_vendor.py` then `python tests/test_vendor_sync.py`. publish.yml
