@@ -2,8 +2,12 @@
 
 Cross-linked notes on the math behind terminal/ASCII visual effects. Each entry is one focused concept with the exact formula, a **Source:** URL, and wiki-style `[[see also]]` links. Grounded in the mined digest (raw findings: `D:/Project/SmartCLI/knowledge/sources/raw-math.md`).
 
+**Not sure where to start? → [[choosing-an-effect]]** maps "I want to show X" to a direction, the formula note, and the shipped effect to reuse or take apart.
+
 ## Effects
 - [[donut-torus]] — spinning ASCII torus via `(theta,phi)` sampling, rotation, z-buffer, and `L*8` luminance index.
+- [[sphere-lambert]] — solid sphere: UV surface sampling (point == normal), Rx/Ry rotation, z-buffer, Lambert diffuse shading.
+- [[solarsystem-orrery]] — tilted 3D orbits in perspective: near/far ellipse rings, painter's depth order, integer-turn seamless loop.
 - [[rotating-cube]] — wireframe cube: rotation matrices + perspective + Bresenham edges.
 - [[starfield]] — points fly past on the z-axis, projected and brightened as they near.
 - [[tunnel]] — precomputed distance/angle tables sampled from a scrolling texture.
