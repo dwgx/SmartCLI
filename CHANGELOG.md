@@ -5,6 +5,39 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.5] - 2026-07-15
+
+Three new effects, a device-query fix in the core, diagnostics, width knobs, MCP
+tool annotations, and a knowledge-graph expansion.
+
+### Added
+- **Three new fx effects** (22 total), implemented from the knowledge-graph
+  formulas: `julia` (animated escape-time fractal with **smooth/continuous
+  iteration coloring** — no concentric banding), `mandelbrot` (infinite zoom,
+  same smooth coloring), and `perlin` (Ken Perlin's improved gradient noise as a
+  flowing **fBm** field of 4 octaves).
+- **`python -m smartcli_core`** — environment diagnostics (OS, Python, terminal,
+  PTY backend, dependency versions) to paste into bug reports.
+- **MCP server** now declares standard tool annotations (readOnly / destructive
+  / idempotent / open-world) on all 11 tools, and a `server.json` is prepared for
+  listing on the official MCP Registry.
+- **Knowledge graph**: notes for `solarsystem` and `sphere`, plus a
+  `choosing-an-effect` decision guide that maps "I want to show X" to a
+  direction, formula, and shipped effect.
+- `char_width` / `width` gain optional `unicode_version` and `ambiguous_wide`
+  knobs (defaults unchanged) so callers can pin width to their terminal.
+
+### Fixed
+- **`smartcli_core` device queries (DSR-CPR / DA)** — a driven program that
+  emitted `ESC[6n` / `ESC[c` and synchronously waited for the reply could stall
+  or degrade, because nothing answered. `PtySession.pump()` now writes back the
+  reply pyte generates from its own cursor/attr state (touched the core under the
+  DO-NOT-MODIFY exception, with adversarial review + full-suite verification).
+- **`fx random`** no longer picks an effect that renders statically under its
+  defaults (`text3d`), which was the source of the `verify_fx` `random` flake.
+- Read-the-Docs site: repo-relative links (the README language switcher) are
+  rewritten to absolute GitHub URLs, so localized-README links no longer 404.
+
 ## [0.1.4] - 2026-07-15
 
 New MCP server (the biggest adoption lever in the backlog), a real fx bug fix, a

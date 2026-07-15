@@ -30,7 +30,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "smartcli-toolkit"
-version = "0.1.4"
+version = "0.1.5"
 description = "Pluggable-PTY + pyte screen model + semantic snapshot / readiness core for driving interactive terminal programs (SmartCLI shared core)."
 readme = "README.md"
 license = "MIT"
