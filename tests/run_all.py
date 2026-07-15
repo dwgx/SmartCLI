@@ -146,6 +146,9 @@ def build_suite():
     suite.append(Test("test_golden_frames (tui-ui widget snapshots)",
                       [PY, str(TESTS / "test_golden_frames.py")], ROOT, 60,
                       optional=True))
+    suite.append(Test("test_cpr_reply (device-query auto-answer)",
+                      [PY, str(TESTS / "test_cpr_reply.py")], ROOT, 60,
+                      optional=True))
     suite.append(Test("_sandbox_fuzz_core (pure-memory fuzz)",
                       [PY, str(TESTS / "_sandbox_fuzz_core.py")], ROOT, 180,
                       optional=True))

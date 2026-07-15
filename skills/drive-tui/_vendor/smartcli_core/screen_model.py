@@ -74,6 +74,32 @@ class ScreenModel:
         # feed raise) is not silently indistinguishable from the occasional
         # garbled byte run it is meant to tolerate.
         self.feed_errors = 0
+        # Device-query replies (DSR-CPR "ESC[6n", DA "ESC[c") that pyte generates
+        # while parsing. pyte routes them to Screen.write_process_input, which is a
+        # no-op by default — so a program that SYNCHRONOUSLY waits for a cursor-
+        # position report can stall/degrade because nothing answers. We capture
+        # them here (pyte builds the correct reply from its own cursor/attrs) and
+        # PtySession.pump() writes them back to the PTY. See drain_replies().
+        self._reply_buf = bytearray()
+        self.screen.write_process_input = self._collect_reply  # type: ignore[method-assign]
+
+    def _collect_reply(self, data) -> None:
+        """pyte hands us the bytes/str it wants sent back to the process."""
+        if isinstance(data, str):
+            data = data.encode("utf-8", "replace")
+        self._reply_buf.extend(data)
+
+    def drain_replies(self) -> bytes:
+        """Return and clear any pending device-query replies pyte generated.
+
+        PtySession.pump() calls this after feed() and writes the result back to
+        the PTY, so DSR-CPR / DA queries from the driven program get answered.
+        """
+        if not self._reply_buf:
+            return b""
+        out = bytes(self._reply_buf)
+        self._reply_buf.clear()
+        return out
 
     # -- feeding -----------------------------------------------------------
 

@@ -177,10 +177,24 @@ class PtySession:
     # -- io ----------------------------------------------------------------
 
     def pump(self) -> bytes:
-        """Read whatever is available and feed it into the screen. Returns bytes."""
+        """Read whatever is available and feed it into the screen. Returns bytes.
+
+        After feeding, answer any device-status/attribute queries the program
+        emitted (DSR-CPR ``ESC[6n``, DA ``ESC[c``): pyte builds the correct reply
+        from its own cursor/attr state, and we write it back to the PTY. Without
+        this, a program that synchronously waits for a cursor-position report can
+        stall or fall back to a degraded mode. Best-effort: a write failure here
+        must never break perception.
+        """
         data = self.backend.read_nonblocking()
         if data:
             self.model.feed(data)
+            reply = self.model.drain_replies()
+            if reply:
+                try:
+                    self.backend.write(reply)
+                except Exception:
+                    pass
         return data
 
     def send_text(self, text: str) -> None:
