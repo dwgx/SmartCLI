@@ -37,7 +37,7 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Buildx
         # The default docker driver can't export a gha cache; buildx's
