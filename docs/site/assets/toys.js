@@ -175,11 +175,47 @@
     }
 
     var tabs = document.getElementById("fx-tabs");
+
+    // "Run it locally" bar: the CLI command for the current effect, click to
+    // copy. Injected from JS so all five localized index pages get it without
+    // editing their HTML. Turns "played on the site" into "run on my terminal".
+    var FX_CMD = { rain: "rain", plasma: "plasma", fire: "fire", starfield: "starfield" };
+    var cmdBar = document.createElement("div");
+    cmdBar.className = "fx-cmdbar";
+    cmdBar.setAttribute("role", "button");
+    cmdBar.setAttribute("tabindex", "0");
+    cmdBar.title = "Click to copy";
+    cmdBar.style.cssText = "margin-top:8px;font-family:var(--mono),monospace;" +
+      "font-size:11px;color:var(--on-dark-soft,#b8b2a6);cursor:pointer;" +
+      "border:1px solid #3a352e;border-radius:6px;padding:5px 8px;" +
+      "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;";
+    function updateCmd() {
+      cmdBar.textContent = "$ python -m fx play " + (FX_CMD[mode] || mode);
+    }
+    function copyCmd() {
+      var txt = cmdBar.textContent.replace(/^\$ /, "");
+      var done = function () {
+        var old = cmdBar.textContent;
+        cmdBar.textContent = "  copied ✓";
+        setTimeout(function () { cmdBar.textContent = old; }, 1000);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(txt).then(done, done);
+      } else { done(); }
+    }
+    cmdBar.addEventListener("click", copyCmd);
+    cmdBar.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); copyCmd(); }
+    });
+    if (tabs.parentNode) tabs.parentNode.insertBefore(cmdBar, tabs.nextSibling);
+    updateCmd();
+
     tabs.addEventListener("click", function (e) {
       if (e.target.tagName !== "BUTTON") return;
       mode = e.target.getAttribute("data-fx");
       [].forEach.call(tabs.children, function (b) { b.classList.remove("on"); });
       e.target.classList.add("on");
+      updateCmd();
       reset();  // fresh state for life/fire/starfield
       ensureRunning();
     });
