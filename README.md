@@ -1,4 +1,8 @@
 <!-- Language: English | [简体中文](docs/i18n/README.zh-Hans.md) | [繁體中文](docs/i18n/README.zh-Hant.md) | [日本語](docs/i18n/README.ja.md) | [한국어](docs/i18n/README.ko.md) -->
+<!-- mcp-name: io.github.dwgx/smartcli -->
+<!-- ^ MCP Registry PyPI ownership marker: this string must appear in the
+     published package's README (= PyPI description) and match server.json's
+     "name". Do not remove or change without updating server.json. -->
 
 # SmartCLI
 
@@ -15,6 +19,20 @@
 [![Skills: 3](https://img.shields.io/badge/skills-3-purple)](#features)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](#install)
 
+**Let an AI drive, perceive, and render real terminal programs.** SmartCLI reads
+the actual screen with a `pyte` cell model — not a byte pipe — so it knows which
+menu row is highlighted, presses the right keys, and waits for the screen to
+settle. Below: it drives the real **lazygit** TUI end-to-end (arrow-key
+navigation, opening a commit diff, highlighting a branch) — no script, no mock.
+
+<p align="center">
+  <img src="showcase/drive-lazygit.gif" alt="SmartCLI driving the real lazygit TUI: navigating panels, opening a commit diff, highlighting a branch" width="700">
+</p>
+
+```bash
+pip install smartcli-toolkit
+```
+
 ## What & why
 
 SmartCLI is a workspace for terminal work that agents and humans both do: **driving**
@@ -29,16 +47,12 @@ in place from the checkout.
 
 ## Driving a real TUI
 
-SmartCLI driving **lazygit** — a real full-screen curses app — through its
-perceive → act → confirm loop: it reads the `pyte` cell grid (which row is
-selected, the alt-screen diff), moves with arrow keys, opens a commit's diff,
-and highlights a branch. This is captured by driving the actual program in a
-Linux container, not scripted or mocked. A byte-stream matcher like pexpect
-can't perceive "which row is highlighted"; a screen model can.
-
-<p align="center">
-  <img src="showcase/drive-lazygit.gif" alt="SmartCLI driving the real lazygit TUI: navigating panels, opening a commit diff, highlighting a branch" width="700">
-</p>
+The demo above is SmartCLI driving **lazygit** — a real full-screen curses app —
+through its perceive → act → confirm loop: it reads the `pyte` cell grid (which
+row is selected, the alt-screen diff), moves with arrow keys, opens a commit's
+diff, and highlights a branch. Captured by driving the actual program in a Linux
+container, not scripted or mocked. A byte-stream matcher like pexpect can't
+perceive "which row is highlighted"; a screen model can.
 
 > Honest scope: CI runs a Windows + Linux + macOS matrix. The POSIX pty backend
 > (spawn / read / drive / resize / zombie-free terminate) is verified on Linux
@@ -124,6 +138,10 @@ set PYTHONIOENCODING=utf-8
 
 Verified dep versions on the dev box (Windows 11, CPython 3.14.6): `pyte` 0.8.2,
 `pywinpty` 3.0.5, `pyfiglet` 1.0.4, `Pillow` 12.2.0, `wcwidth` 0.8.1.
+
+**Diagnostics.** `python -m smartcli_core` prints your OS, Python, terminal, PTY
+backend, and dependency versions — run it and paste the output when filing a bug
+(SmartCLI's behavior is very terminal- and platform-sensitive).
 
 ## Quickstart
 
