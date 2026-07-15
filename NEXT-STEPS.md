@@ -21,20 +21,22 @@ non-negotiable and overrides any shortcut that looks faster.
 
 ---
 
-## Verified ground-truth snapshot (checked against disk 2026-07-14)
+## Verified ground-truth snapshot (checked against disk 2026-07-15)
 
-- Release: **v0.1.2** live on PyPI as dist `smartcli-toolkit` (import stays
+- Release: **v0.1.6** live on PyPI as dist `smartcli-toolkit` (import stays
   `smartcli_core`): `pip install smartcli-toolkit`. Repo github.com/dwgx/SmartCLI,
-  branch `main`, tags v0.1.0/v0.1.1/v0.1.2 with GitHub Releases. 3 skills also on
-  skillhu.bz. `.claude-plugin/marketplace.json` present.
-- Version 0.1.2 is consistent across pyproject.toml, smartcli_core/__init__.py,
-  skills/cmd-art/fx/__init__.py, all 3 skills/*/SKILL.md, marketplace.json. VERIFIED.
-- Live counts (re-verified against code 2026-07-13): cmd-art **28 effects / 8 themes**
-  (solarsystem added 2026-07-13, after the v0.1.2 tag); drive-tui **8 recipes**
-  (patterns/recipes/); tui-ui **15 widgets** (braille_chart present in
-  ui/widgets_ext/braille_chart.py); knowledge **140 md files / 122-note graph**.
-  If any doc still says 18 effects or 14 widgets it is STALE (`python -m fx list` = 19,
-  `python -m ui widgets` = 15).
+  branch `main`, tags v0.1.0…v0.1.6 with GitHub Releases. 3 skills also on
+  skillhu.bz. `.claude-plugin/marketplace.json` present. Codecov + Read the Docs
+  (smartcli.readthedocs.io) live.
+- Version 0.1.6 is consistent across NINE sites: pyproject.toml, smartcli_core/__init__.py,
+  skills/cmd-art/fx/__init__.py, all 3 skills/*/SKILL.md, marketplace.json,
+  _vendor/smartcli_core/__init__.py, server.json (2 fields). After a bump run
+  tools/sync_vendor.py + tests/test_vendor_sync.py. VERIFIED.
+- Live counts (re-verified against code 2026-07-15): cmd-art **28 effects / 8 themes**;
+  drive-tui **8 recipes** (patterns/recipes/); tui-ui **17 widgets** (11 core + 6 in
+  ui/widgets_ext/); knowledge **143 md files**. `python -m fx list` = 28,
+  `python -m ui widgets` = 17. Anti-drift gate (test_doc_counts.py) enforces the
+  effect count across shipping docs.
 - CI (updated 2026-07-14): **8 workflows**. `ci.yml` is a **3-OS matrix**
   (windows/ubuntu/macos × py3.11/3.12) running ~12 deterministic gates incl.
   `test_doc_counts` (anti-drift) + POSIX-only `_sandbox_posix_backend.py` on the
@@ -83,7 +85,12 @@ These are fully executable and verifiable on the current Windows machine.
   everywhere (see version list in snapshot) if you publish.
 - **Effort:** S
 
-### A4. pexpect-style multi-marker wait (wait-any returning which matched)  [S]
+### A4. pexpect-style multi-marker wait (wait-any returning which matched)  [S] — PARTIALLY SUPERSEDED
+- **Note (2026-07-15):** the higher-value `wait_change` primitive (block until the
+  screen content-hash changes from a baseline) shipped in v0.1.6 across
+  session/daemon/CLI/MCP (tests/test_wait_change.py). Multi-marker `wait_any`
+  (return WHICH of several patterns matched) is still a genuine open nicety —
+  design below stands. *(original task below)*
 - **Goal:** add a `wait_any(patterns) -> (index, match)` style API to the readiness
   layer so callers can wait on several possible outcomes at once (prompt vs error vs
   EOF), like pexpect's `expect([...])`.
@@ -116,7 +123,11 @@ These are fully executable and verifiable on the current Windows machine.
   verify_fx.py to exit-0 (known random-seconds flake — rerun once if it trips).
 - **Effort:** S-M
 
-### A5. Golden-frame snapshot regression test for tui-ui  [M]
+### ~~A5. Golden-frame snapshot regression test for tui-ui~~  [DONE 2026-07-15, v0.1.4]
+- **Result:** tests/test_golden_frames.py + tests/golden/*.txt — every widget rendered
+  to a deterministic frame, diffed vs a committed baseline (`--update` to regen),
+  rendered twice to reject non-determinism, skips widgets whose optional dep is
+  absent (banner→pyfiglet). In run_all + coverage subset. *(original task below)*
 - **Goal:** commit a baseline rendered-frame per widget and diff on every run, like
   pytest-textual-snapshot.
 - **Why it matters:** locks all 15 widgets against silent visual regressions; today
@@ -132,7 +143,11 @@ These are fully executable and verifiable on the current Windows machine.
   char and confirm the test FAILS (proves it is not false-green). Revert. Run run_all.py.
 - **Effort:** M
 
-### A6. Shared easing.py + Gradient(stops, steps, direction) builder for cmd-art  [M]
+### A6. Shared easing.py + Gradient builder for cmd-art  [M] — easing DONE 2026-07-15 (v0.1.6)
+- **Result:** `skills/cmd-art/fx/easing.py` — 14 canonical Penner easings, used by the
+  new text-intro effects. The `Gradient(stops,steps,direction)` builder was NOT
+  separately factored out (theme.gradient covers most call sites); do it only if a
+  real duplication pain shows up. *(original task below)*
 - **Goal:** factor the repeated easing curves and gradient math into reusable
   `easing.py` and a `Gradient(stops, steps, direction)` builder.
 - **Why it matters:** removes duplication across the 28 effects, makes new effects (A7)
@@ -145,7 +160,11 @@ These are fully executable and verifiable on the current Windows machine.
   investigate, not to rebaseline blindly). Run verify_fx.py exit-0.
 - **Effort:** M
 
-### A3. MCP-server wrapper over the drive-tui daemon verb surface  [M]
+### ~~A3. MCP-server wrapper over the drive-tui daemon verb surface~~  [DONE 2026-07-15, v0.1.4]
+- **Result:** `skills/drive-tui/scripts/mcp_server.py` (FastMCP), 11 annotated tools
+  reusing tui.py's client so the per-session token auto-attaches. `server.json` also
+  ready for the official MCP Registry (one human `mcp-publisher` step left — see
+  docs/PACKAGING-NOTES.md). Covered by tests/_mcp_probe.py. *(original task below)*
 - **Goal:** expose the drive-tui daemon's verbs (spawn, send, wait, read-screen, etc.)
   as an MCP server so any MCP client can drive TUIs.
 - **Why it matters:** biggest adoption lever in the backlog — turns the project from
@@ -162,11 +181,13 @@ These are fully executable and verifiable on the current Windows machine.
   unauthenticated (network-exposed surface).
 - **Effort:** M
 
-### A8. mkdocs-material docs site + CONTRIBUTING.md + coverage badge  [L] — PARTIAL (2026-07-14)
-- **Status:** `mkdocs.yml` **now exists** (config prepared, commit 61c5a93) but is NOT
-  yet hosted on Pages — the live site at dwgx.github.io/SmartCLI is the hand-written
-  `docs/site/`, deployed by `pages.yml`. Still open: actually build+host the mkdocs
-  site, add `CONTRIBUTING.md`, and a pytest/coverage badge.
+### A8. docs site + contributor onramp + coverage badge  [L] — MOSTLY DONE (2026-07-15)
+- **Status:** **Read the Docs is LIVE** at https://smartcli.readthedocs.io/ (mkdocs via
+  `.readthedocs.yaml` + `tools/build_docs.py`, which assembles docs/*.md from the
+  canonical sources and rewrites repo-relative links to absolute GitHub URLs).
+  `CONTRIBUTING.md` + `SECURITY.md` DONE (v0.1.4). Codecov badge live (~50% on the
+  deterministic subset via tools/coverage_run.py). Still open: `TestPyPI`/`conda-forge`/
+  `Homebrew` publishing channels (configs prepared; human steps in docs/PACKAGING-NOTES.md).
 - **Goal:** a real docs site (mkdocs-material), a CONTRIBUTING.md, and a
   pytest/coverage badge in the README.
 - **Why it matters:** last structural A-grade gap; makes the repo look maintained and
