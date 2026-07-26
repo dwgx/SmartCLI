@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shlex
 import socket
 import subprocess
@@ -267,11 +268,63 @@ def test_child_environment() -> None:
 
 
 # --------------------------------------------------------------------------
-# TEST 5 -- no leaked sessions at the end
+# TEST 5 -- wait-visual-change over the real daemon protocol
+#
+# The core semantics are locked in tests/test_visual_change.py against a fake
+# backend; what is NOT covered there is the daemon/CLI wiring — the action
+# string, the int baseline round-trip through JSON, and the changed/visual_hash
+# fields coming back. A typo in any of those is invisible to the unit test.
+# --------------------------------------------------------------------------
+
+def test_wait_visual_change() -> None:
+    print("\n--- TEST 5: wait-visual-change end-to-end ---")
+    sid = start_session()
+    if not check(bool(sid), "start returned a SID", detail=sid):
+        return
+    try:
+        run_cli("wait-regex", "--id", sid, ">>> ", "--timeout-ms", "15000")
+
+        # Baseline comes from a snapshot: the CLI reports it on stderr as
+        # "# hash=<int> visual_hash=<int>". Parse the visual_hash out.
+        cp = run_cli("snapshot", "--id", sid)
+        m = re.search(r"visual_hash=(-?\d+)", cp.stdout + cp.stderr)
+        if not check(m is not None, "snapshot reports a visual_hash baseline",
+                     detail=repr((cp.stdout + cp.stderr)[:120])):
+            return
+        baseline = m.group(1)
+
+        # An idle screen must NOT report a change (short timeout keeps it quick).
+        cp = run_cli("wait-visual-change", "--id", sid,
+                     "--baseline-hash", baseline, "--timeout-ms", "1200")
+        out = cp.stdout + cp.stderr
+        check(cp.returncode == 0 and "changed=False" in out,
+              "idle screen reports changed=False against its own baseline",
+              detail=repr(out[:120]))
+
+        # Typing text changes the screen; the same baseline must now fire.
+        run_cli("send-text", "--id", sid, "1+1")
+        cp = run_cli("wait-visual-change", "--id", sid,
+                     "--baseline-hash", baseline, "--timeout-ms", "8000")
+        out = cp.stdout + cp.stderr
+        check(cp.returncode == 0 and "changed=True" in out,
+              "screen change fires wait-visual-change with an int baseline",
+              detail=repr(out[:120]))
+        m2 = re.search(r"visual_hash=(-?\d+)", out)
+        check(m2 is not None and m2.group(1) != baseline,
+              "returned visual_hash differs from the baseline",
+              detail=f"baseline={baseline} now={m2.group(1) if m2 else None}")
+    finally:
+        close_session(sid)
+        if sid in _STARTED:
+            _STARTED.remove(sid)
+
+
+# --------------------------------------------------------------------------
+# TEST 6 -- no leaked sessions at the end
 # --------------------------------------------------------------------------
 
 def test_no_leaks() -> None:
-    print("\n--- TEST 5: no leaked sessions ---")
+    print("\n--- TEST 6: no leaked sessions ---")
     cp = run_cli("list")
     listed = [ln for ln in cp.stdout.splitlines() if ln.strip()]
     check(cp.returncode == 0, "list exit 0", detail=f"rc={cp.returncode}")
@@ -287,6 +340,7 @@ def main() -> int:
         test_token_auth()
         test_run_mode()
         test_child_environment()
+        test_wait_visual_change()
         test_no_leaks()
     finally:
         # Always close every session we started, even on mid-test failure.
