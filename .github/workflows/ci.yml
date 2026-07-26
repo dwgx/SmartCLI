@@ -6,12 +6,13 @@ on:
   pull_request:
 
 jobs:
-  # Deterministic, non-interactive checks across all three OSes. Windows matches
-  # the primary dev/target environment (ConPTY via pywinpty); Linux + macOS
+  # Deterministic checks across all three OSes and the supported Python edges.
+  # Windows matches the primary dev/target environment (ConPTY via pywinpty);
+  # Linux + macOS
   # exercise the stdlib POSIX pty backend that was previously only hand-verified
   # over SSH. The interactive drive-tui PTY probes and the effort_selector path
-  # need a live TTY and are flaky/hang-prone under CI, so they stay excluded here
-  # — the POSIX backend sandbox below covers the pty code path deterministically.
+  # need a live TTY and stay out of this broad matrix. The bounded native
+  # drive-smoke job below covers the persistent PTY/MCP path separately.
   tests:
     name: ${{ matrix.os }} · py${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
@@ -19,7 +20,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
-        python-version: ["3.11", "3.12"]
+        python-version: ["3.10", "3.14"]
     env:
       PYTHONIOENCODING: utf-8
     steps:
@@ -47,6 +48,15 @@ jobs:
 
       - name: wait_any multi-marker wait (deterministic)
         run: python tests/test_wait_any.py
+
+      - name: visual-change selection/cursor locks (deterministic)
+        run: python tests/test_visual_change.py
+
+      - name: drive control-plane security boundaries (deterministic)
+        run: python tests/test_drive_security.py
+
+      - name: ten version sites agree (anti-drift)
+        run: python tests/test_version_sync.py
 
       - name: sixel wire-format lock (deterministic)
         run: python tests/test_sixel.py
@@ -89,6 +99,100 @@ jobs:
       - name: POSIX pty backend sandbox
         if: runner.os != 'Windows'
         run: python tests/_sandbox_posix_backend.py
+
+  # Real end-to-end sessions on native ConPTY/BSD PTY/Linux PTY. Each probe
+  # owns at most one live child at a time and closes it in a finally block; the
+  # steps remain serial within each isolated runner.
+  drive-smoke:
+    name: drive + MCP smoke · ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install the project
+        run: python -m pip install --upgrade pip && python -m pip install -e .
+      - name: Persistent CLI end-to-end
+        run: python tests/_tui_cli_probe.py
+      - name: MCP adapter end-to-end
+        run: python tests/_mcp_probe.py
+      - name: Malformed transport remains session-local
+        run: python tests/_sandbox_daemon_robustness.py
+
+  # The release artifact is a product surface of its own. Build it, inspect its
+  # contents, install into a clean environment, and exercise the installed
+  # console command so a source-only success cannot hide a broken wheel.
+  package:
+    name: wheel + registry contract
+    runs-on: ubuntu-latest
+    # This job runs a real-PTY probe (SMARTCLI_TEST_INSTALLED=1 _mcp_probe) —
+    # bound it like drive-smoke so a hung probe cannot eat the 360-min default.
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build tooling
+        run: python -m pip install --upgrade pip build twine check-jsonschema uv
+      - name: Build and validate distributions
+        run: |
+          python -m build
+          python -m twine check dist/*
+          check-jsonschema --schemafile "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json" server.json
+      - name: Verify release metadata and wheel contents
+        run: |
+          python - <<'PY'
+          import json
+          import tomllib
+          import zipfile
+          from pathlib import Path
+
+          project = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))["project"]
+          server = json.loads(Path("server.json").read_text(encoding="utf-8"))
+          plugin = json.loads(Path(".claude-plugin/plugin.json").read_text(encoding="utf-8"))
+          version = project["version"]
+          assert server["version"] == version
+          assert server["packages"][0]["version"] == version
+          assert plugin["version"] == version
+
+          wheel = next(Path("dist").glob("*.whl"))
+          with zipfile.ZipFile(wheel) as archive:
+              names = set(archive.namelist())
+          required = {
+              "smartcli_core/__init__.py",
+              "smartcli_drive/__init__.py",
+              "smartcli_drive/tui.py",
+              "smartcli_drive/mcp_server.py",
+              "smartcli_drive/smartcli_bootstrap.py",
+          }
+          missing = required - names
+          assert not missing, f"wheel is missing: {sorted(missing)}"
+          print(f"validated {wheel.name} ({version})")
+          PY
+      - name: Install wheel in a clean environment
+        shell: bash
+        run: |
+          wheel_venv="$(mktemp -d)/venv"
+          python -m venv "$wheel_venv"
+          "$wheel_venv/bin/python" -m pip install dist/*.whl
+          "$wheel_venv/bin/python" -m pip check
+          "$wheel_venv/bin/smartcli-tui" doctor
+          "$wheel_venv/bin/smartcli-tui" --help
+          "$wheel_venv/bin/python" -c "import smartcli_core, smartcli_drive.mcp_server"
+          SMARTCLI_TEST_INSTALLED=1 "$wheel_venv/bin/python" tests/_mcp_probe.py
+          uvx --from dist/*.whl smartcli-tui doctor
 
   # Coverage over the DETERMINISTIC subset (no PTY/fuzz — those don't compose
   # with coverage's process-startup hook; see tools/coverage_run.py). One OS is

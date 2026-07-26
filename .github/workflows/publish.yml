@@ -25,7 +25,7 @@
 # may optionally add required reviewers to gate releases.
 #
 # After setup, releasing is: bump the version in pyproject.toml, commit, then
-#   git tag v0.1.1 && git push origin v0.1.1
+#   git tag v0.2.0 && git push origin v0.2.0
 # The tag push triggers this workflow, which builds and publishes automatically.
 # ---------------------------------------------------------------------------
 
@@ -100,3 +100,82 @@ jobs:
           # and is harmless for a real release (a new version's files don't exist
           # yet, so nothing is skipped).
           skip-existing: true
+
+  publish-mcp:
+    name: Publish metadata to MCP Registry (GitHub OIDC)
+    needs: publish
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      MCP_PUBLISHER_VERSION: v1.8.0
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify tag and registry metadata agree
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import tomllib
+          from pathlib import Path
+
+          package_version = tomllib.loads(
+              Path("pyproject.toml").read_text(encoding="utf-8")
+          )["project"]["version"]
+          server = json.loads(Path("server.json").read_text(encoding="utf-8"))
+          tag_version = os.environ["GITHUB_REF_NAME"].removeprefix("v")
+          assert package_version == tag_version
+          assert server["version"] == tag_version
+          assert server["packages"][0]["version"] == tag_version
+          PY
+
+      - name: Install pinned MCP publisher
+        run: |
+          archive="mcp-publisher_linux_amd64.tar.gz"
+          base="https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}"
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors --connect-timeout 20 --max-time 180 --output "$archive" "$base/$archive"
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors --connect-timeout 20 --max-time 60 --output checksums.txt "$base/registry_1.8.0_checksums.txt"
+          grep " $archive$" checksums.txt | sha256sum --check --strict
+          tar xzf "$archive" mcp-publisher
+
+      - name: Wait until the PyPI release is visible
+        run: |
+          python - <<'PY'
+          import json
+          import time
+          import tomllib
+          import urllib.error
+          import urllib.request
+          from pathlib import Path
+
+          version = tomllib.loads(
+              Path("pyproject.toml").read_text(encoding="utf-8")
+          )["project"]["version"]
+          url = "https://pypi.org/pypi/smartcli-toolkit/json"
+          for attempt in range(24):
+              try:
+                  with urllib.request.urlopen(url, timeout=15) as response:
+                      releases = json.load(response)["releases"]
+                  if version in releases and releases[version]:
+                      print(f"PyPI {version} is visible")
+                      break
+              except (OSError, urllib.error.URLError, ValueError):
+                  pass
+              if attempt == 23:
+                  raise SystemExit(f"PyPI {version} was not visible after 2 minutes")
+              time.sleep(5)
+          PY
+
+      - name: Authenticate to MCP Registry
+        run: ./mcp-publisher login github-oidc
+
+      - name: Publish server metadata
+        run: ./mcp-publisher publish
