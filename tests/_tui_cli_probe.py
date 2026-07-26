@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import socket
 import subprocess
 import sys
@@ -37,6 +38,12 @@ _FAILURES = 0
 _STARTED: list[str] = []
 
 
+def python_repl_command() -> str:
+    """Return a shell-safe command for this exact interpreter on every OS."""
+    argv = [sys.executable, "-i", "-q"]
+    return subprocess.list2cmdline(argv) if os.name == "nt" else shlex.join(argv)
+
+
 def check(cond: bool, label: str, detail: str = "") -> bool:
     global _FAILURES
     if cond:
@@ -55,8 +62,17 @@ def run_cli(*args: str, timeout: float = 60.0) -> subprocess.CompletedProcess:
                           timeout=timeout)
 
 
-def start_session(cols: int = 80, rows: int = 24) -> str:
-    cp = run_cli("start", "--cmd", "python", "--cols", str(cols), "--rows", str(rows))
+def start_session(cols: int = 80, rows: int = 24, *extra: str) -> str:
+    cp = run_cli(
+        "start",
+        "--cmd",
+        python_repl_command(),
+        "--cols",
+        str(cols),
+        "--rows",
+        str(rows),
+        *extra,
+    )
     sid = cp.stdout.strip().splitlines()[-1].strip() if cp.stdout.strip() else ""
     if cp.returncode == 0 and sid:
         _STARTED.append(sid)
@@ -177,17 +193,25 @@ def test_run_mode() -> None:
         {"action": "wait_regex", "pattern": ">>> ", "timeout_ms": 15000},
         {"action": "send_line", "text": "print(21*2)"},
         {"action": "wait_regex", "pattern": "42", "timeout_ms": 15000},
+        {"action": "send_line", "text": (
+            "import os; print('RUNENV', os.path.basename(os.getcwd()), "
+            "os.getenv('SMARTCLI_RUN_PROBE'))"
+        )},
+        {"action": "wait_regex", "pattern": "RUNENV .* present", "timeout_ms": 15000},
         {"action": "snapshot"},
     ]
     steps_file = REG_DIR / "run_steps.json"
     steps_file.write_text(json.dumps(steps), encoding="utf-8")
     try:
-        cp = run_cli("run", "--cmd", "python", "--steps", str(steps_file),
-                     "--cols", "80", "--rows", "24", timeout=90.0)
+        cp = run_cli("run", "--cmd", python_repl_command(), "--steps", str(steps_file),
+                     "--cols", "80", "--rows", "24", "--cwd", str(REG_DIR),
+                     "--env", "SMARTCLI_RUN_PROBE=present", timeout=90.0)
         check(cp.returncode == 0, "run mode exit 0",
               detail=f"rc={cp.returncode} stderr={cp.stderr.strip()[-80:]}")
         check("42" in cp.stdout, "run mode output contains 42",
               detail=repr(cp.stdout.strip()[-60:]))
+        check("RUNENV" in cp.stdout and "present" in cp.stdout,
+              "run mode forwards cwd/env", detail=repr(cp.stdout.strip()[-120:]))
     finally:
         try:
             steps_file.unlink()
@@ -196,11 +220,58 @@ def test_run_mode() -> None:
 
 
 # --------------------------------------------------------------------------
-# TEST 4 -- no leaked sessions at the end
+# TEST 4 -- child cwd/env are explicit and control secrets are not inherited
+# --------------------------------------------------------------------------
+
+def test_child_environment() -> None:
+    print("\n--- TEST 4: child cwd/env and capability isolation ---")
+    workdir = REG_DIR / "child-workdir"
+    workdir.mkdir()
+    sid = start_session(
+        80,
+        24,
+        "--cwd",
+        str(workdir),
+        "--env",
+        "SMARTCLI_PROBE_VALUE=present",
+    )
+    if not check(bool(sid), "start with --cwd/--env returned a SID", detail=sid):
+        return
+    try:
+        run_cli("wait-regex", "--id", sid, ">>> ", "--timeout-ms", "15000")
+        code = (
+            "import os; print('PROBE', os.getcwd(), "
+            "os.getenv('SMARTCLI_PROBE_VALUE'), os.getenv('SMARTCLI_TUI_TOKEN'))"
+        )
+        run_cli("send-line", "--id", sid, code)
+        cp = run_cli(
+            "wait-regex",
+            "--id",
+            sid,
+            r"PROBE .* present None",
+            "--timeout-ms",
+            "15000",
+        )
+        check(cp.returncode == 0 and f"{workdir.name} present None" in cp.stdout,
+              "target receives cwd and requested env", detail=repr(cp.stdout[-120:]))
+        check("present None" in cp.stdout,
+              "target does not inherit SMARTCLI_TUI_TOKEN", detail=repr(cp.stdout[-120:]))
+    finally:
+        close_session(sid)
+        if sid in _STARTED:
+            _STARTED.remove(sid)
+        try:
+            workdir.rmdir()
+        except OSError:
+            pass
+
+
+# --------------------------------------------------------------------------
+# TEST 5 -- no leaked sessions at the end
 # --------------------------------------------------------------------------
 
 def test_no_leaks() -> None:
-    print("\n--- TEST 4: no leaked sessions ---")
+    print("\n--- TEST 5: no leaked sessions ---")
     cp = run_cli("list")
     listed = [ln for ln in cp.stdout.splitlines() if ln.strip()]
     check(cp.returncode == 0, "list exit 0", detail=f"rc={cp.returncode}")
@@ -215,6 +286,7 @@ def main() -> int:
         test_happy_path()
         test_token_auth()
         test_run_mode()
+        test_child_environment()
         test_no_leaks()
     finally:
         # Always close every session we started, even on mid-test failure.
@@ -242,4 +314,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-

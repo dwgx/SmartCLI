@@ -9,7 +9,7 @@ description: >-
   spinners, password fields, curses UIs), or when a piped command hangs or
   prints nothing.
 allowed-tools: Bash, Read
-version: 0.1.8
+version: 0.2.0
 ---
 
 # drive-tui
@@ -78,12 +78,13 @@ Step objects (executed in order; each `wait_*`/`snapshot` prints a snapshot):
 client (Claude Desktop, an agent framework) can drive TUIs without shelling out.
 It reuses the CLI's client layer, so the **per-session capability token is
 attached automatically** and no verb is exposed unauthenticated. Install the
-extra and run it (stdio transport):
-`pip install "smartcli-toolkit[mcp]"`
-`python skills/drive-tui/scripts/mcp_server.py`
+the package and run it (stdio transport):
+`pip install smartcli-toolkit`
+`smartcli-mcp`
 Tools: `start`, `list_sessions`, `snapshot`, `send_text`, `send_line`,
-`send_keys`, `wait_regex`, `wait_ready`, `alive`, `resize`, `close` — a 1:1 map
-of the daemon verbs. The same perceive → decide → act loop applies.
+`send_keys`, `wait_regex`, `wait_change`, `wait_visual_change`, `wait_any`,
+`wait_ready`, `alive`, `resize`, `close` — a 1:1 map of the daemon verbs. The
+same perceive → decide → act loop applies.
 
 ## Silent / background operation — driving without disturbing the user
 

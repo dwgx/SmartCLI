@@ -155,6 +155,15 @@ def build_suite():
     suite.append(Test("test_wait_change (drive-tui await-change primitive)",
                       [PY, str(TESTS / "test_wait_change.py")], ROOT, 60,
                       optional=True))
+    suite.append(Test("test_visual_change (selection/cursor-aware wait)",
+                      [PY, str(TESTS / "test_visual_change.py")], ROOT, 60,
+                      optional=True))
+    suite.append(Test("test_drive_security (control-plane boundaries)",
+                      [PY, str(TESTS / "test_drive_security.py")], ROOT, 60,
+                      optional=True))
+    suite.append(Test("test_version_sync (ten version sites agree)",
+                      [PY, str(TESTS / "test_version_sync.py")], ROOT, 60,
+                      optional=True))
     suite.append(Test("test_wait_any (pexpect-style multi-marker wait)",
                       [PY, str(TESTS / "test_wait_any.py")], ROOT, 60,
                       optional=True))

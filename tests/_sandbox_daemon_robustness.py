@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import socket
 import subprocess
 import sys
@@ -28,6 +29,11 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 TUI = REPO / "skills" / "drive-tui" / "scripts" / "tui.py"
 HOST = "127.0.0.1"
+
+
+def _python_repl_command() -> str:
+    argv = [sys.executable, "-i", "-q"]
+    return subprocess.list2cmdline(argv) if os.name == "nt" else shlex.join(argv)
 
 
 def _reg_dir() -> Path:
@@ -73,11 +79,11 @@ def _authed(port: int, token: str, action: str, timeout: float = 5.0) -> dict:
 def main() -> int:
     sid = f"sbx_{os.getpid()}_{int(time.time()*1000) % 100000}"
     env = dict(os.environ, PYTHONIOENCODING="utf-8")
-    # Start a real daemon owning a real python child. Use the bare command name
-    # "python" (winpty resolves it on PATH) rather than sys.executable — a
-    # space-containing absolute path does not spawn cleanly under ConPTY.
+    # Start a real daemon owning a real Python child. Quote the exact interpreter
+    # path using each platform's native command-line rules; modern macOS often
+    # has no bare `python` command at all.
     r = subprocess.run(
-        [sys.executable, str(TUI), "start", "--cmd", "python",
+        [sys.executable, str(TUI), "start", "--cmd", _python_repl_command(),
          "--id", sid, "--cols", "80", "--rows", "24"],
         env=env, capture_output=True, text=True, timeout=30)
     if r.returncode != 0:

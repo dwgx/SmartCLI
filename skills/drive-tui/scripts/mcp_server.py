@@ -17,13 +17,14 @@ thin MCP adapter in front of that same local control plane.
 
 Run it (stdio transport, the MCP default):
 
-    python skills/drive-tui/scripts/mcp_server.py
+    python3 skills/drive-tui/scripts/mcp_server.py
 
-or register it with an MCP client pointing at this path. Requires the `mcp`
-package (``pip install "smartcli-toolkit[mcp]"`` or ``pip install mcp``).
+or install the package and run ``smartcli-mcp``. The PyPI distribution includes
+the MCP runtime dependency.
 """
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -31,13 +32,20 @@ from pathlib import Path
 
 # Reuse tui.py's client layer (token auto-load, socket transport) rather than
 # re-implementing the protocol — that keeps auth behavior identical and means a
-# protocol change only has to happen in one place.
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import smartcli_bootstrap  # noqa: E402
+# protocol change only has to happen in one place. The fallback preserves direct
+# execution from a standalone copied skill.
+try:
+    from . import smartcli_bootstrap
+except ImportError:  # pragma: no cover - exercised by direct script probes
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import smartcli_bootstrap  # type: ignore[no-redef]  # noqa: E402
 
 smartcli_bootstrap.locate_core()
 
-import tui as _tui  # noqa: E402  (tui.py in the same dir)
+try:
+    from . import tui as _tui
+except ImportError:  # pragma: no cover - exercised by direct script probes
+    import tui as _tui  # type: ignore[no-redef]  # noqa: E402
 
 try:
     from mcp.server.fastmcp import FastMCP
@@ -45,8 +53,8 @@ try:
 except ImportError:
     sys.stderr.write(
         "error: the 'mcp' package is required for the MCP server.\n"
-        "  pip install \"smartcli-toolkit[mcp]\"   (or: pip install mcp)\n")
-    raise SystemExit(2)
+        "  pip install smartcli-toolkit   (or: pip install mcp)\n")
+    raise SystemExit(2) from None
 
 TUI_PY = str(Path(_tui.__file__).resolve())
 PY = sys.executable
@@ -64,7 +72,14 @@ def _call_session(sid: str, req: dict, timeout: float = 30.0) -> dict:
     translate that into a structured error dict for the MCP client instead.
     """
     try:
-        return _tui._call(sid, req, timeout=timeout)
+        resp = _tui._call(sid, req, timeout=timeout)
+        raw_json = resp.get("json")
+        if isinstance(raw_json, str):
+            try:
+                resp["json"] = json.loads(raw_json)
+            except json.JSONDecodeError:
+                pass
+        return resp
     except SystemExit as exc:
         return {"ok": False, "error": str(exc)}
 
@@ -74,22 +89,48 @@ def _call_session(sid: str, req: dict, timeout: float = 30.0) -> dict:
     readOnlyHint=False, destructiveHint=False, idempotentHint=False,
     openWorldHint=True,  # spawns an arbitrary external program
 ))
-def start(cmd: str, cols: int = 100, rows: int = 24, sid: str = "") -> dict:
+def start(
+    cmd: str,
+    cols: int = 100,
+    rows: int = 24,
+    sid: str = "",
+    cwd: str = "",
+    env: dict[str, str] | None = None,
+) -> dict:
     """Spawn a program in a new detached, persistent session and return its id.
 
     The session survives across tool calls (a localhost-only daemon owns the live
-    PtySession). `cmd` is the command line to spawn, e.g. "python" or "lazygit".
+    PtySession). `cmd` is the command line to spawn, e.g. "python3" or
+    "lazygit". `cwd` and `env` configure only the controlled child process.
     Returns {"ok", "sid"} on success. Use the returned sid for every other tool.
     """
-    argv = [PY, TUI_PY, "start", "--cmd", cmd, "--cols", str(cols), "--rows", str(rows)]
+    argv = [
+        PY,
+        TUI_PY,
+        "start",
+        "--cmd",
+        cmd,
+        "--cols",
+        str(cols),
+        "--rows",
+        str(rows),
+        "--json",
+    ]
     if sid:
         argv += ["--id", sid]
+    if cwd:
+        argv += ["--cwd", cwd]
+    for key, value in (env or {}).items():
+        argv += ["--env", f"{key}={value}"]
     proc = subprocess.run(argv, capture_output=True, text=True,
                           encoding="utf-8", errors="replace", timeout=30)
     if proc.returncode != 0:
         return {"ok": False, "error": (proc.stderr or proc.stdout).strip()}
-    new_sid = proc.stdout.strip().splitlines()[-1].strip() if proc.stdout.strip() else ""
-    return {"ok": True, "sid": new_sid}
+    try:
+        result = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        return {"ok": False, "error": "start returned invalid JSON"}
+    return result
 
 
 @mcp.tool(annotations=ToolAnnotations(
@@ -99,17 +140,14 @@ def start(cmd: str, cols: int = 100, rows: int = 24, sid: str = "") -> dict:
 ))
 def list_sessions() -> dict:
     """List active drive-tui sessions (id, port, pid, command)."""
-    proc = subprocess.run([PY, TUI_PY, "list"], capture_output=True, text=True,
+    proc = subprocess.run([PY, TUI_PY, "list", "--json"], capture_output=True, text=True,
                           encoding="utf-8", errors="replace", timeout=15)
-    sessions = []
-    for line in proc.stdout.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        fields = dict(part.split("=", 1) for part in line.split("\t") if "=" in part)
-        sid = line.split("\t", 1)[0]
-        sessions.append({"sid": sid, **fields})
-    return {"ok": True, "sessions": sessions}
+    if proc.returncode != 0:
+        return {"ok": False, "error": (proc.stderr or proc.stdout).strip()}
+    try:
+        return json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        return {"ok": False, "error": "list returned invalid JSON"}
 
 
 @mcp.tool(annotations=ToolAnnotations(
@@ -127,7 +165,13 @@ def snapshot(sid: str, as_json: bool = False) -> dict:
     resp = _call_session(sid, {"action": "snapshot"})
     if not resp.get("ok"):
         return resp
-    out = {"ok": True, "alive": resp.get("alive"), "text": resp.get("text", "")}
+    out = {
+        "ok": True,
+        "alive": resp.get("alive"),
+        "text": resp.get("text", ""),
+        "hash": resp.get("hash"),
+        "visual_hash": resp.get("visual_hash"),
+    }
     if as_json:
         out["json"] = resp.get("json")
     return out
@@ -141,7 +185,20 @@ def snapshot(sid: str, as_json: bool = False) -> dict:
 ))
 def close(sid: str) -> dict:
     """Terminate a session and its daemon. Always close sessions when done."""
-    return _call_session(sid, {"action": "close"})
+    proc = subprocess.run(
+        [PY, TUI_PY, "close", "--id", sid, "--json"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=30,
+    )
+    if proc.returncode != 0:
+        return {"ok": False, "error": (proc.stderr or proc.stdout).strip()}
+    try:
+        return json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        return {"ok": False, "error": "close returned invalid JSON"}
 
 
 @mcp.tool(annotations=ToolAnnotations(
@@ -199,7 +256,7 @@ def wait_regex(sid: str, pattern: str, timeout_ms: int = 10000) -> dict:
     readOnlyHint=True, destructiveHint=False, idempotentHint=True,
     openWorldHint=False,
 ))
-def wait_change(sid: str, baseline_hash: str = "", timeout_ms: int = 10000) -> dict:
+def wait_change(sid: str, baseline_hash: int | None = None, timeout_ms: int = 10000) -> dict:
     """Block until the screen content changes, then snapshot.
 
     The precise "did my action land?" primitive: call it right after send_line/
@@ -210,7 +267,28 @@ def wait_change(sid: str, baseline_hash: str = "", timeout_ms: int = 10000) -> d
     on screen, unlike wait_regex.
     """
     req = {"action": "wait_change", "timeout_ms": timeout_ms}
-    if baseline_hash:
+    if baseline_hash is not None:
+        req["baseline_hash"] = baseline_hash
+    return _call_session(sid, req, timeout=timeout_ms / 1000.0 + 15.0)
+
+
+@mcp.tool(annotations=ToolAnnotations(
+    title="Wait for a visual screen change",
+    readOnlyHint=True, destructiveHint=False, idempotentHint=True,
+    openWorldHint=False,
+))
+def wait_visual_change(
+    sid: str,
+    baseline_hash: int | None = None,
+    timeout_ms: int = 10000,
+) -> dict:
+    """Wait for text, selection styling, or cursor position to change.
+
+    Prefer this after arrow/navigation keys in full-screen TUIs. Pass a prior
+    `visual_hash`, or omit it to use the current rendered state as the baseline.
+    """
+    req = {"action": "wait_visual_change", "timeout_ms": timeout_ms}
+    if baseline_hash is not None:
         req["baseline_hash"] = baseline_hash
     return _call_session(sid, req, timeout=timeout_ms / 1000.0 + 15.0)
 
