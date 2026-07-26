@@ -202,7 +202,8 @@ def _call(sid: str, req: dict, timeout: float = 30.0) -> dict:
     except (TimeoutError, ConnectionRefusedError, ConnectionResetError, OSError) as exc:
         raise SystemExit(
             f"error: session '{sid}' is not reachable (stale entry? {exc}). "
-            f"Run 'close --id {sid}' to clean up."
+            f"Close the session (CLI: close --id {sid}; MCP: the close tool) "
+            "to clean up the stale entry."
         ) from exc
     if resp.get("error"):
         raise SystemExit(f"error: {resp['error']}")
@@ -297,7 +298,14 @@ def _handle(sess: PtySession, req: dict, expected_token: str) -> dict:
         return {"ok": True, "alive": sess.is_alive()}
 
     if action == "resize":
-        cols, rows = _validate_size(int(req["cols"]), int(req["rows"]))
+        # _validate_size raises SystemExit for CLI callers; SystemExit is a
+        # BaseException, so it would sail through the per-connection
+        # `except Exception` guard and tear down the daemon + live session.
+        # Convert it to an error response here instead.
+        try:
+            cols, rows = _validate_size(int(req["cols"]), int(req["rows"]))
+        except SystemExit as exc:
+            return {"ok": False, "error": str(exc)}
         sess.resize(cols, rows)
         return {"ok": True}
 
@@ -750,7 +758,11 @@ def build_parser() -> argparse.ArgumentParser:
                    help="pip-install any missing runtime deps (pyte/pywinpty) "
                         "now, then continue; otherwise missing deps are only "
                         "reported. Same as SMARTCLI_AUTO_INSTALL=1.")
-    sub = p.add_subparsers(dest="command", required=True)
+    sub = p.add_subparsers(
+        dest="command", required=True,
+        metavar="{start,snapshot,send-text,send-line,keys,wait,wait-regex,"
+                "wait-change,wait-visual-change,wait-any,alive,close,list,"
+                "run,doctor}")
 
     sp = sub.add_parser("start", help="spawn a program in a detached persistent session")
     sp.add_argument("--cmd", required=True, help="command line to spawn, e.g. \"python\"")
@@ -875,7 +887,9 @@ def build_parser() -> argparse.ArgumentParser:
     sp = sub.add_parser("doctor", help="report smartcli_core location + dependency status")
     sp.set_defaults(func=cmd_doctor)
 
-    sp = sub.add_parser("_daemon", help=argparse.SUPPRESS)
+    # No help= on purpose: parsers without help are omitted from --help, which
+    # keeps this internal re-exec verb out of the public command list.
+    sp = sub.add_parser("_daemon")
     sp.add_argument("--id", required=True)
     sp.add_argument("--cmd", required=True)
     # token now arrives via the SMARTCLI_TUI_TOKEN env var (not argv, which leaks

@@ -67,7 +67,7 @@ def rgb(r, g, b, bg: bool = False) -> str:
 
 
 def is_tty(stream=None) -> bool:
-    """True when *stream* (default stdout) is an interactive terminal and NO_COLOR is unset."""
+    """True when *stream* (default stdout) is an interactive terminal."""
     stream = stream or sys.stdout
     try:
         tty = stream.isatty()

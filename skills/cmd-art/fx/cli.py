@@ -166,7 +166,7 @@ def cmd_show(args) -> int:
     else:
         print("  params: none")
     mode = "--once" if not cls.animated else "--seconds 5"
-    print(f"  example: python fx/cli.py play {cls.name} {mode}"
+    print(f"  example: python -m fx play {cls.name} {mode}"
           + (f" --theme {cls.preferred_theme}" if cls.preferred_theme else ""))
     return 0
 

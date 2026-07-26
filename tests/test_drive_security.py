@@ -82,6 +82,22 @@ def test_terminal_size_limit() -> None:
               f"unsafe terminal dimensions are rejected: {cols}x{rows}")
 
 
+def test_daemon_resize_survives_bad_size() -> None:
+    # _validate_size raises SystemExit (a BaseException), which would sail
+    # through the daemon's per-connection `except Exception` guard and kill
+    # the live session. The resize action must convert it to an error reply.
+    # sess is never touched when validation fails, so a bare object suffices.
+    for cols, rows in ((0, 24), (5000, 24), (500, 500)):
+        try:
+            resp = tui._handle(object(), {"token": "t", "action": "resize",
+                                          "cols": cols, "rows": rows}, "t")
+        except BaseException as exc:  # noqa: BLE001 — the regression under test
+            check(False, f"resize {cols}x{rows} escaped as {type(exc).__name__}")
+        else:
+            check(resp.get("ok") is False and "error" in resp,
+                  f"out-of-range resize {cols}x{rows} returns an error reply")
+
+
 def test_registry_symlink() -> None:
     if os.name == "nt" or not hasattr(os, "O_NOFOLLOW"):
         print("SKIP  registry symlink refusal (POSIX O_NOFOLLOW only)")
@@ -127,6 +143,7 @@ def main() -> int:
     test_environment_parser()
     test_session_limit()
     test_terminal_size_limit()
+    test_daemon_resize_survives_bad_size()
     test_registry_symlink()
     print()
     if failures:
