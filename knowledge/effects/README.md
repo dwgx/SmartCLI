@@ -1,6 +1,6 @@
 # ASCII/ANSI Effect Math — Knowledge Graph
 
-Cross-linked notes on the math behind terminal/ASCII visual effects. Each entry is one focused concept with the exact formula, a **Source:** URL, and wiki-style `[[see also]]` links. Grounded in the mined digest (raw findings: `D:/Project/SmartCLI/knowledge/sources/raw-math.md`).
+Cross-linked notes on the math behind terminal/ASCII visual effects. Each entry is one focused concept with the exact formula, a **Source:** URL, and wiki-style `[[see also]]` links. Grounded in the mined digest (raw findings: `../sources/raw-math.md`).
 
 **Not sure where to start? → [[choosing-an-effect]]** maps "I want to show X" to a direction, the formula note, and the shipped effect to reuse or take apart.
 

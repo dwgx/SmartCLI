@@ -11,26 +11,36 @@ that unblocks each. Nothing here needs me to have your credentials.
 | **GitHub repo / Releases / Pages** | ✅ live | showcase site auto-deploys from `docs/site/**` via `pages.yml`. |
 | **Claude plugin marketplace** | ✅ live | `/plugin marketplace add dwgx/SmartCLI`. |
 | **skillhu.bz** | ✅ live | all 3 skills. |
+| **MCP Registry** | ✅ live | `io.github.dwgx/smartcli` on `registry.modelcontextprotocol.io` (published 2026-07-15). Re-publish is **automated**: publish.yml's `publish-mcp` job runs after a successful PyPI tag publish, via OIDC with a pinned, checksum-verified `mcp-publisher`. The manual flow below is kept only as a fallback. |
+| **Read the Docs** | ✅ live | https://smartcli.readthedocs.io/ — built from `.readthedocs.yaml` + `mkdocs.yml`, with `tools/build_docs.py` assembling the pages in `pre_build`. Separate from the GitHub Pages showcase. |
 
 ## Auto-runs on GitHub Actions (no account needed — done)
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `ci.yml` | push/PR | Windows + Linux + macOS matrix; deterministic tests + POSIX sandbox. |
-| `publish.yml` | tag `v*` | PyPI OIDC publish. **Verified working** (run 29245353129). |
+| `ci.yml` | push/PR | Windows + Linux + macOS × py3.10/3.14: deterministic tests + POSIX sandbox, plus the bounded `drive-smoke` (real-PTY probes, 3 OS), `package` (wheel + `server.json` schema + version-site + clean-venv install/uvx) and `coverage` jobs. |
+| `publish.yml` | tag `v*` | PyPI OIDC publish (**verified working**, run 29245353129), then the `publish-mcp` job re-publishes `server.json` to the MCP Registry via OIDC. |
+| `publish-testpypi.yml` | tag `v*rc*` / dispatch | TestPyPI rehearsal publish (OIDC). |
 | `docker.yml` | push main / tag | builds + pushes `ghcr.io/dwgx/smartcli` via built-in token. |
 | `codeql.yml` | push/PR/weekly | static security scan. |
-| `lint.yml` | push/PR | ruff + mypy (advisory). |
+| `lint.yml` | push/PR | ruff correctness subset (E9,F63,F7,F82) + mypy **block**; full ruff / format check advisory. |
 | `release-drafter.yml` | push/PR | drafts grouped release notes. |
 | `pages.yml` | push `docs/site/**` | showcase site. |
+| `bench.yml` | dispatch | Terminal-Bench oracle smoke + scored subset (scored runs need an LLM API-key secret). |
 
 ## Prepared — needs a human step (only you can do)
 
 ### PyPI release (already working, for reference)
-Bump the version in all six places (pyproject, `smartcli_core/__init__`,
-`skills/cmd-art/fx/__init__`, the 3 `skills/*/SKILL.md`, `marketplace.json`),
-commit, then:
+Bump the version in all **ten** places — `pyproject.toml`,
+`smartcli_core/__init__.py`, `skills/cmd-art/fx/__init__.py`, the 3
+`skills/*/SKILL.md`, `.claude-plugin/marketplace.json`,
+`.claude-plugin/plugin.json`, `skills/drive-tui/_vendor/smartcli_core/__init__.py`
+and **both** `server.json` fields (top-level + `packages[0].version`) — then
+re-sync and gate before tagging:
 ```sh
-git tag v0.1.3 && git push origin v0.1.3     # publish.yml auto-uploads via OIDC
+python tools/sync_vendor.py
+python tests/test_vendor_sync.py     # vendored copy byte-identical
+python tests/test_version_sync.py    # all ten sites agree
+git tag vX.Y.Z && git push origin vX.Y.Z   # publish.yml: PyPI + MCP Registry via OIDC
 ```
 
 ### TestPyPI (rehearsal channel) — `.github/workflows/publish-testpypi.yml`
@@ -43,78 +53,35 @@ The image publishes automatically, but GHCR packages start **private**. To make 
 public: GitHub → your profile → Packages → `smartcli` → Package settings → change
 visibility to Public. (One-time.)
 
-### Docs site on Read the Docs — READY, one web step to go live
+### Docs site on Read the Docs — ✅ LIVE at https://smartcli.readthedocs.io/
 
-Everything is committed and verified: `mkdocs.yml` (with `exclude_docs` so the
-showcase site / i18n / notes aren't treated as pages), `.readthedocs.yaml`
-(runs `tools/build_docs.py` in `pre_build`), `docs/requirements.txt`, and
-`tools/build_docs.py` (assembles `docs/*.md` from README / the SKILL.md files /
-CHANGELOG / knowledge/INDEX at build time, so the site never drifts). Local
-`python -m mkdocs build` succeeds.
+RTD builds from `.readthedocs.yaml` + `mkdocs.yml`, running `tools/build_docs.py`
+in `pre_build` to assemble the `docs/*.md` stubs. No further setup needed.
 
-**To go live (≈1 minute, only you can do the OAuth):**
-1. Go to https://readthedocs.org and **Sign up / Log in with GitHub** (this is
-   the one-time OAuth authorize step — an API token can't replace it).
-2. Click **Import a Project** → the wizard lists your GitHub repos → pick
-   **dwgx/SmartCLI** (or "Import Manually" with repo URL
-   `https://github.com/dwgx/SmartCLI`).
-3. Accept the defaults and **Build** — RTD auto-detects `.readthedocs.yaml`, runs
-   `tools/build_docs.py`, then `mkdocs build`. No config to fill in.
-4. (Optional) In the RTD project's Admin → set the default version and add the
-   docs URL to the GitHub repo's "Website" field.
-
-The showcase site (docs/site/, deployed by `pages.yml`) is separate and
-unaffected — this adds a second, reference-docs site.
-
-Local preview: `pip install mkdocs-material && python tools/build_docs.py && python -m mkdocs serve`.
-
-### Coverage badge on Codecov — READY, add one secret
+### Coverage badge on Codecov
 
 CI's `coverage` job runs `tools/coverage_run.py --xml` and uploads to Codecov
-(`codecov/codecov-action@v5`). Codecov's tokenless upload no longer works for
-plain pushes (only fork PRs), so it needs the repo upload token.
+(`codecov/codecov-action@v5`). The job is `continue-on-error` (advisory) so CI
+stays green regardless. It uses `CODECOV_TOKEN` if that secret is configured;
+without it, uploads succeed via tokenless mode for public repos but the token
+makes it more reliable.
 
-**To light up the badge (≈2 minutes):**
-1. At https://app.codecov.io/github/dwgx (already logged in) open **SmartCLI**
-   → **Settings / Configuration** → copy the **CODECOV_TOKEN** (repo upload
-   token). If SmartCLI isn't listed, click **"Add new repository" / "Activate"**
-   first (public repo, no cost).
-2. In GitHub: repo **Settings → Secrets and variables → Actions → New repository
-   secret**, name it exactly **`CODECOV_TOKEN`**, paste the value.
-3. Re-run CI (push any commit, or Actions → CI → Re-run). The `coverage` job then
-   uploads with the token and the README badge fills in (currently ~50% — the
-   deterministic subset; see `tools/coverage_run.py`).
+To configure: Codecov → SmartCLI → Settings → copy **CODECOV_TOKEN** → GitHub
+repo Settings → Secrets → add it. The badge currently shows ~50% on the
+deterministic subset; see `tools/coverage_run.py`.
 
-Until the secret exists the upload soft-fails (the job is `continue-on-error`),
-so CI stays green and the badge just reads "unknown".
+### MCP Registry — ✅ LIVE (`io.github.dwgx/smartcli`)
 
-### MCP Registry — `server.json` (READY, one ordering caveat)
+The MCP listing at `registry.modelcontextprotocol.io` is live (published
+2026-07-15). Re-publishing on every release is **automated**: `publish.yml`'s
+`publish-mcp` job runs after a successful PyPI tag push, using GitHub OIDC with
+a pinned, sha256-verified `mcp-publisher` (no manual device-login step).
 
-The drive-tui MCP server (`skills/drive-tui/scripts/mcp_server.py`) can be listed
-on the official registry (`registry.modelcontextprotocol.io`), which Smithery /
-Glama / MCP.so and the Claude/Cursor/VS Code clients auto-discover — the highest-
-leverage free distribution channel for this project. Prepared and committed:
-- **`server.json`** (repo root): name `io.github.dwgx/smartcli`, `registryType:
-  pypi`, identifier `smartcli-toolkit`. Its `version` must equal the package
-  version (a mismatch is the #1 publish failure — keep it in lockstep with the
-  6-site bump).
-- **PyPI ownership marker**: an `<!-- mcp-name: io.github.dwgx/smartcli -->`
-  comment is in `README.md`. The registry verifies ownership by reading this
-  string from the **published package's description** (= the README on PyPI).
-
-**Ordering caveat (important):** PyPI verification reads the README of the
-*published* release. The marker landed after 0.1.4, so it isn't on PyPI yet.
-→ **Publish one more PyPI release first** (so the README-with-marker becomes the
-PyPI description), keep `server.json`'s version in step, then register.
-
-**To publish (≈3 minutes, needs a GitHub device-code login only you can do):**
-1. Ensure the current PyPI release's description contains the `mcp-name` marker
-   (i.e. it shipped after this commit). Bump `server.json` `version` to match.
-2. Install the CLI: `brew install mcp-publisher` (or grab the binary from the
-   registry's GitHub releases).
-3. `mcp-publisher login github` → open the printed URL, enter the device code.
-4. `mcp-publisher publish` (run from the repo root, next to `server.json`).
-5. Verify: `curl "https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.dwgx/smartcli"`.
+**Manual fallback** (if the OIDC job fails):
+1. `brew install mcp-publisher` (or binary from the registry GitHub releases).
+2. `mcp-publisher login github` → device code.
+3. `mcp-publisher publish` (from repo root next to `server.json`).
+4. Verify: `curl "https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.dwgx/smartcli"`.
 
 This can later be automated on tag-push with the "Publish MCP Server" GitHub
 Action (composes server.json + publishes via OIDC), matching our existing

@@ -13,8 +13,8 @@ This machine has no real `tmux`; screenshot reports are honestly labelled
 
 Related docs:
 
-- [`knowledge/INDEX.md`](knowledge/INDEX.md) — the 122-note knowledge graph
-  (rendering principles, effect math, color/type, TUI patterns, agent-eng,
+- [`knowledge/INDEX.md`](knowledge/INDEX.md) — the knowledge graph (140+ `.md`
+  files: rendering principles, effect math, color/type, TUI patterns, agent-eng,
   ground truth, real-project case studies).
 - [`AGENTCLI-VALIDATION.md`](AGENTCLI-VALIDATION.md) — agent-CLI control test
   matrix and limits.
@@ -27,10 +27,10 @@ Related docs:
 
 ## cmd-art
 
-Run from `skills/cmd-art`:
+Run from `skills/cmd-art` (any repo checkout location):
 
-```powershell
-cd D:\Project\SmartCLI\skills\cmd-art
+```bash
+cd skills/cmd-art
 
 python -m fx list
 python -m fx list --tag 3d
@@ -69,7 +69,7 @@ class Hello(Effect):
 
 Then run:
 
-```powershell
+```bash
 python -m fx play hello --seconds 3
 ```
 
@@ -116,16 +116,77 @@ Pattern recipes:
 - `progress`: wait for a spinner/progress completion marker.
 - `wizard`: drive multi-step flows.
 
-CLI wrapper:
+CLI wrapper — a detached daemon owns one live program per session, so state
+survives across shell calls. Run from the repo root:
 
-```powershell
-cd D:\Project\SmartCLI
-python skills\drive-tui\scripts\tui.py start --cmd "python" --cols 80 --rows 24
-python skills\drive-tui\scripts\tui.py wait-regex --id <SID> ">>> " --timeout-ms 15000
-python skills\drive-tui\scripts\tui.py send-line --id <SID> "print(6*7)"
-python skills\drive-tui\scripts\tui.py wait --id <SID>
-python skills\drive-tui\scripts\tui.py close --id <SID>
+```bash
+python skills/drive-tui/scripts/tui.py start --cmd "python3 -i -q" --cols 80 --rows 24
+python skills/drive-tui/scripts/tui.py wait-regex --id <SID> ">>> " --timeout-ms 15000
+python skills/drive-tui/scripts/tui.py send-line --id <SID> "print(6*7)"
+python skills/drive-tui/scripts/tui.py wait --id <SID>
+python skills/drive-tui/scripts/tui.py snapshot --id <SID>
+python skills/drive-tui/scripts/tui.py close --id <SID>
+python skills/drive-tui/scripts/tui.py list          # verify zero leaked sessions
 ```
+
+(On Windows use `py -i -q` as the child command.)
+
+Full subcommand surface (`tui.py --help`):
+
+- `start` — spawn a program in a detached persistent session. Options:
+  `--cmd`, `--id`, `--cols/--rows`, `--cwd` (working directory for the target),
+  `--env KEY=VALUE` (repeatable; extra environment for the target).
+- `snapshot` — print a semantic snapshot (text, styled spans, cursor,
+  selected row, hashes).
+- `send-text` / `send-line` — type literal text, without / with a trailing
+  Enter. Use `--stdin` for text starting with `/` (MSYS path-conversion-safe).
+- `keys` — send key tokens, e.g. `Down Down Enter`, `C-c`, `M-x`.
+- The **wait family** (never sleep — pick the right primitive):
+  - `wait` — race a `--marker` regex against screen **stability**; with no
+    marker it waits for stability alone. The general-purpose "settle" wait.
+  - `wait-regex` — wait strictly for a regex to appear. Use for a known
+    prompt/marker (first prompt after `start` especially).
+  - `wait-change` — wait until screen **text content** changes from a baseline
+    hash (or from now). The precise "did my action land?" primitive.
+  - `wait-visual-change` — like `wait-change` but also fires on styling,
+    selection or cursor-state changes that leave the text identical (e.g. a
+    highlight moving); takes `--baseline-hash` from a prior snapshot's
+    `visual_hash`.
+  - `wait-any` — race **several** `--pattern` regexes, pexpect
+    `expect([...])`-style; reports which matched first (earliest in the list
+    wins a same-poll tie). `--stdin` reads patterns one per line.
+- `alive` — check whether the child process is still running.
+- `close` — terminate the session and its daemon.
+- `list` — list active sessions (use to confirm zero leaks).
+- `run` — one-shot mode: run a JSON step list against a fresh program.
+- `doctor` — report where `smartcli_core` resolved from + dependency status.
+
+Every subcommand takes `--json` for machine-readable output. All waits take
+`--timeout-ms`.
+
+Console scripts — `pip install smartcli-toolkit` installs the same surface as
+commands:
+
+```bash
+smartcli-tui start --cmd "python3 -i -q"   # identical to scripts/tui.py
+smartcli-mcp                               # stdio MCP server: same verbs as MCP tools,
+                                           # per-session token attached automatically
+smartcli-toolkit                           # alias of smartcli-mcp (for `uvx smartcli-toolkit`)
+```
+
+From a source checkout the MCP server is
+`python skills/drive-tui/scripts/mcp_server.py`.
+
+Limits & hardening:
+
+- At most **8 concurrent sessions** by default; raise/lower with
+  `SMARTCLI_MAX_SESSIONS` (1–128). Drive **one** session at a time anyway —
+  see the hard rules in [`CONTRIBUTING.md`](CONTRIBUTING.md).
+- `--env` may **not** override `SMARTCLI_TUI_*` control variables (the daemon's
+  token and registry channel are protected).
+- Terminal size is bounded: max 1000 cols × 500 rows, 100,000 cells total.
+- The session registry directory is created `0700` on POSIX and refused if it
+  is a symlink or owned by another user; see [`SECURITY.md`](SECURITY.md).
 
 ConPTY caveats:
 
@@ -140,8 +201,8 @@ ConPTY caveats:
 
 Run from `skills/tui-ui`:
 
-```powershell
-cd D:\Project\SmartCLI\skills\tui-ui
+```bash
+cd skills/tui-ui
 
 python -m ui widgets
 python -m ui demo table --width 80 --height 12 --theme dashboard
@@ -150,17 +211,18 @@ python -m ui gallery --width 100 --height 30
 python self_test.py
 ```
 
-Or by path from anywhere:
+Or by path from the repo root:
 
-```powershell
-python D:\Project\SmartCLI\skills\tui-ui\ui\cli.py gallery --width 100 --height 30
+```bash
+python skills/tui-ui/ui/cli.py gallery --width 100 --height 30
 ```
 
-Widget catalog (15): `badge`, `banner`, `braille_chart`, `card`, `gradient_rule`,
-`kv`, `meter`, `panel`, `progress`, `radial_glow`, `rule`, `slider_track`,
-`table`, `tabs`, `tree`. The last four (`gradient_rule`, `radial_glow`,
-`slider_track`, `braille_chart`) live in `ui/widgets_ext/`. Run `python -m ui
-widgets` for the live list.
+Widget catalog (17): `badge`, `banner`, `braille_chart`, `card`,
+`fuzzy_filter_list`, `gradient_rule`, `kv`, `meter`, `panel`, `preview_pane`,
+`progress`, `radial_glow`, `rule`, `slider_track`, `table`, `tabs`, `tree`.
+Six live in `ui/widgets_ext/`: `gradient_rule`, `radial_glow`, `slider_track`,
+`braille_chart`, `fuzzy_filter_list`, `preview_pane`. Run `python -m ui widgets`
+for the live list.
 
 Add a widget by dropping a registered class into `skills/tui-ui/ui/widgets_ext/`.
 The widget contract is `measure(avail_w, avail_h)` and `render(region_w, region_h)`.
@@ -175,17 +237,15 @@ They are not proof of a real tmux binary run.
 
 Run from the repo root:
 
-```powershell
-cd D:\Project\SmartCLI
-
-python tools\screenshot\cli.py selftest
-python tools\screenshot\cli.py fx plasma --out tools\screenshot\out\fx_plasma.png
-python tools\screenshot\cli.py matrix fx:plasma --out tools\screenshot\out\matrix_plasma
-python tools\screenshot\cli.py matrix edge:cjk_wide --out tools\screenshot\out\matrix_cjk
-python tools\screenshot\cli.py matrix edge:emoji --out tools\screenshot\out\matrix_emoji
-python tools\screenshot\perception_matrix.py
-python tools\screenshot\tui_ui_smoke.py
-python tools\screenshot\sweep.py
+```bash
+python tools/screenshot/cli.py selftest
+python tools/screenshot/cli.py fx plasma --out tools/screenshot/out/fx_plasma.png
+python tools/screenshot/cli.py matrix fx:plasma --out tools/screenshot/out/matrix_plasma
+python tools/screenshot/cli.py matrix edge:cjk_wide --out tools/screenshot/out/matrix_cjk
+python tools/screenshot/cli.py matrix edge:emoji --out tools/screenshot/out/matrix_emoji
+python tools/screenshot/perception_matrix.py
+python tools/screenshot/tui_ui_smoke.py
+python tools/screenshot/sweep.py
 ```
 
 Expected output locations:
@@ -207,10 +267,13 @@ text, and capture screenshots.
 
 Run from the repo root:
 
-```powershell
-python tools\agentcli\validate_agentcli.py
-python tools\agentcli\validate_agentcli.py --external
-python tools\agentcli\validate_agentcli.py --no-screenshots
+These spawn real PTY sessions serially — per the repo red line, get the user's
+consent before running the full harness, and don't stack it with other PTY work.
+
+```bash
+python tools/agentcli/validate_agentcli.py
+python tools/agentcli/validate_agentcli.py --external
+python tools/agentcli/validate_agentcli.py --no-screenshots
 ```
 
 Outputs:
@@ -230,29 +293,40 @@ See `AGENTCLI-VALIDATION.md` for the test matrix and limits.
 
 ## Regression Commands
 
-Run from the repo root unless noted:
+Run from the repo root unless noted. **`tests/run_all.py` is the main entry** —
+it aggregates every self-test as a subprocess and reports one pass/fail:
 
-```powershell
-python tests\_readme_literal.py
-python tests\probe_pty_fx.py
-python tests\verify_fx.py
-python tests\verify_fx.py text3d
+```bash
+python tests/run_all.py
+```
 
-python tests\_drive_probe1.py
-python tests\_drive_probe2.py
-python tests\_drive_probe3.py
-python tests\_drive_probe4.py
-python tests\_drive_probe5.py
+The suite has two tiers. **Deterministic gates** are pure/in-memory (no PTY) and
+safe to run any time:
 
-python tools\screenshot\cli.py selftest
-python tools\screenshot\perception_matrix.py
-python tools\screenshot\tui_ui_smoke.py
-python tools\screenshot\sweep.py
+```bash
+python tests/test_fx_contract.py        # 30 effects x sizes x contracts
+python tests/test_readiness.py          # virtual-clock wait primitives
+python tests/test_wait_any.py
+python tests/test_visual_change.py      # selection/cursor-aware waits
+python tests/test_drive_security.py     # control-plane boundaries
+python tests/test_vendor_sync.py        # vendored core byte-identical
+python tests/test_doc_counts.py         # docs match the live registries
+python tests/test_version_sync.py       # ten version sites agree
+python tests/_readme_literal.py
+cd skills/tui-ui && python self_test.py
+```
 
-python tests\_agentcli_harness_probe.py
+**PTY probes** spawn real ConPTY/pty sessions. They are heavy and must run
+**serially, one at a time** — per the repo red line, get the user's consent
+first and never stack them:
 
-cd D:\Project\SmartCLI\skills\tui-ui
-python self_test.py
+```bash
+python tests/verify_fx.py               # spawns many PTY children
+python tests/probe_pty_fx.py
+python tests/_drive_probe1.py           # ... _drive_probe2..6, one at a time
+python tests/_tui_cli_probe.py
+python tests/_mcp_probe.py
+python tests/_agentcli_harness_probe.py
 ```
 
 Note: `_drive_probe2.py` intentionally creates a broken recipe to verify
@@ -272,7 +346,7 @@ SmartCLI/
   skills/tui-ui/           terminal UI layout/widgets
   tools/screenshot/        pyte -> PNG smoke-test harness
   tools/agentcli/          agent-CLI control validation harness
-  knowledge/               122-note knowledge graph (see knowledge/INDEX.md)
+  knowledge/               wiki-link knowledge graph, 140+ .md files (see knowledge/INDEX.md)
   showcase/                rendered effect PNGs
   tests/                   direct script-style regressions
   research/                archived first-pass research notes

@@ -28,13 +28,15 @@ truth, the R-docs were not folded back in — they are frozen here as archive.
 | `R5-arch-and-tmux.md` | Plugin architecture + tmux integration | [`agent-eng/`](../knowledge/agent-eng/README.md), [`principles/`](../knowledge/principles/README.md) |
 | `R6-tmux-real-behavior.md` | Real tmux behavior for art + driving | [`principles/`](../knowledge/principles/README.md) |
 | `R7-terminal-ui-layout.md` | HTML/CSS-like terminal layout + widgets | [`principles/`](../knowledge/principles/README.md), `skills/tui-ui` |
-| `_r3_prompt.txt` | Prompt used to generate R3 | — (provenance only) |
-| `_fable5_analysis.md` | Unrelated agent-persona evaluation (Chinese) | — (off-topic; not part of the docs graph) |
+| `_r3_prompt.txt` | Prompt used to generate R3 | — (provenance only; internal-only, gitignored — absent from a fresh checkout) |
+| `_fable5_analysis.md` | Unrelated agent-persona evaluation (Chinese) | — (off-topic; internal-only, gitignored — absent from a fresh checkout) |
 
-## Ground-truth assets (kept, actively cited)
+## Ground-truth assets (internal-only)
 
 These sibling directories are **not** archive — they are measured ground-truth
-assets cited by [`../knowledge/ground-truth/`](../knowledge/ground-truth/README.md):
+assets cited by [`../knowledge/ground-truth/`](../knowledge/ground-truth/README.md).
+They are **gitignored and excluded from the public release**, so they are absent
+from a fresh checkout; the public source of truth is the shipping code itself:
 
 - `cc-decompiled/` — decompiled reference constants
 - `real-frames/` — live captures

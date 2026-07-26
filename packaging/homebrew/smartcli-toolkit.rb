@@ -12,14 +12,23 @@
 #      with a stable release history; open a PR to Homebrew/homebrew-core once the
 #      project has traction.
 #
+# BEFORE PUBLISHING, calibrate against pyproject.toml — this draft is pinned to
+# the old 0.1.2 sdist and only vendors `pyte`. From 0.2.0 the package also
+# requires the `mcp` SDK (and ships the smartcli-tui / smartcli-mcp commands), so:
+#   1. Point url/sha256 at the release you are packaging (0.2.0 or newer).
+#   2. Regenerate the resource stanzas so the mcp dependency closure is included:
+#        brew update-python-resources Formula/smartcli-toolkit.rb
+#   3. Keep python@ at 3.10 or newer (requires-python >=3.10).
+#
 # Get the sha256 values:
 #   curl -L -o s.tar.gz <the url below> && shasum -a 256 s.tar.gz   # for the sdist
-#   (repeat for the pyte resource url)
+#   (repeat for each resource url)
 class SmartcliToolkit < Formula
   include Language::Python::Virtualenv
 
-  desc "Pluggable-PTY + pyte core for driving/perceiving/rendering the terminal"
+  desc "Pluggable-PTY core, TUI driver and stdio MCP server for the terminal"
   homepage "https://github.com/dwgx/SmartCLI"
+  # TODO (stale placeholder): bump to the release being packaged, e.g. 0.2.0.
   url "https://files.pythonhosted.org/packages/source/s/smartcli-toolkit/smartcli_toolkit-0.1.2.tar.gz"
   sha256 "0000000000000000000000000000000000000000000000000000000000000000" # TODO: sdist sha256
   license "MIT"
@@ -37,5 +46,7 @@ class SmartcliToolkit < Formula
 
   test do
     system libexec/"bin/python", "-c", "import smartcli_core; print(smartcli_core.__version__)"
+    system libexec/"bin/python", "-c", "import smartcli_drive"
+    system bin/"smartcli-tui", "--help"
   end
 end

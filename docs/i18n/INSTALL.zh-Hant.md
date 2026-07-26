@@ -2,7 +2,7 @@
 
 # 安裝 SmartCLI
 
-SmartCLI 是三個 Agent Skills（`cmd-art`、`drive-tui`、`tui-ui`），全都建構在同一套可插拔的 PTY + `pyte` 核心之上。取得它的方式有三種，從「直接把資料夾丟進去」到一般的 pip 安裝都有，挑一個符合你拿到檔案方式的做法即可。
+SmartCLI 是三個 Agent Skills（`cmd-art`、`drive-tui`、`tui-ui`），全都建構在同一套可插拔的 PTY + `pyte` 核心之上。取得它的方式有四種，從「直接把資料夾丟進去」到一般的 pip 安裝都有，挑一個符合你拿到檔案方式的做法即可。
 
 ## TL;DR — 免設定，丟進去就能用
 
@@ -19,7 +19,7 @@ python skills/drive-tui/scripts/tui.py doctor
 
 這會印出 `smartcli_core` 是從哪裡解析而來、以及執行期相依套件是否齊備；若有缺少，還會附上確切的安裝指令。
 
-## 三種情境
+## 四種情境
 
 ### 1. 整個 repo（建議）
 
@@ -49,19 +49,25 @@ repo 隨附了 `.claude-plugin/plugin.json` 與 `.claude-plugin/marketplace.json
 /plugin install smartcli@smartcli
 ```
 
-### 4. pip（把共用核心當函式庫）
+### 4. pip（函式庫 + TUI 驅動器 + MCP 伺服器）
 
-若要把 `smartcli_core` 當成一般可 import 的函式庫使用：
+Python 3.10+ 會安裝可匯入核心與兩個驅動入口：
 
 ```bash
-pip install smartcli-toolkit   # import stays: from smartcli_core import PtySession
+pip install smartcli-toolkit
+smartcli-tui doctor
+smartcli-mcp
 ```
+
+匯入方式仍是 `from smartcli_core import PtySession`；`smartcli-toolkit` 是
+MCP Registry 透過 `uvx` 啟動時使用的 `smartcli-mcp` 別名。
 
 ## 相依套件
 
 | 套件 | 由誰需要 | 自動？ |
 |---|---|---|
 | `pyte` | `drive-tui` 核心（硬相依） | 由 `doctor` 回報；經要求才安裝 |
+| `mcp` | 已安裝的 stdio MCP 伺服器 | 由 pip / requirements.txt 安裝 |
 | `pywinpty` | 僅 **Windows** 上的 `drive-tui` | 由 `doctor` 回報；經要求才安裝 |
 | `pyfiglet`、`Pillow`、`wcwidth` | 選用的加分項 — 沒有它們一切也會優雅降級 | 從不強制 |
 

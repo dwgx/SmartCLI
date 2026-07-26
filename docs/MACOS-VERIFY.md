@@ -1,13 +1,12 @@
 # macOS verification runbook
 
-**Status: NOT yet verified on macOS.** This is the one platform SmartCLI has never
-run on. The specific unknown is the **BSD pty EOF path** — macOS uses a BSD-derived
-`pty.fork()` whose EOF/`read()` semantics on a closed child differ subtly from
-Linux's, and `PosixPtyBackend` has only been exercised on Debian.
-
-This runbook is what to run once you open the Mac and give me SSH (or run it
-yourself). It is ordered, **serial**, and respects the repo spawn red-line: one PTY
-at a time, verify zero residue between heavy steps, never fan out real processes.
+**Status: CI already covers this platform.** The 3-OS matrix (windows/ubuntu/
+**macos-latest**) has run the full deterministic suite + `_sandbox_posix_backend.py`
+since v0.1.4, and the v0.2.0 `drive-smoke` job also runs `_tui_cli_probe`,
+`_mcp_probe`, and `_sandbox_daemon_robustness` on macOS. The current working copy
+is on macOS Apple Silicon. What this runbook still covers is the **interactive
+curses DECCKM/SS3-arrow probe** (needs a controllable terminal, SKIPPED on CI
+runners) and testing with a **real tmux host**.
 
 ---
 
@@ -16,7 +15,7 @@ at a time, verify zero residue between heavy steps, never fan out real processes
 On the Mac:
 ```sh
 # a) make sure Python 3.11+ and git are present
-python3 --version        # need >= 3.9; 3.11/3.12 ideal
+python3 --version        # need >= 3.10
 git --version
 
 # b) enable Remote Login so SSH works:  System Settings -> General -> Sharing
@@ -55,14 +54,13 @@ python tests/_sandbox_posix_backend.py ; echo "exit=$?"
   the ncurses arrow probe reading `Up` as `KEY_UP` (SS3 path).
 - If it hangs on the EOF read, that's the BSD difference we're hunting — capture
   the traceback / where it stalls and stop; do not retry in a loop.
-```
 
 ## 3. Deterministic suite (safe, no interactive PTY)
 
 ```sh
 PYTHONIOENCODING=utf-8 python tests/test_fx_contract.py     # 30 effects x sizes
 PYTHONIOENCODING=utf-8 python tests/_readme_literal.py
-( cd skills/tui-ui && python self_test.py && python -m ui widgets )   # 15 widgets
+( cd skills/tui-ui && python self_test.py && python -m ui widgets )   # 17 widgets
 ( cd skills/cmd-art && python -m fx list )                            # 30 effects
 python skills/tui-ui/ui/box_junction.py
 ```
@@ -96,16 +94,13 @@ sh skills/cmd-art/tmux/fx-popup.sh    # inspect, don't leave sessions running
 tmux kill-server                       # clean up
 ```
 
-## 6. Report back — what I'll update on green
+## 6. Remaining openwork
 
-If §2 + §4 pass on macOS, these become true and I'll update them (with the run as
-evidence, not an assertion):
-- `README.md` "verified on Debian 13 + Windows/ConPTY. macOS ... not yet verified"
-  → add macOS.
-- `HANDOFF.md` §6/§7 "STILL UNVERIFIED: macOS (BSD pty EOF path)" → verified.
-- `skills/drive-tui/references/LIMITATIONS.md` → move the macOS caveat to resolved.
-- The CI matrix's `macos-latest` leg already covers the deterministic + POSIX
-  sandbox parts automatically going forward.
+§2 and §4 of this runbook cover what CI cannot automate (interactive terminal
+sessions). Once those are green, update:
+- `HANDOFF.md` — remove remaining curses/tmux caveats, note real-Mac verified.
+- `skills/drive-tui/references/LIMITATIONS.md` — move any macOS-specific caveat
+  to the resolved section.
 
 **If anything fails:** capture the exact output, DON'T loop-retry (red-line), and I
 diagnose the root cause before changing code. `smartcli_core` is DO-NOT-MODIFY

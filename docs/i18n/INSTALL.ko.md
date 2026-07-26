@@ -2,7 +2,7 @@
 
 # SmartCLI 설치
 
-SmartCLI는 하나의 교체 가능한 PTY + `pyte` 코어 위에 올라간 세 개의 Agent Skill(`cmd-art`, `drive-tui`, `tui-ui`)입니다. 설치 방법은 "폴더를 그냥 넣기"부터 일반적인 pip 설치까지 세 가지가 있습니다. 파일을 어떤 방식으로 받았는지에 맞는 방법을 고르세요.
+SmartCLI는 하나의 교체 가능한 PTY + `pyte` 코어 위에 올라간 세 개의 Agent Skill(`cmd-art`, `drive-tui`, `tui-ui`)입니다. 설치 방법은 "폴더를 그냥 넣기"부터 일반적인 pip 설치까지 네 가지가 있습니다. 파일을 어떤 방식으로 받았는지에 맞는 방법을 고르세요.
 
 ## 요약 — 설정 없이 그냥 넣기
 
@@ -19,7 +19,7 @@ python skills/drive-tui/scripts/tui.py doctor
 
 `smartcli_core` 를 어디에서 찾아왔는지, 그리고 런타임 의존성이 갖춰져 있는지를 출력하며, 빠진 것이 있으면 정확한 설치 명령까지 알려줍니다.
 
-## 세 가지 시나리오
+## 네 가지 시나리오
 
 ### 1. 저장소 전체 (권장)
 
@@ -49,19 +49,25 @@ python <dropped-in>/drive-tui/scripts/tui.py doctor
 /plugin install smartcli@smartcli
 ```
 
-### 4. pip (공유 코어를 라이브러리로)
+### 4. pip (라이브러리 + TUI 드라이버 + MCP 서버)
 
-`smartcli_core` 를 일반적인 임포트 가능한 라이브러리로 쓰려면:
+Python 3.10+에서 임포트 가능한 코어와 두 드라이버 진입점을 설치합니다:
 
 ```bash
-pip install smartcli-toolkit   # import stays: from smartcli_core import PtySession
+pip install smartcli-toolkit
+smartcli-tui doctor
+smartcli-mcp
 ```
+
+임포트는 계속 `from smartcli_core import PtySession`을 사용합니다.
+`smartcli-toolkit`은 MCP Registry가 `uvx`로 실행할 때 쓰는 `smartcli-mcp` 별칭입니다.
 
 ## 의존성
 
 | 패키지 | 필요한 곳 | 자동? |
 |---|---|---|
 | `pyte` | `drive-tui` 코어 (필수 의존성) | `doctor` 가 알려줌; 요청 시 설치 |
+| `mcp` | 설치된 stdio MCP 서버 | pip / requirements.txt가 설치 |
 | `pywinpty` | **Windows** 에서만 `drive-tui` | `doctor` 가 알려줌; 요청 시 설치 |
 | `pyfiglet`, `Pillow`, `wcwidth` | 선택적 편의 기능 — 없어도 모두 무리 없이 동작함 | 절대 필수 아님 |
 

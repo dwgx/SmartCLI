@@ -33,6 +33,9 @@ navigation, opening a commit diff, highlighting a branch) — no script, no mock
 pip install smartcli-toolkit
 ```
 
+Requires Python 3.10 or newer. The install includes the shared Python library,
+the persistent TUI driver, and the stdio MCP server.
+
 ## What & why
 
 SmartCLI is a workspace for terminal work that agents and humans both do: **driving**
@@ -106,16 +109,11 @@ cd SmartCLI
 python -m pip install -r requirements.txt
 ```
 
-`requirements.txt` pulls only the two required runtime deps: `pyte` (everywhere) and
-`pywinpty` (Windows only — the marker skips it on POSIX, which uses the stdlib `pty`
-backend). From the checkout, `pip install .` installs the same importable
-`smartcli_core` package.
-
-Honest scope note: `pip install smartcli-toolkit` installs the clean, importable `smartcli_core`
-package plus its required deps. It does **not** relocate the three skills — those run
-in place via their own entry points (`python -m fx`, `python -m ui`,
-`skills/drive-tui/scripts/tui.py`), exactly as the Quickstart shows. This is by design;
-see the note at the top of [`pyproject.toml`](pyproject.toml).
+`requirements.txt` installs `pyte`, the MCP SDK, and `pywinpty` on Windows only
+(POSIX uses the stdlib `pty` backend). `pip install .` installs `smartcli_core`
+plus the `smartcli-tui`, `smartcli-mcp`, and `smartcli-toolkit` commands. The
+visual `cmd-art` and `tui-ui` skills still run in place from a checkout via
+`python -m fx` and `python -m ui`.
 
 **Optional extras** (real FIGlet fonts, raster images, authoritative cell widths — all
 degrade gracefully to stdlib fallbacks when absent):
@@ -140,8 +138,9 @@ Verified dep versions on the dev box (Windows 11, CPython 3.14.6): `pyte` 0.8.2,
 `pywinpty` 3.0.5, `pyfiglet` 1.0.4, `Pillow` 12.2.0, `wcwidth` 0.8.1.
 
 **Diagnostics.** `python -m smartcli_core` prints your OS, Python, terminal, PTY
-backend, and dependency versions — run it and paste the output when filing a bug
-(SmartCLI's behavior is very terminal- and platform-sensitive).
+backend, and dependency versions. `smartcli-tui doctor` reports where the core
+was loaded from and whether drive dependencies are present. Include both outputs
+when filing a terminal-sensitive bug.
 
 ## Quickstart
 
@@ -169,19 +168,22 @@ python -m ui demo table --width 80 --height 12 --theme dashboard
 Persistent-session CLI (state survives across shell calls):
 
 ```bash
-python skills/drive-tui/scripts/tui.py start --cmd "python" --cols 80 --rows 24
-python skills/drive-tui/scripts/tui.py wait-regex --id <SID> ">>> " --timeout-ms 15000
-python skills/drive-tui/scripts/tui.py send-line --id <SID> "print(6*7)"
-python skills/drive-tui/scripts/tui.py snapshot --id <SID>
-python skills/drive-tui/scripts/tui.py close --id <SID>
+smartcli-tui start --cmd "python3 -i -q" --cols 80 --rows 24
+smartcli-tui wait-regex --id <SID> ">>> " --timeout-ms 15000
+smartcli-tui send-line --id <SID> "print(6*7)"
+smartcli-tui snapshot --id <SID>
+smartcli-tui close --id <SID>
 ```
+
+On Windows use `py -i -q` as the child command. From a source checkout, replace
+`smartcli-tui` with `python skills/drive-tui/scripts/tui.py`.
 
 Or drive from any MCP client — the same verbs as MCP tools, with the
 per-session token attached automatically:
 
 ```bash
-pip install "smartcli-toolkit[mcp]"
-python skills/drive-tui/scripts/mcp_server.py     # stdio MCP server
+pip install smartcli-toolkit
+smartcli-mcp     # stdio MCP server; smartcli-toolkit is an equivalent alias
 ```
 
 ### As a library
@@ -212,9 +214,10 @@ ocean, synthwave, viridis, pastel, matrix-green, rainbow). Effects are pure fram
 producers; `play` is bounded by default and always restores the terminal.
 
 **`tui-ui`** (`skills/tui-ui`) — a web-like terminal layout engine emitting tmux-safe
-ANSI frames (SGR color runs + newlines only; no cursor moves, no alt-screen). **15
-widgets** (badge, banner, braille_chart, card, gradient_rule, kv, meter, panel,
-progress, radial_glow, rule, slider_track, table, tabs, tree) over a real **engine**:
+ANSI frames (SGR color runs + newlines only; no cursor moves, no alt-screen). **17
+widgets** (badge, banner, braille_chart, card, fuzzy_filter_list, gradient_rule, kv,
+meter, panel, preview_pane, progress, radial_glow, rule, slider_track, table, tabs,
+tree) over a real **engine**:
 `field.py` (shader compositors), `raster.py` (sub-cell half/quad/braille pixels),
 `box_junction.py` (edge-algebra box joins), `color_model.py` (honest truecolor → 256 →
 16 → mono degrade). Display-cell accurate for CJK/emoji/ZWJ so columns never desync.
@@ -230,9 +233,9 @@ confirm, form, progress, wizard) that `classify()` a screen and `drive()` it.
 semantic snapshot + readiness sync (`pty_backend / screen_model / snapshot / readiness /
 session`). The reusable, importable foundation under all three skills.
 
-**Knowledge graph** (`knowledge/`) — a 122-note wiki-link graph of exact rendering
-formulas, ANSI sequences, and measured constants, each note carrying a source and
-cross-links. See [`knowledge/INDEX.md`](knowledge/INDEX.md).
+**Knowledge graph** (`knowledge/`) — a wiki-link graph (140+ `.md` files) of exact
+rendering formulas, ANSI sequences, and measured constants, each note carrying a
+source and cross-links. See [`knowledge/INDEX.md`](knowledge/INDEX.md).
 
 ## Project layout
 
@@ -244,7 +247,7 @@ SmartCLI/
   skills/tui-ui/           terminal UI layout engine and widgets (17 widgets)
   tools/screenshot/        pyte -> PNG smoke-test harness
   tools/agentcli/          agent-CLI control validation harness
-  knowledge/               122-note knowledge graph (see knowledge/INDEX.md)
+  knowledge/               wiki-link knowledge graph, 140+ .md files (see knowledge/INDEX.md)
   showcase/                rendered effect PNGs + demo GIFs (shown above)
   tests/                   direct script-style regressions
   research/                archived first-pass research notes
@@ -254,7 +257,7 @@ SmartCLI/
 
 - **[`README-USAGE.md`](README-USAGE.md)** — the full usage cheat-sheet: every skill,
   the screenshot and AGENTCLI harnesses, and the regression commands.
-- **[`knowledge/INDEX.md`](knowledge/INDEX.md)** — the 122-note knowledge graph.
+- **[`knowledge/INDEX.md`](knowledge/INDEX.md)** — the knowledge graph (140+ `.md` files).
 - **[`AGENTCLI-VALIDATION.md`](AGENTCLI-VALIDATION.md)** — agent-CLI control test matrix.
 - **[`CHANGELOG.md`](CHANGELOG.md)** — release history.
 

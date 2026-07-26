@@ -59,6 +59,8 @@ Linux 컨테이너에서 실제 프로그램을 직접 조작해 캡처했습니
 pip install smartcli-toolkit
 ```
 
+Python 3.10 이상이 필요합니다. 공유 라이브러리, 영구 TUI 드라이버와 stdio MCP 서버가 함께 설치됩니다.
+
 > **배포 이름 vs 임포트 이름:** PyPI 배포 이름은 `smartcli-toolkit`이지만
 > (`smartcli` / `smart-cli`라는 이름은 이미 선점되었거나 차단되어 있습니다),
 > 임포트 가능한 패키지는 `smartcli_core`입니다. 따라서 `pip install smartcli-toolkit`
@@ -72,16 +74,10 @@ cd SmartCLI
 python -m pip install -r requirements.txt
 ```
 
-`requirements.txt`은 필수 런타임 의존성 두 가지만 설치합니다: `pyte`(모든 환경)와
-`pywinpty`(Windows 전용 — 마커가 POSIX에서는 이를 건너뛰며, POSIX는 표준 라이브러리의 `pty`
-백엔드를 사용합니다). 체크아웃한 위치에서 `pip install .`을 실행하면 동일한 임포트 가능한
-`smartcli_core` 패키지가 설치됩니다.
-
-솔직한 범위 안내: `pip install smartcli-toolkit`은 깔끔하고 임포트 가능한 `smartcli_core`
-패키지와 그 필수 의존성을 설치합니다. 세 개의 스킬을 옮겨 놓지는 **않습니다** — 이들은
-빠른 시작에서 보여 주듯 각자의 진입점(`python -m fx`, `python -m ui`,
-`skills/drive-tui/scripts/tui.py`)을 통해 제자리에서 실행됩니다. 이는 의도된 설계이며,
-자세한 내용은 [`pyproject.toml`](../../pyproject.toml) 상단의 안내를 참고하세요.
+`requirements.txt`은 `pyte`, MCP SDK, Windows 전용 `pywinpty`를 설치합니다
+(POSIX는 표준 라이브러리 `pty`를 사용합니다). `pip install .`은 `smartcli_core`와
+`smartcli-tui`, `smartcli-mcp`, `smartcli-toolkit` 명령을 설치합니다. 시각화용
+`cmd-art`와 `tui-ui` 스킬은 체크아웃에서 `python -m fx`와 `python -m ui`로 계속 실행합니다.
 
 **선택적 추가 기능** (실제 FIGlet 폰트, 래스터 이미지, 신뢰할 수 있는 셀 너비 — 없을 경우
 모두 표준 라이브러리 폴백으로 자연스럽게 다운그레이드됩니다):
@@ -104,6 +100,11 @@ set PYTHONIOENCODING=utf-8
 
 개발 머신(Windows 11, CPython 3.14.6)에서 검증한 의존성 버전: `pyte` 0.8.2,
 `pywinpty` 3.0.5, `pyfiglet` 1.0.4, `Pillow` 12.2.0, `wcwidth` 0.8.1.
+
+**진단.** `python -m smartcli_core`는 OS, Python, 터미널, PTY 백엔드, 의존성
+버전을 출력합니다. `smartcli-tui doctor`는 코어가 어디에서 로드되었는지와 drive
+의존성이 갖춰졌는지를 알려줍니다. 터미널 환경에 민감한 버그를 신고할 때는 두
+출력을 모두 첨부해 주세요.
 
 ## 빠른 시작
 
@@ -131,11 +132,22 @@ python -m ui demo table --width 80 --height 12 --theme dashboard
 지속 세션 CLI (셸 호출을 넘어 상태가 유지됩니다):
 
 ```bash
-python skills/drive-tui/scripts/tui.py start --cmd "python" --cols 80 --rows 24
-python skills/drive-tui/scripts/tui.py wait-regex --id <SID> ">>> " --timeout-ms 15000
-python skills/drive-tui/scripts/tui.py send-line --id <SID> "print(6*7)"
-python skills/drive-tui/scripts/tui.py snapshot --id <SID>
-python skills/drive-tui/scripts/tui.py close --id <SID>
+smartcli-tui start --cmd "python3 -i -q" --cols 80 --rows 24
+smartcli-tui wait-regex --id <SID> ">>> " --timeout-ms 15000
+smartcli-tui send-line --id <SID> "print(6*7)"
+smartcli-tui snapshot --id <SID>
+smartcli-tui close --id <SID>
+```
+
+Windows에서는 자식 명령을 `py -i -q`로 바꾸세요. 소스에서 실행할 때는
+`smartcli-tui` 대신 `python skills/drive-tui/scripts/tui.py`를 사용합니다.
+
+MCP 클라이언트에서도 그대로 구동할 수 있습니다 — 동일한 동작들이 MCP 도구로
+노출되며, 세션별 토큰은 자동으로 첨부됩니다:
+
+```bash
+pip install smartcli-toolkit
+smartcli-mcp     # stdio MCP 서버; smartcli-toolkit은 동등한 별칭입니다
 ```
 
 ### 라이브러리로 사용하기
@@ -167,8 +179,9 @@ ocean, synthwave, viridis, pastel, matrix-green, rainbow)에 걸쳐 제공합니
 
 **`tui-ui`** (`skills/tui-ui`) — 웹처럼 동작하는 터미널 레이아웃 엔진으로, tmux에 안전한
 ANSI 프레임을 내보냅니다(SGR 컬러 런 + 줄바꿈만 사용하며, 커서 이동이나 대체 화면은 없습니다). **17개
-위젯**(badge, banner, braille_chart, card, gradient_rule, kv, meter, panel,
-progress, radial_glow, rule, slider_track, table, tabs, tree)을 실제 **엔진** 위에서 제공합니다:
+위젯**(badge, banner, braille_chart, card, fuzzy_filter_list, gradient_rule, kv,
+meter, panel, preview_pane, progress, radial_glow, rule, slider_track, table,
+tabs, tree)을 실제 **엔진** 위에서 제공합니다:
 `field.py`(셰이더 컴포지터), `raster.py`(서브 셀 단위 half/quad/braille 픽셀),
 `box_junction.py`(에지 대수 기반 박스 결합), `color_model.py`(정직한 트루컬러 → 256 →
 16 → mono 다운그레이드). CJK/이모지/ZWJ에 대해 표시 셀 단위로 정확하므로 열이 절대 어긋나지 않습니다.

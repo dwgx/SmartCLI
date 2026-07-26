@@ -13,6 +13,6 @@ This is a **pointer** into a load-bearing skill document (the full theory lives 
 
 **Litmus test (does the kernel hold?):** gradient divider = one `LinearGradient` row; ultracode glow = `Ripple` washing a panel with white text over; smooth progress bar = `SubcellRaster`; panel/table/tree = `BoxJunction` + content field; **`/effort` selector = layout + one `Ripple` field + text over** — a kernel composition plus ~12 lines of field, not a bespoke script.
 
-**Source:** Load-bearing project document (unsourced / primary): `D:/Project/SmartCLI/skills/tui-ui/references/RENDERING-MODEL.md`.
+**Source:** Load-bearing project document (unsourced / primary): `skills/tui-ui/references/RENDERING-MODEL.md` (repo-relative).
 
 **See also:** [[cell-grid-model]], [[terminal-cell-aspect-ratio]], [[sub-cell-resolution]], [[box-drawing-glyphs]], [[ansi-sgr-color]], [[flicker-free-rendering]], [[effort-selector]], [[hard-lessons]], [[plasma]], [[color-interpolation]]

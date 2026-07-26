@@ -27,8 +27,15 @@ surface is narrow but real:
   `ps`/Task Manager) and persisted in a `0600` per-session registry file. The
   pre-token transport is bounded (max request size, per-connection timeout) so an
   unauthenticated loopback peer cannot exhaust memory or kill the daemon with
-  malformed bytes. Reports about token bypass, screen-content leaks to an
-  unauthenticated peer, or session hijack are in scope.
+  malformed bytes. Since 0.2.0 the hardening also covers: session ids are
+  validated before any registry path use (no traversal); the per-session registry
+  directory is created `0700` and refused if it is a symlink or owned by another
+  user; registry files are created `O_EXCL` (+`O_NOFOLLOW` on POSIX) so a
+  capability cannot be replaced; the driven child does **not** inherit
+  `SMARTCLI_TUI_TOKEN`; `--env` may not override `SMARTCLI_TUI_*` control
+  variables; and the session count (default 8, `SMARTCLI_MAX_SESSIONS`) and
+  terminal dimensions are bounded. Reports about token bypass, screen-content
+  leaks to an unauthenticated peer, or session hijack are in scope.
 - **The MCP server wrapper** (`skills/drive-tui/scripts/mcp_server.py`), which
   exposes the same daemon verbs. It must never expose an unauthenticated verb —
   it reuses the token-auth client path.

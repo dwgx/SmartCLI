@@ -12,9 +12,21 @@ body:
     attributes:
       label: SmartCLI version
       description: "`pip show smartcli-toolkit`, or the git commit."
-      placeholder: "0.1.3"
+      placeholder: "0.2.0"
     validations:
       required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics output
+      description: >-
+        Paste the output of `python -m smartcli_core` (OS / Python / terminal /
+        PTY backend / dependency versions) and, if you installed the package,
+        `smartcli-tui doctor`. These answer most terminal-sensitive questions up
+        front.
+      render: text
+    validations:
+      required: false
   - type: dropdown
     id: os
     attributes:

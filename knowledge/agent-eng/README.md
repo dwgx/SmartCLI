@@ -1,6 +1,6 @@
 # Agent Engineering Knowledge Graph
 
-Cross-linked knowledge base on driving/replicating CLIs with agents. Every entry is grounded in the mined digest (`D:/Project/SmartCLI/knowledge/sources/raw-agent-eng.md`) and carries an authoritative **Source:** URL. Links between entries are wiki-style `[[filename-slug]]`.
+Cross-linked knowledge base on driving/replicating CLIs with agents. Every entry is grounded in the mined digest (`../sources/raw-agent-eng.md`) and carries an authoritative **Source:** URL. Links between entries are wiki-style `[[filename-slug]]`.
 
 ## A. Driving interactive CLIs via PTY
 

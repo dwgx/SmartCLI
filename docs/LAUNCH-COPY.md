@@ -1,9 +1,12 @@
 # SmartCLI — launch copy (ready to paste)
 
 Copy for the two-phase launch (see `NEXT-STEPS.md §C`). **Numbers fact-checked
-against the live code 2026-07-13:** 19 fx effects · 8 themes · 15 tui-ui widgets ·
-8 drive-tui recipes · 2 stars. Links: repo github.com/dwgx/SmartCLI · site
-https://dwgx.github.io/SmartCLI/ · PyPI `pip install smartcli-toolkit`.
+against the live code 2026-07-27:** 30 fx effects · 8 themes · 17 tui-ui widgets ·
+8 drive-tui recipes. **Before posting, re-run `python -m fx list` and
+`python -m ui widgets` and take the live numbers** — counts drift, and a wrong
+number in launch copy is the one error everybody checks. Links: repo
+github.com/dwgx/SmartCLI · site https://dwgx.github.io/SmartCLI/ · docs
+https://smartcli.readthedocs.io/ · PyPI `pip install smartcli-toolkit`.
 
 **Rules baked in (from launch research):** no emoji walls, no
 "revolutionary/seamless/autonomous", no unverified platform claims, concrete
@@ -60,7 +63,7 @@ GIF/site link + "MIT, on PyPI". Check each list's CONTRIBUTING before opening.
 >
 > SmartCLI keeps a live `pyte` cell grid of what the terminal actually renders, so the agent perceives the real screen (cursor position, reverse-video selection, alt-screen) and drives with a perceive → decide → act → wait → confirm loop instead of blind sleeps. Backend is pluggable: ConPTY/pywinpty on Windows, POSIX pty on Linux. It ships as three agent skills over that one core: drive (this), render terminal effects, and cell-accurate UI widgets.
 >
-> The GIF is it driving lazygit on Debian 13 end to end — navigating panels, opening a commit's diff, highlighting a branch, all by reading the screen grid. Honest scope: the POSIX backend is verified on Debian 13/Python 3.13 and Windows/ConPTY; macOS and real tmux are not yet verified, and there's a known edge where selection-only cursor moves can read as "stable" too early — all of that is in LIMITATIONS.md rather than hand-waved. It's early (2 stars); I'd genuinely like to hear where it breaks on your TUIs.
+> The GIF is it driving lazygit on Debian 13 end to end — navigating panels, opening a commit's diff, highlighting a branch, all by reading the screen grid. Honest scope: verified on Debian 13, Windows/ConPTY and macOS (CI runs the suite plus real-PTY smoke on all three); real tmux is still unverified. Waits are explicit primitives rather than sleeps — including `wait-visual-change`, which catches a highlight bar moving when the text is byte-identical. Remaining edges live in LIMITATIONS.md rather than hand-waved. It's early; I'd genuinely like to hear where it breaks on your TUIs.
 >
 > Repo: github.com/dwgx/SmartCLI · `pip install smartcli-toolkit` · live effects + interactive playground: dwgx.github.io/SmartCLI
 
@@ -86,9 +89,9 @@ pexpect/pyte framing; drop the effects emphasis.)*
 
 3/ Why not pexpect? pexpect regex-matches bytes, can't tell which menu row is selected, and has no Windows PTY. SmartCLI's backend is pluggable: ConPTY on Windows, POSIX pty on Linux. Different job from Textual/TTE too — those build TUIs, this drives them.
 
-4/ Ships as 3 agent skills on one core: drive TUIs, render effects (19, all through its own pipeline), cell-accurate widgets (15). Live playground: dwgx.github.io/SmartCLI
+4/ Ships as 3 agent skills on one core: drive TUIs, render effects (30, all through its own pipeline), cell-accurate widgets (17). Live playground: dwgx.github.io/SmartCLI
 
-5/ Honest scope: verified on Debian 13 + Windows/ConPTY; macOS + tmux not yet; known edges in LIMITATIONS.md. Early (2 stars). MIT. `pip install smartcli-toolkit` · github.com/dwgx/SmartCLI
+5/ Honest scope: verified on Debian 13 + Windows/ConPTY + macOS (3-OS CI incl. real-PTY smoke); real tmux still unverified; remaining edges in LIMITATIONS.md. Early. MIT. `pip install smartcli-toolkit` · github.com/dwgx/SmartCLI
 
 ## PHASE 2 · C5 — Claude Code / agent-skill communities
 

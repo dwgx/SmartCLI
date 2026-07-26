@@ -16,7 +16,7 @@ on:
     inputs:
       model:
         description: "Model for the SmartCLI agent's decide step"
-        default: "anthropic/claude-3-7-latest"
+        default: "anthropic/claude-sonnet-5"
         required: false
       n_tasks:
         description: "How many tasks to run (a small subset keeps it cheap)"

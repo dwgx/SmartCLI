@@ -5,6 +5,36 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-07-19
+
+### Added
+- Installable `smartcli-tui`, `smartcli-mcp`, and registry-compatible
+  `smartcli-toolkit` console commands; the wheel now includes the drive/MCP
+  implementation instead of shipping only `smartcli_core`.
+- `cwd` and repeated `KEY=VALUE` environment controls for persistent sessions,
+  machine-readable start/list/close output, and structured MCP snapshots.
+- `visual_hash` + `wait_visual_change` across core, daemon, CLI, one-shot steps,
+  and MCP for attribute-only selection and cursor movement.
+- Cross-platform package/MCP smoke jobs and Python 3.10/3.14 CI boundaries.
+- OIDC MCP Registry publishing after a successful PyPI tag release.
+
+### Fixed
+- Explicit `wait_change` baseline hashes are integers end to end; CLI/MCP calls
+  no longer report an immediate false change because of a string/int mismatch.
+- Session ids can no longer traverse outside the registry directory, registry
+  writes refuse symlinks on POSIX, and controlled children no longer inherit
+  the daemon capability token.
+- Detached session count is bounded (8 by default, configurable up to 128),
+  stale close actually removes its registry entry, and MCP close is idempotent.
+- Real-session probes use the running Python interpreter with platform-correct
+  quoting instead of assuming a `python` command exists on PATH (not true on
+  current macOS installations).
+
+### Changed
+- Python 3.10 is now the supported floor because the packaged MCP surface uses
+  modern type syntax; the MCP SDK is a required package dependency so `uvx`
+  launch from the official MCP Registry works without extra flags.
+
 ## [0.1.8] - 2026-07-15
 
 Two capability additions and a benchmark adapter, each with an independent
