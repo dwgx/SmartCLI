@@ -1,9 +1,9 @@
 # Read the Docs build config for the mkdocs-material site.
 #
-# TO GO LIVE (the one step only you can do): sign in at https://readthedocs.org,
-# "Import a Project", connect dwgx/SmartCLI. RTD auto-detects this file and
-# mkdocs.yml — no further config needed. The showcase site (docs/site/, deployed
-# by pages.yml) is separate and unaffected; this is the reference-docs site.
+# The site is LIVE at https://smartcli.readthedocs.io/ — RTD builds from this
+# file plus mkdocs.yml, running tools/build_docs.py in pre_build to assemble the
+# docs/*.md pages. The showcase site (docs/site/, deployed by pages.yml to
+# GitHub Pages) is separate and unaffected; this is the reference-docs site.
 version: 2
 
 build:
