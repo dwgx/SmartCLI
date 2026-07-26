@@ -21,7 +21,7 @@ Key tokens (``send_keys``) are mapped to escape bytes via :data:`KEY_MAP`.
 from __future__ import annotations
 
 import time
-from typing import List, Optional, Tuple, Union, Sequence
+from collections.abc import Callable, Sequence
 
 from .pty_backend import PtyBackend, get_default_backend
 from .readiness import wait_any, wait_for_regex, wait_ready, wait_until_stable
@@ -132,7 +132,7 @@ class PtySession:
         self,
         cols: int = 80,
         rows: int = 24,
-        backend: Optional[PtyBackend] = None,
+        backend: PtyBackend | None = None,
     ) -> None:
         self.cols = cols
         self.rows = rows
@@ -146,7 +146,7 @@ class PtySession:
 
     # -- lifecycle ---------------------------------------------------------
 
-    def start(self, cmd: Union[str, Sequence[str]]) -> None:
+    def start(self, cmd: str | Sequence[str]) -> None:
         """Spawn ``cmd`` in the PTY. The pyte screen matches the PTY winsize."""
         self.backend.spawn(cmd, self.cols, self.rows)
         self._started = True
@@ -156,7 +156,7 @@ class PtySession:
         self.backend.terminate()
         self._started = False
 
-    def __enter__(self) -> "PtySession":
+    def __enter__(self) -> PtySession:
         return self
 
     def __exit__(self, *exc) -> None:
@@ -202,7 +202,7 @@ class PtySession:
         """Type literal text (no trailing newline added)."""
         self.backend.write(text.encode("utf-8"))
 
-    def send_keys(self, keys: List[str]) -> None:
+    def send_keys(self, keys: list[str]) -> None:
         """Send a sequence of key tokens (see :data:`KEY_MAP` and ``C-x``/``M-x``).
 
         Cursor/nav keys adapt to the program's cursor-key mode: if the target has
@@ -228,14 +228,14 @@ class PtySession:
 
     def wait_ready(
         self,
-        marker: Optional[str] = None,
+        marker: str | None = None,
         quiet_ms: int = 200,
         poll_ms: int = 30,
         max_wait_ms: int = 10000,
         min_wait_ms: int = 50,
         grace_ms: int = 40,
         flags: int = 0,
-    ) -> Tuple[str, Snapshot]:
+    ) -> tuple[str, Snapshot]:
         """Wait for ``marker`` OR screen stability. See :func:`readiness.wait_ready`.
 
         Returns ``(reason, snapshot)`` with reason in ``MARKER``/``STABLE``/``TIMEOUT``.
@@ -283,7 +283,7 @@ class PtySession:
         poll_ms: int = 30,
         min_wait_ms: int = 0,
         flags: int = 0,
-    ) -> Tuple[bool, Snapshot]:
+    ) -> tuple[bool, Snapshot]:
         """Wait for ``pattern`` on the screen. See :func:`readiness.wait_for_regex`."""
         matched, snap = wait_for_regex(
             read_fn=self.pump,
@@ -304,7 +304,7 @@ class PtySession:
         poll_ms: int = 30,
         min_wait_ms: int = 0,
         flags: int = 0,
-    ) -> Tuple[int, Snapshot]:
+    ) -> tuple[int, Snapshot]:
         """Wait for ANY of ``patterns`` (pexpect ``expect([...])`` style).
 
         Returns ``(index, snapshot)`` where ``index`` is the 0-based position of
@@ -326,10 +326,10 @@ class PtySession:
 
     def wait_change(
         self,
-        baseline_hash: Optional[str] = None,
+        baseline_hash: int | None = None,
         timeout_ms: int = 10000,
         poll_ms: int = 30,
-    ) -> Tuple[bool, Snapshot]:
+    ) -> tuple[bool, Snapshot]:
         """Wait until the screen content changes away from ``baseline_hash``.
 
         The precise "did my action land?" primitive: after sending input, block
@@ -344,16 +344,50 @@ class PtySession:
         This is a thin session-level poll over the existing pump + content_hash;
         it adds no new core state.
         """
+        return self._wait_hash_change(
+            self.model.content_hash,
+            baseline_hash=baseline_hash,
+            timeout_ms=timeout_ms,
+            poll_ms=poll_ms,
+        )
+
+    def wait_visual_change(
+        self,
+        baseline_hash: int | None = None,
+        timeout_ms: int = 10000,
+        poll_ms: int = 30,
+    ) -> tuple[bool, Snapshot]:
+        """Wait for text, styling, selection, or cursor state to change.
+
+        Use this after navigation keys in TUIs whose selected row changes only by
+        reverse video/background attributes or cursor movement. Text-only
+        :meth:`wait_change` remains preferable for output streams because it
+        intentionally ignores cosmetic attribute churn.
+        """
+        return self._wait_hash_change(
+            self.model.visual_hash,
+            baseline_hash=baseline_hash,
+            timeout_ms=timeout_ms,
+            poll_ms=poll_ms,
+        )
+
+    def _wait_hash_change(
+        self,
+        hash_fn: Callable[[], int],
+        baseline_hash: int | None,
+        timeout_ms: int,
+        poll_ms: int,
+    ) -> tuple[bool, Snapshot]:
         if baseline_hash is None:
             # Baseline = the screen as it stands NOW, WITHOUT draining pending
             # bytes first — otherwise the very output we're waiting for could be
             # folded into the baseline and never register as a change.
-            baseline_hash = self.model.content_hash()
+            baseline_hash = hash_fn()
         deadline = time.monotonic() + timeout_ms / 1000.0
         poll_s = max(0.0, poll_ms / 1000.0)
         while True:
             self.pump()
-            if self.model.content_hash() != baseline_hash:
+            if hash_fn() != baseline_hash:
                 return True, self.snapshot()
             if time.monotonic() >= deadline:
                 return False, self.snapshot()

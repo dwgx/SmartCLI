@@ -12,12 +12,12 @@ per-cell attribute reader that copes with the sparse dict-of-dicts buffer.
 from __future__ import annotations
 
 import zlib
-from typing import List, NamedTuple, Tuple
+from typing import NamedTuple
 
 import pyte
 
 
-def safe_screen_display(screen: "pyte.Screen") -> List[str]:
+def safe_screen_display(screen: pyte.Screen) -> list[str]:
     """Crash-safe mirror of ``pyte.Screen.display``.
 
     pyte's own ``display`` renderer calls ``wcwidth(char[0])`` unconditionally,
@@ -31,7 +31,7 @@ def safe_screen_display(screen: "pyte.Screen") -> List[str]:
     from wcwidth import wcwidth  # pyte's own width dependency
 
     def render_row(line) -> str:
-        out: List[str] = []
+        out: list[str] = []
         is_wide = False
         for x in range(screen.columns):
             if is_wide:
@@ -81,7 +81,7 @@ class ScreenModel:
         # them here (pyte builds the correct reply from its own cursor/attrs) and
         # PtySession.pump() writes them back to the PTY. See drain_replies().
         self._reply_buf = bytearray()
-        self.screen.write_process_input = self._collect_reply  # type: ignore[method-assign]
+        self.screen.write_process_input = self._collect_reply
 
     def _collect_reply(self, data) -> None:
         """pyte hands us the bytes/str it wants sent back to the process."""
@@ -164,7 +164,7 @@ class ScreenModel:
     # -- plain text --------------------------------------------------------
 
     @property
-    def display(self) -> List[str]:
+    def display(self) -> list[str]:
         """List of rendered lines (wide-char aware, right-padded to ``cols``).
 
         Fast path is ``pyte.Screen.display``. But pyte's renderer does
@@ -194,7 +194,7 @@ class ScreenModel:
     # -- cursor ------------------------------------------------------------
 
     @property
-    def cursor(self) -> Tuple[int, int]:
+    def cursor(self) -> tuple[int, int]:
         """Cursor as ``(row, col)``, both 0-based."""
         return (self.screen.cursor.y, self.screen.cursor.x)
 
@@ -227,7 +227,7 @@ class ScreenModel:
         ch = self.screen.buffer[row][col]  # StaticDefaultDict: missing col -> default
         return CellAttrs(ch.data, ch.fg, ch.bg, ch.bold, ch.reverse)
 
-    def row_cells(self, row: int) -> List[CellAttrs]:
+    def row_cells(self, row: int) -> list[CellAttrs]:
         """Return the attribute cells for a whole row, left to right."""
         if not (0 <= row < self.screen.lines):
             return []
@@ -248,3 +248,31 @@ class ScreenModel:
         stability detection.
         """
         return zlib.crc32(self.text().encode("utf-8", "replace"))
+
+    def visual_hash(self) -> int:
+        """CRC32 of visible cells, their attributes, and the cursor state.
+
+        Unlike :meth:`content_hash`, this changes when a TUI moves a selection
+        using reverse video/background color or only moves the cursor. It is a
+        separate primitive so text-only stability detection keeps ignoring blink
+        and cosmetic attribute churn.
+        """
+        crc = 0
+        for row in range(self.screen.lines):
+            line = self.screen.buffer[row]
+            for col in range(self.screen.columns):
+                char = line[col]
+                fields = (
+                    char.data,
+                    char.fg,
+                    char.bg,
+                    bool(char.bold),
+                    bool(char.italics),
+                    bool(char.underscore),
+                    bool(char.strikethrough),
+                    bool(char.reverse),
+                    bool(char.blink),
+                )
+                crc = zlib.crc32(repr(fields).encode("utf-8", "replace"), crc)
+        cursor_state = (self.screen.cursor.y, self.screen.cursor.x, self.cursor_hidden)
+        return zlib.crc32(repr(cursor_state).encode("ascii"), crc)

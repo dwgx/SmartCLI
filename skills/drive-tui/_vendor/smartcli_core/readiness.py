@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import re
 import time
-from typing import Callable, Optional, Sequence, Tuple
+from collections.abc import Callable, Sequence
 
 # Callable aliases (documentation only)
 ReadFn = Callable[[], bytes]      # pump: read+feed one batch, return bytes read
@@ -41,7 +41,7 @@ def wait_until_stable(
     max_wait_ms: int = 8000,
     grace_ms: int = 40,
     min_wait_ms: int = 0,
-    blank_hash: Optional[int] = None,
+    blank_hash: int | None = None,
 ) -> bool:
     """Pump reads until the screen hash is unchanged for ``quiet_ms``.
 
@@ -70,8 +70,8 @@ def wait_until_stable(
 
     start = time.monotonic()
     deadline = start + (max_wait_ms / 1000.0)
-    last_hash: Optional[int] = None
-    stable_since: Optional[float] = None
+    last_hash: int | None = None
+    stable_since: float | None = None
     # Readiness gate: never declare stable on a never-painted BLANK screen. Only
     # engages when the caller passes ``blank_hash`` (the construct-time all-blank
     # baseline) AND no output has been seen this wait AND the screen still equals
@@ -120,7 +120,7 @@ def wait_for_regex(
     poll_ms: int = 30,
     min_wait_ms: int = 0,
     flags: int = 0,
-) -> Tuple[bool, object]:
+) -> tuple[bool, object]:
     """Pump reads until ``pattern`` matches the rendered screen, or timeout.
 
     Args:
@@ -164,7 +164,7 @@ def wait_any(
     poll_ms: int = 30,
     min_wait_ms: int = 0,
     flags: int = 0,
-) -> Tuple[int, object]:
+) -> tuple[int, object]:
     """Pump reads until ANY of ``patterns`` matches the screen, or timeout.
 
     The pexpect ``expect([...])`` analogue: race several possible outcomes
@@ -221,15 +221,15 @@ def wait_ready(
     get_screen_hash_fn: HashFn,
     get_text_fn: TextFn,
     get_snapshot_fn: Callable[[], object],
-    marker: Optional[str] = None,
+    marker: str | None = None,
     quiet_ms: int = 200,
     poll_ms: int = 30,
     max_wait_ms: int = 10000,
     min_wait_ms: int = 50,
     grace_ms: int = 40,
     flags: int = 0,
-    blank_hash: Optional[int] = None,
-) -> Tuple[str, object]:
+    blank_hash: int | None = None,
+) -> tuple[str, object]:
     """Unified wait: satisfy on ``marker`` OR screen stability, capped by max_wait.
 
     A single loop races the marker (if given) against stability so callers get
@@ -248,8 +248,8 @@ def wait_ready(
 
     start = time.monotonic()
     deadline = start + (max_wait_ms / 1000.0)
-    last_hash: Optional[int] = None
-    stable_since: Optional[float] = None
+    last_hash: int | None = None
+    stable_since: float | None = None
     # Readiness gate (see wait_until_stable): a marker match is never gated —
     # only the stability branch refuses to fire on a never-painted blank screen
     # when the caller supplies the blank baseline. Default None = old behavior.
