@@ -3,6 +3,7 @@
 #   fx ...     -> cmd-art  (python -m fx)
 #   ui ...     -> tui-ui   (python -m ui)
 #   drive ...  -> drive-tui (scripts/tui.py)
+#   mcp         -> drive-tui stdio MCP server
 # Anything else runs verbatim (so `docker run ... python -c ...` still works).
 set -e
 cmd="${1:-fx}"
@@ -18,6 +19,10 @@ case "$cmd" in
   drive)
     shift
     exec python /app/skills/drive-tui/scripts/tui.py "$@"
+    ;;
+  mcp)
+    shift
+    exec python /app/skills/drive-tui/scripts/mcp_server.py "$@"
     ;;
   *)
     exec "$@"
