@@ -2,7 +2,10 @@
 
 Read this only when adding a new effect or tuning an existing one. All effects
 return a full-screen buffer string (height rows joined by `\n`, no trailing
-newline, every cell written) and are driven by `run(render, fps, seconds)`.
+newline, every cell written). `run(render, fps, seconds)` is the **legacy**
+`scripts/ascii_fx.py` shim driver; new effects implement the `Effect` ABC and
+are driven by `fx.core.play` — see "Add a NEW effect" in `../SKILL.md` for the
+current contract.
 
 ## ANSI escape reference
 - `\x1b[2J` clear screen, `\x1b[H` cursor home (row1/col1), `\x1b[3J` clear scrollback
@@ -69,7 +72,10 @@ Per column: one falling drop with a fractional position `fy` advanced by `speed`
 (ASCII 33-126) per cell each frame gives the flicker. Respawn above the top once the
 whole trail passes the bottom (`head - len > height`).
 
-## Integration notes
+## Integration notes (legacy `ascii_fx.py` shim surface)
+The `*_frame`/`run()` names below are the legacy shim's; under the current
+`Effect` ABC the same rules apply with `Effect.render(ctx)` producing the frame
+and `fx.core.play` owning the loop (see `../SKILL.md`).
 - Every `*_frame` returns a full buffer with `height-1` internal newlines and no
   trailing newline; `run()` prepends `\x1b[H` so line 1 col 1 aligns each frame.
 - Size from `term_size()` and leave 1 row headroom (auto-size does this); rendering
@@ -82,7 +88,7 @@ whole trail passes the bottom (`head - len > height`).
 
 ## See also (knowledge graph)
 This is a techniques sampler; the per-effect formulas live sourced in
-`D:/Project/SmartCLI/knowledge/` (hubs: `knowledge/effects/README.md`,
+`knowledge/` at the repo root (hubs: `knowledge/effects/README.md`,
 `knowledge/color-type/README.md`, index: `knowledge/INDEX.md`):
 - Sphere/cube/projection section → [[rotating-cube]] · [[perspective-projection]] · [[rotation-matrix]] · [[ascii-luminance-ramp]] (and [[donut-torus]] for the torus variant)
 - Plasma / field section → [[plasma]] · [[tunnel]] · [[perlin-noise]]

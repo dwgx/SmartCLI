@@ -98,12 +98,11 @@ harness 里替脚本补它缺的东西。抓 stderr。一个 import 没写全，
 7. 只有 ground truth 逐项对上，才算"做对了"。自我感觉不算数。
 
 ## 案例存档（可复现的 ground truth）
-- `examples/effort_selector.py` — 验证过的 violet-ripple 选择器复刻，精确几何/调色板/动画常量的单一真实来源
+- `examples/effort_selector.py` — 验证过的最终复刻（violet 矩形 wash + 从 ultracode 展开），精确几何/调色板/动画常量的单一真实来源
 - `ui/field.py::Ripple` — 它组合的涟漪原语
-- `skills/tui-ui/examples/effort_selector.py` — 最终正确的复刻（矩形 wash + 从 ultracode 展开）
 
 ## 知识图谱（先看再动手）
 本文是训练资产的"血泪原文"；它在 SmartCLI 知识图谱里有一个带交叉链接的 twin。
-复刻/创作任何效果前，先读 `D:/Project/SmartCLI/knowledge/INDEX.md`：
+复刻/创作任何效果前，先读 `knowledge/INDEX.md`（repo 根目录；skill 单独安装时以 `references/` twin 为准）：
 - **复刻**（还原真实存在的 UI/动画/截图）→ [[hard-lessons]]（本文的图谱 twin）+ 已测量的 case [[effort-selector]]。
 - **创作**（设计新组件/效果）→ [[rendering-model]]（四原语内核，对应 `RENDERING-MODEL.md`）。

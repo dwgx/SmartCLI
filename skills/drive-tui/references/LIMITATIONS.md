@@ -13,7 +13,7 @@ regression run (drive-probes + `_sandbox_posix_backend.py` on Linux).
 
 ## Fixed & verified
 
-### 2026-07-19 · Selection-only and cursor-only changes were invisible (was known-#3)
+### 2026-07-19 · Selection-only and cursor-only changes were invisible (formerly a "Still open" entry)
 - **Symptom:** after an arrow key, a menu could move its selection using only
   reverse video/background attributes while its text stayed identical;
   text-only `wait_change` correctly remained stable but offered no alternative.
@@ -25,7 +25,7 @@ regression run (drive-probes + `_sandbox_posix_backend.py` on Linux).
   and unchanged-text behavior in memory; the macOS CLI and MCP real-PTY probes
   remain green with zero leaked sessions.
 
-### 2026-07-13 · POSIX `terminate()` left a zombie child (was known-#6)
+### 2026-07-13 · POSIX `terminate()` left a zombie child (formerly a "Still open" entry)
 - **Symptom:** on Linux, after `close()`/`terminate()` the child stayed as a
   `<defunct>` (zombie) process — `SIGTERM` was sent but nothing reaped it.
 - **Root cause:** `PosixPtyBackend.terminate()` called `os.kill(SIGTERM)` and
@@ -36,7 +36,7 @@ regression run (drive-probes + `_sandbox_posix_backend.py` on Linux).
   from `[KNOWN] zombie (state=Z)` to `[OK] no zombie … gone/reaped`. Windows
   drive-probe suite 1–6 + tui_cli still green (POSIX-only change).
 
-### 2026-07-13 · Arrow keys ignored by curses/DECCKM apps (was known-#5)
+### 2026-07-13 · Arrow keys ignored by curses/DECCKM apps (formerly a "Still open" entry)
 - **Symptom:** sending `keys Up`/`Down` to a full-screen curses program moved
   nothing — the app never saw an arrow key.
 - **Root cause:** we always emitted CSI arrows (`ESC [ A`). Apps that enable

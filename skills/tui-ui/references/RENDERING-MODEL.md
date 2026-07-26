@@ -19,7 +19,7 @@ S(x, y, t) -> Sample(glyph, fg, bg, alpha)
 - `x,y` 格坐标，`t` 时间相位。
 - ripple / glow / gradient / plasma / fire / 扫描线 —— **全是不同的 S**，
   不是各写各的 widget。引擎负责采样每格、alpha 合成、run-length 序列化。
-- 组合是场的代数：`over(A,B)`、`add`、`mask`、空间变换（平移/缩放）。
+- 组合是场的代数：`over(A,B)`、`add`、`mask`、空间变换（平移 `Translate`；缩放暂未实现）。
 
 **几何真理（最重要的一条）**：字符格 高≈2×宽，所以 `ASPECT = 2.0`。
 任何"各向同性/圆/等距"的度量必须校正 y：
@@ -39,11 +39,18 @@ angle(...)       = atan2( (y-oy)*ASPECT , x-ox )
 整格只有 cols×rows 分辨率 → 永远 blocky。用特殊字形编码子像素：
 - 半块 `▀`(上)`▄`(下)+ fg/bg 双色 → **1×2 像素/格**。
 - 四分块 `▘▝▖▗▀▄▌▐█…` → **2×2**。
+- 六分块 sextant `U+1FB00..`（Unicode 13 legacy 块）→ **2×3**（比 quad 高 50% 纵向分辨率）。
+  注意：该区块**不含左右半列**两个图案（它们留在旧 Block Elements：`▌`/`▐`），
+  必须按字符名 `BLOCK SEXTANT-…` 重建掩码建表并特判这两格——naive 的
+  `0x1FB00 + 偏移` 会错位大半字形、越界进对角线区。
 - 盲文 `U+2800..U+28FF`（8 点位）→ **2×4**（最高密度，画曲线/图）。
 一个 W×H 网格 = 最高 `W·2 × H·4` 的像素缓冲。
 流程：渲染进 SubcellRaster（真像素）→ downsample 成对应字形 + 颜色 →
 写回 Cell。图片、平滑圆、抗锯齿曲线、迷你图都走这条。
 **这是"像网页一样平滑"缺的那块——不能只用整格背景色。**
+**亚格像素是"方"的**：细分本身已抵消 ASPECT=2，所以 raster 内画圆/等距用普通
+欧氏距离即可，**不要再乘 ASPECT**——那是整格坐标系（§1 / field.py）的校正，
+双重校正会把圆压扁。
 
 ### 3. BoxJunction — 结构是连接代数
 边框/表格/树不该手摆 `─│┌┐`。每格记 4 条边的权重：
@@ -74,7 +81,7 @@ glyph = 纯查表 `LOOKUP[(n,e,s,w)]`（Unicode box-drawing 全集）。
 如果一个新需求不能表达成「上面某几个原语的组合」，先扩原语，别再写死 widget。
 
 ## See also（知识图谱 twin）
-本文在 SmartCLI 知识图谱里的对应节点：`D:/Project/SmartCLI/knowledge/INDEX.md`
+本文在 SmartCLI 知识图谱里的对应节点：`knowledge/INDEX.md`（repo 根目录）
 - 图谱 twin：[[rendering-model]]（四原语内核）。
 - 基础：[[cell-grid-model]] · [[ansi-sgr-color]] · [[terminal-cell-aspect-ratio]] · [[sub-cell-resolution]] · [[flicker-free-rendering]]。
 - 布局：[[box-model-on-cell-grid]] · [[fractional-space-distribution]] · [[box-drawing-glyphs]]。

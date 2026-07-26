@@ -2,8 +2,8 @@
 name: cmd-art
 description: >-
   Design and render terminal/CMD visual effects and ASCII art from a one-line
-  request via the pluggable `fx` engine (19 hot-swappable, themeable effects
-  plus scripted shows). Effects include donut, matrix rain, plasma, fire, a
+  request via the pluggable `fx` engine (30 effects, hot-swappable and
+  themeable, plus scripted shows). Effects include donut, matrix rain, plasma, fire, a
   spinning 3D ball, a solar-system orrery, Game of Life, wireframe cube, 3D text
   banners, rainbow/lolcat gradient text, starfield, tunnel, fireworks,
   image-to-ASCII, and more. Use when the request is for a terminal animation, ANSI/CLI art, or
@@ -86,20 +86,20 @@ Prefer the `fx` CLI for new work; use the shim only for old commands/imports.
   - `--width W` / `--height H` — `0` = terminal size (height leaves 1 row headroom).
   - `--set K=V` — override an effect param (repeatable). Unknown keys fail loudly.
 - `gallery [--seconds-per N] [--tag T] [--theme NAME]` — tour every animated effect back-to-back in one alt-screen (default 3s each).
-- `random [play-flags]` — play a random animated effect with a random theme (defaults to 8s).
+- `random [play-flags]` — play a random animated effect with a random theme (defaults to 8s). Ignores `--once` (always plays the animation).
 
 Non-TTY safety: `play`/shows degrade to a single plain frame when stdout is not a terminal, and the play loop always restores the terminal (cursor, wrap, alt-screen) via try/finally. Prefer `--seconds`/`--once` in automated contexts so the process always terminates.
 
 ## Themes
 `--theme` names (from `fx/theme.py`, live via `theme_names()`):
 `mono`, `fire`, `ocean`, `synthwave`, `viridis`, `pastel`, `matrix-green`, `rainbow`.
-Default theme is `synthwave`. Effects never bake in hex; they sample the active `Theme` (`color_at(t)` gradient, `cycle(phase)` HSV/lolcat sweep, `.primary`/`.accent`/`.base`), so swapping the theme restyles every effect for free. Unknown `--theme` on `play` fails loud; on shows it falls back to default.
+Default theme is `synthwave`. Effects never bake in hex; they sample the active `Theme` (`color_at(t)` gradient, `cycle(phase)` HSV/lolcat sweep, `.primary`/`.accent`/`.base`), so swapping the theme restyles every effect for free. Palette caveat: `flames`, `water`, and `nebula` default to a built-in physical palette (`blackbody` / `ocean` / `cosmic`) and only follow `--theme` with `--set palette=theme`; `plasma`, `julia`, `mandelbrot`, and `perlin` default to `palette=theme`. An unknown name passed to the `--theme` flag (`play`, `show`, `gallery`, `random`) fails loud; only an unknown theme name inside a `--seq`/`--script` segment slot silently falls back to the default.
 
 ## Example commands
 - Spinning ball, 5s, ocean: `python -m fx play sphere --seconds 5 --theme ocean`
 - THE donut, faster spin: `python -m fx play donut --set speed=2 --seconds 8`
 - Matrix rain: `python -m fx play rain --seconds 8`
-- Fire, taller flames: `python -m fx play fire --set cool=2`
+- Fire, shorter/calmer flames: `python -m fx play fire --set cool=2`
 - Game of Life, dense start: `python -m fx play life --set fill=0.35 --seconds 10`
 - 3D title, one static frame: `python -m fx play text3d --set text=KIRO --once`
 - Shimmering animated title: `python -m fx play text3d --set text=KIRO --set shimmer=true --seconds 6`
@@ -122,7 +122,7 @@ Play a timed sequence of segments in ONE alt-screen (no flicker between segments
     {"split": ["donut", "fire"], "themes": ["ocean", "fire"], "seconds": 6}
   ]
   ```
-`--seconds-per` sets the default per-segment duration; `--theme` is the fallback for segments without one. Each segment gets a local clock (t restarts at 0). `Split` is a combinator built from two real effects, not a registered effect.
+`--seconds-per` sets the default per-segment duration (default 4s). A segment that omits a theme uses its effect's `preferred_theme` (default `synthwave` otherwise); the `show`/`gallery` `--theme` flag is validated but does not currently affect segment colors. Each segment gets a local clock (t restarts at 0). `Split` is a combinator built from two real effects, not a registered effect.
 
 ## Knowledge base — look before you build
 **Not sure how to render something? Start at `knowledge/effects/choosing-an-effect.md`**
@@ -131,7 +131,8 @@ shipped effect you can reuse or take apart (reuse as-is, tune params, or compose
 your own from the primitives it cites). From there, or directly:
 
 Before inventing or tuning an effect, consult the SmartCLI knowledge graph at
-`D:/Project/SmartCLI/knowledge/INDEX.md`. Its `effects/` domain carries exact-formula
+`knowledge/INDEX.md` (repo root, two levels above this skill's folder). Its
+`effects/` domain carries exact-formula
 notes for most of what ships here — [[donut-torus]], [[plasma]], [[fire-lode]] /
 [[fire-doom-psx]], [[matrix-rain]], [[game-of-life]], [[boids]], [[starfield]],
 [[tunnel]], [[rotating-cube]], [[ascii-luminance-ramp]] — plus [[color-interpolation]]
@@ -150,7 +151,7 @@ Minimal contract (`fx/base.py`):
 - `Param(name, kind, default, help, choices=None, min=None, max=None)` — `kind` ∈ `int float str bool color`. The CLI lists/parses/validates `--set` against these; unknown keys and out-of-range values fail loud. `color` accepts `#RRGGBB`/`RRGGBB` (empty = None).
 - Implement `render(self, ctx: FrameCtx) -> str`: return ONE full frame — `ctx.height` rows joined by `\n`, no trailing newline, EVERY cell written. Effects are pure frame producers: never print, sleep, or touch ANSI modes — the play loop owns the terminal.
 - `ctx: FrameCtx` fields: `t` (seconds since start), `frame_index`, `width`, `height`, `theme` (active `Theme`, never None), `params` (coerced dict).
-- Optional lifecycle: `setup()` (allocate buffers/particles before the first frame) and `teardown()` (release state; also runs on error/Ctrl-C). Override `is_animated(cls, params)` for effects that are static by default but animate on a flag (see `text3d`'s `shimmer`, `gradient_text`).
+- Optional lifecycle: `setup()` (allocate buffers/particles before the first frame) and `teardown()` (release state; also runs on error/Ctrl-C). Override `is_animated(cls, params)` when animation depends on a param — in either direction: `text3d` is static by default and only animates with `--set shimmer=true`; `gradient_text` animates by default and goes static with `--set drift=0`.
 
 Skeleton:
 ```python
@@ -183,9 +184,9 @@ Then `python -m fx play swirl --theme rainbow --seconds 5`. Duplicate names rais
 - Keep frames exactly `ctx.height` rows and `ctx.width` cells; auto-size leaves 1 row headroom so the top doesn't scroll off.
 - `plasma` and full-field effects are the heaviest (O(width×height) escapes/frame); shrink dimensions or lower `--fps` if they stutter.
 - `pyfiglet` powers `text3d`/`banner_scroll`/`gradient_text --set big=true` if importable; otherwise a built-in block font covers A-Z, 0-9, space. `image2ascii` uses `PIL` if present, else a PNM/built-in demo fallback.
-- ANSI on Windows is enabled automatically at startup (`enable_vt()`), no action needed.
-- `references/effects.md` is a **techniques sampler** — it works a few effects in depth (sphere/block-text projection, plasma field, fire kernel, rain fade), not one section per shipped effect. Read it, plus the per-effect formula notes in `knowledge/effects/` (see Knowledge base above), when adding or tuning an effect.
-- Paths above are relative to this skill's folder.
+- ANSI on Windows is enabled automatically before every `play`/`render_once` (`enable_vt()`), no action needed.
+- `references/effects.md` is a **techniques sampler** — it works a few effects in depth (sphere projection, block-text gradient, plasma field, matrix rain), not one section per shipped effect. Read it, plus the per-effect formula notes in `knowledge/effects/` (see Knowledge base above), when adding or tuning an effect.
+- Path bases: `fx/`, `references/`, `tmux/`, and `scripts/` are relative to this skill's folder; `knowledge/` is relative to the repo root (two levels above it).
 
 ## Optional tmux launchers
 The play loop already owns a single alt-screen session, so tmux is never required. For convenience, `tmux/` ships two POSIX-sh launchers that drop an effect into a tmux popup or split pane:

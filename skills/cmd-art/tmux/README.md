@@ -6,8 +6,8 @@ leaving your current tmux window. They are *not* required -- the fx play loop
 already owns its own single alt-screen session, so `python -m fx play <effect>`
 works standalone in any VT terminal.
 
-> This dev box has **no tmux**. Both scripts detect that, print how to install
-> tmux (and the no-tmux alternative), and exit `0` cleanly -- they never fail a
+> If `tmux` is not on `PATH`, both scripts detect that, print how to install it
+> (and the no-tmux alternative), and exit `0` cleanly -- they never fail a
 > pipeline just because tmux is missing.
 
 ## Scripts
