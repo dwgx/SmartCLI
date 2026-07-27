@@ -164,6 +164,9 @@ def build_suite():
     suite.append(Test("test_version_sync (ten version sites agree)",
                       [PY, str(TESTS / "test_version_sync.py")], ROOT, 60,
                       optional=True))
+    suite.append(Test("test_readiness_properties (Hypothesis wait invariants)",
+                      [PY, str(TESTS / "test_readiness_properties.py")], ROOT, 300,
+                      optional=True))
     suite.append(Test("test_perf_contract (wait-primitive cost ceilings)",
                       [PY, str(TESTS / "test_perf_contract.py")], ROOT, 120,
                       optional=True))

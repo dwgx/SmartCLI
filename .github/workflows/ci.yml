@@ -64,6 +64,11 @@ jobs:
       - name: wait-primitive performance contract (deterministic)
         run: python tests/test_perf_contract.py
 
+      - name: readiness property-based invariants (skips without hypothesis)
+        run: |
+          python -m pip install --quiet hypothesis
+          python tests/test_readiness_properties.py
+
       - name: sixel wire-format lock (deterministic)
         run: python tests/test_sixel.py
 
