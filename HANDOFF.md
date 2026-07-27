@@ -769,6 +769,49 @@ hash it saved — measuring caught that. The test asserts equivalence against a
 separate from-scratch computation (80 chunked adversarial payloads) as well as
 timing ceilings set ~20x above measured values; both mutation-verified.
 
+### 10f. Two references, property tests, and the alt-screen bug (2026-07-27, cont.)
+
+**A second reference emulator.** Matching tmux alone cannot distinguish "correct"
+from "identical to tmux". `tests/_diff_two_refs.py` adds **GNU screen** (a
+different codebase, its own VT parser) and treats a behaviour as ground truth
+only when BOTH agree; where they disagree the case is recorded as UNDEFINED
+rather than judged. **35/35** on everything the two agree about — so every fix
+made during the fuzz work is now justified by two independent implementations.
+Measured, not assumed: screen renders U+FFFD for astral-plane codepoints, so
+those cases are reported as SKIPPED (a decoding limitation) rather than lumped in
+with genuine disagreement.
+
+**Property-based tests over readiness.** `tests/test_readiness_properties.py`
+states seven invariants as Hypothesis properties (250 generated schedules each,
+virtual clock so runs are instant and cannot flake): never settle before
+`min_wait_ms` or `quiet_ms`; always terminate within budget; the `blank_hash`
+gate never lets a never-painted screen settle but DOES release once real output
+arrives; `wait_for_regex` only reports a real match; `wait_any` returns a valid,
+earliest-in-list index. Mutation-verified with three independent breakages, each
+caught by exactly the property that should catch it.
+
+**The alt-screen bug — the most consequential find of the whole exercise.**
+pyte implements **no** alternate-screen mode (1049/1047/47 just set an unknown
+bit). So `vim`, `less`, `htop` — every full-screen program drive-tui exists to
+drive — painted their alternate screen ON TOP of the main one, and on exit the
+main screen was never restored: an agent read a merged, impossible screen with
+nothing reporting a problem. Now implemented per xterm and verified against tmux:
+1049 saves the cursor + clears the alt buffer on entry and restores both on exit,
+47/1047 switch without the cursor save, and the cursor is deliberately NOT homed
+on entry (measured). `ScreenModel.screen.alt_screen` exposes the state.
+
+**SGR sub-parameters.** pyte's parser does not know ':' (ITU-T T.416), so
+`ESC[4:3mU` drew the literal `"3mU"` on the grid. Neovim/kitty/delta emit this
+routinely. Colons inside `CSI ... m` are now normalised to ';' before parsing —
+the attribute may degrade, no debris reaches the grid.
+
+Also verified already-correct and now locked: DECCKM, mouse 1000/1002/1006,
+OSC 0/7, bracketed paste, DECAWM off, cursor hide/show.
+
+Totals after this round: curated tmux probe **35/35**, three-way probe **35/35**,
+generative fuzz **10/10 seeds x 40 payloads**, deterministic gates **17** + the
+Hypothesis suite, `visual_hash` **2000x faster** on idle polls.
+
 - **Process notes:** commits follow Conventional Commits on the branch (core → tests →
   drive-tui → packaging → ci → docs → reconcile). `B-SEC` (leaked PyPI token) was
   re-raised to the owner per NEXT-STEPS' standing order — still owner-gated.

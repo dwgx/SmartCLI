@@ -148,6 +148,16 @@ non-negotiable and overrides any shortcut that looks faster.
   the probe), alt-screen / DECCKM / mouse-mode / OSC / bracketed-paste cases, and
   property-based tests (Hypothesis) over `readiness.py`'s timing invariants.
 
+### ~~A0-DIFF3. Second reference emulator + alt-screen/mode coverage~~ [DONE 2026-07-27]
+- **Result:** `_diff_two_refs.py` (tmux AND GNU screen, ground truth only where
+  both agree) 35/35; `test_readiness_properties.py` (7 Hypothesis invariants,
+  mutation-verified); and two more real bugs fixed — **pyte implements no
+  alternate screen buffer at all** (vim/less/htop painted over the main screen
+  and never restored it) and SGR ':' sub-parameters spilled escape debris onto
+  the grid. See HANDOFF §10f.
+- **Still open:** a GUI-terminal reference (kitty/Alacritty — neither is
+  installed here; both would need `brew install`), and DCS/DECRQSS round-trips.
+
 ### A0-CLI-RESIZE. Expose resize as a CLI subcommand  [S]
 - **Goal:** the daemon + MCP support resize but the CLI has no verb — close the
   asymmetry (documented in SKILL.md as MCP-only for now).
