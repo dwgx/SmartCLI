@@ -70,7 +70,15 @@ non-negotiable and overrides any shortcut that looks faster.
 
 ## A0. NEW since v0.2.0 (added 2026-07-27)
 
-### A0-REL. Release v0.2.0  [S] (OWNER decision — breaking changes)
+### ~~A0-REL. Release v0.2.0~~  [DONE 2026-07-27]
+- **Result:** merged to `main`, tagged `v0.2.0`, pushed. publish.yml green on all
+  three jobs (build / PyPI OIDC / MCP Registry OIDC). Verified by installing
+  `smartcli-toolkit==0.2.0` from PyPI into a clean venv: `smartcli-tui doctor`
+  works, the alt-screen and ZWJ fixes are live, `smartcli_drive.mcp_server`
+  imports. GitHub Release created from the CHANGELOG entry.
+- *(original task below)*
+
+### ~~A0-REL-orig~~. Release v0.2.0  [S] (OWNER decision — breaking changes)
 - **Goal:** merge `codex/cross-platform-mcp-hardening` into `main` and cut v0.2.0.
 - **Why it matters:** the branch carries security hardening + the installable
   drive/MCP surface; until tagged, PyPI users get none of it. It is BREAKING:
