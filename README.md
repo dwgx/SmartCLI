@@ -36,6 +36,52 @@ pip install smartcli-toolkit
 Requires Python 3.10 or newer. The install includes the shared Python library,
 the persistent TUI driver, and the stdio MCP server.
 
+### Drive something in 30 seconds
+
+Copy-paste this. It starts a real Python REPL under a PTY, waits for the prompt
+(never a blind `sleep`), types into it, and reads the screen back:
+
+```bash
+pip install smartcli-toolkit
+SID=$(smartcli-tui start --cmd "python3 -i -q" --cols 80 --rows 24 --json | python3 -c "import json,sys;print(json.load(sys.stdin)['sid'])")
+smartcli-tui wait-regex --id $SID ">>> " --timeout-ms 15000
+smartcli-tui send-line --id $SID "print(6*7)"
+smartcli-tui wait-regex --id $SID "42"          # prints the cell grid it sees
+smartcli-tui close --id $SID
+```
+
+On Windows use `--cmd "py -i -q"`. Swap the command for `vim`, `htop` or
+`lazygit` and the same five verbs drive those too — that is the whole point:
+**`wait-regex` and friends react to what the screen actually shows**, so an agent
+never guesses whether its keystroke landed.
+
+Want the same thing against a real editor, end to end and verifiable?
+[`examples/drive_vim.py`](examples/drive_vim.py) drives the actual `vim` binary —
+opens a file, appends a line, saves, and then checks the **filesystem**, not the
+screen:
+
+```bash
+python examples/drive_vim.py
+#   [OK ] vim painted its screen
+#   [OK ] file contents visible on screen
+#   [OK ] alternate screen is active
+#   [OK ] typed text appears on screen
+#   [OK ] vim restored the main screen on exit
+#   [OK ] file on disk really changed
+```
+
+Run the same file against `smartcli-toolkit==0.1.8` and two steps fail — and the
+file is *never saved*, because a driver that cannot see the alternate screen
+mistimes the `:wq`. That is why the emulation work below matters: a wrong screen
+model does not error, it silently succeeds at nothing.
+
+Already running an MCP client (Claude Code, Cursor, VS Code)? The same verbs are
+MCP tools, with the per-session token attached for you:
+
+```bash
+smartcli-mcp        # stdio MCP server; or `uvx --from smartcli-toolkit smartcli-mcp`
+```
+
 ## What & why
 
 SmartCLI is a workspace for terminal work that agents and humans both do: **driving**
@@ -57,16 +103,16 @@ diff, and highlights a branch. Captured by driving the actual program in a Linux
 container, not scripted or mocked. A byte-stream matcher like pexpect can't
 perceive "which row is highlighted"; a screen model can.
 
-> Honest scope: CI runs a Windows + Linux + macOS matrix. The POSIX pty backend
-> (spawn / read / drive / resize / zombie-free terminate) is verified on Linux
-> **and macOS** in CI; the interactive DECCKM/SS3-arrow probe is skipped on CI
-> runners (no controllable terminal) and still wants a real-host run. Real tmux is
-> not yet verified — known edges are listed in
-> [`skills/drive-tui/references/LIMITATIONS.md`](skills/drive-tui/references/LIMITATIONS.md).
-
-Verified on Windows 11, Python 3.14.6, `pyte` + `pywinpty` / ConPTY. This machine has
-no real `tmux`, so screenshot reports are honestly labelled `pyte-simulation`, not
-real tmux captures.
+**How we know the perception is right.** A screen model is only useful if it
+matches what a real terminal shows, so we measure that instead of asserting it:
+identical bytes go to a real **tmux** pane and to our model, and the two cell
+grids are diffed. Three suites do it — 35 curated cases, a three-way check that
+only trusts a behaviour when **tmux *and* GNU screen agree**, and a generative
+fuzz over random VT sequences. That campaign found and fixed **12 emulation bugs**,
+including the alternate screen buffer (`pyte` implements none of modes
+1049/1047/47, so a full-screen program's output used to be painted over the main
+screen and never restored). Scope and remaining edges:
+[`LIMITATIONS.md`](skills/drive-tui/references/LIMITATIONS.md).
 
 ## Live effects
 

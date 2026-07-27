@@ -175,6 +175,11 @@ def build_suite():
                       optional=True))
     # Real-tmux probes: SKIP themselves when tmux is absent, so they are safe to
     # register unconditionally. They spawn one tmux server at a time.
+    # The README's headline demo. It drives the real vim binary, so it is a
+    # real-process probe: SKIPs itself when vim is absent.
+    suite.append(Test("drive_vim example (real vim, end-to-end)",
+                      [PY, str(ROOT / "examples" / "drive_vim.py")], ROOT, 120,
+                      optional=True))
     suite.append(Test("_tmux_launcher_probe (cmd-art tmux launchers, real tmux)",
                       [PY, str(TESTS / "_tmux_launcher_probe.py")], ROOT, 240,
                       optional=True))
