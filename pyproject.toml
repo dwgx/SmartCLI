@@ -30,12 +30,26 @@ requires-python = ">=3.10"
 
 authors = [{name = "dwgx"}]
 
+# Keywords feed PyPI's own search and the third-party indexes that mirror it
+# (Libraries.io, AI/LLM package indexes). Ordered roughly by how someone would
+# actually search for this: the MCP/agent terms were missing entirely, so the
+# package did not surface for "mcp server" or "terminal automation" at all.
 keywords = [
+    "mcp",
+    "mcp-server",
+    "ai-agents",
+    "agent-tools",
+    "terminal-automation",
+    "pexpect",
+    "expect",
     "terminal",
     "tui",
     "pty",
+    "ptyprocess",
+    "screen-scraping",
     "ansi",
     "cli",
+    "automation",
     "ascii-art",
     "terminal-effects",
     "claude-skill",
@@ -58,8 +72,15 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Topic :: Terminals",
+    "Topic :: Terminals :: Terminal Emulators/X Terminals",
     "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development :: Testing",
+    "Topic :: System :: Shells",
     "Environment :: Console",
+    "Intended Audience :: System Administrators",
+    # The wheel ships smartcli_core/py.typed (PEP 561); declare it so type
+    # checkers and PyPI's faceted browse both know.
+    "Typing :: Typed",
 ]
 
 # REQUIRED runtime deps (mirror requirements.txt). pyte is a hard top-level
@@ -85,6 +106,8 @@ Repository = "https://github.com/dwgx/SmartCLI"
 Changelog = "https://github.com/dwgx/SmartCLI/blob/main/CHANGELOG.md"
 Issues = "https://github.com/dwgx/SmartCLI/issues"
 PyPI = "https://pypi.org/project/smartcli-toolkit/"
+Documentation = "https://smartcli.readthedocs.io/"
+Demo = "https://dwgx.github.io/SmartCLI/"
 
 [project.optional-dependencies]
 # All guarded imports with pure-stdlib fallbacks — none required to run.
