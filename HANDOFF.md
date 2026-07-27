@@ -206,7 +206,7 @@ Ranked by impact/effort. The v0.1.2 release, the deterministic/mutation-verified
 
 **Release chore — DONE (was: blocks tag-push auto-publish):** the PyPI Trusted-Publisher setup + `pypi` GitHub Environment are complete and OIDC-verified (§0). Tag-push auto-publish now works; twine is no longer needed.
 
-**Still-open replica polish (unchanged from earlier rounds):** eyeball `effort_selector.py`'s animation cadence in a REAL Windows Terminal. Keep `field.Ripple` `travel` **small (~λ×1..1.6, breathing)** so the ripple stays localized on the ultracode/max side; `travel < ~26` keeps low/medium/high/xhigh clean dim-gray. Label distances: ultracode 4, max 14, xhigh 25, high 34, medium 45, low 53. It's bit-exact in pyte; the only gap is the real-terminal eyeball. **drive-tui is now POSIX-verified** (2026-07-13, Debian 13 over SSH: spawn/read/write/resize, DECCKM SS3 arrows, and zombie-free terminate all pass `tests/_sandbox_posix_backend.py`). **macOS: the POSIX backend core is now verified** (2026-07-13, GitHub Actions `macos-latest`: `tests/_sandbox_posix_backend.py` PASSed spawn/read/drive/resize + #6 zombie-free reap on the BSD pty path). The interactive curses DECCKM/SS3-arrow probe is SKIPPED on CI runners (no controllable terminal) — it still wants one real-Mac run over SSH (see `docs/MACOS-VERIFY.md`). Still unverified: the tmux launchers `skills/cmd-art/tmux/*.sh` (need a real tmux host).
+**Still-open replica polish (unchanged from earlier rounds):** eyeball `effort_selector.py`'s animation cadence in a REAL Windows Terminal. Keep `field.Ripple` `travel` **small (~λ×1..1.6, breathing)** so the ripple stays localized on the ultracode/max side; `travel < ~26` keeps low/medium/high/xhigh clean dim-gray. Label distances: ultracode 4, max 14, xhigh 25, high 34, medium 45, low 53. It's bit-exact in pyte; the only gap is the real-terminal eyeball. **drive-tui is now POSIX-verified** (2026-07-13, Debian 13 over SSH: spawn/read/write/resize, DECCKM SS3 arrows, and zombie-free terminate all pass `tests/_sandbox_posix_backend.py`). **macOS: the POSIX backend core is now verified** (2026-07-13, GitHub Actions `macos-latest`: `tests/_sandbox_posix_backend.py` PASSed spawn/read/drive/resize + #6 zombie-free reap on the BSD pty path). The interactive curses DECCKM/SS3-arrow probe is SKIPPED on CI runners (no controllable terminal) — it still wants one real-Mac run over SSH (see `docs/MACOS-VERIFY.md`). **tmux launchers VERIFIED 2026-07-27** on real tmux 3.6b (macOS): `tests/_tmux_launcher_probe.py` drives both `skills/cmd-art/tmux/*.sh` through all five states (no tmux / outside a session / detached / attached client / real split) — 18/18. It found a real bug: `fx-popup` leaked tmux's raw "no current client" with exit 1 when no client was attached, violating its own clean-exit contract; now guarded.
 
 **Standing re-verify-after-workflows:** confirm the 3 external fixes + full `tests/run_all.py` stay exit-0 after any workflow that edits fx effects or recipe `matches()` (`external-ai-fixes.md`).
 
@@ -412,7 +412,8 @@ CI matrix runs.
    add `CONTRIBUTING.md` + a coverage badge. Do NOT include `research/cc-decompiled/`.
 3. **macOS / tmux real-host verification**: CI covers the macOS POSIX core, but the
    interactive DECCKM/SS3 curses probe is still CI-skipped (needs a real Mac over SSH,
-   see `docs/MACOS-VERIFY.md`); real tmux launchers still unverified. Don't claim tmux.
+   see `docs/MACOS-VERIFY.md`). tmux launchers are now VERIFIED on real tmux 3.6b
+   (2026-07-27, `tests/_tmux_launcher_probe.py`).
 4. **A-grade backlog** (§6): MCP-server wrapper (biggest adoption lever), `wait_any`
    multi-marker wait, tui-ui golden-frame snapshot test, `easing.py`/`Gradient` builder,
    spectrum-bars + cbonsai effects.
@@ -671,6 +672,52 @@ review → staged fix fan-out). **This section is the record of both.**
   invalid bench model id). Fixes applied by a staged fix fan-out + re-verify pass
   (initial 8-wide fan-out died to API 529 storms; re-run in batches of 2 — that
   pacing lesson generalizes: match fan-out width to API health).
+### 10c. Differential testing against a real terminal (2026-07-27) — the premise is now MEASURED
+
+The project's central premise — that pyte's cell grid matches what a real
+terminal shows — had never been measured. The screenshot harness honestly labels
+itself `pyte-simulation`, and a simulation agreeing with itself proves nothing.
+**This machine has tmux 3.6b**, which invalidated the long-standing "no tmux on
+this box" assumption and made the measurement possible.
+
+**`tests/_diff_tmux_pyte.py`** feeds identical bytes to a real tmux pane and to
+`ScreenModel`, then diffs the grids cell by cell — 25 cases over cursor
+addressing, erase ops, autowrap/deferred wrap, DECSTBM, IL/DL, DCH/ICH,
+DECSC/DECRC, RI, CJK width, tabs, box drawing, truecolor and emoji. Result:
+**26/26 agree**, but only after finding two real bugs and three rig artifacts.
+
+- **REAL BUG (fixed, core):** `pyte.Screen.draw` does `else: break` on a
+  character that is neither width-1, width-2, nor a true combining mark —
+  abandoning the rest of the batch. **VS16 (U+FE0F) and ZWJ (U+200D) are exactly
+  that shape**, so a program printing `"MENU ♀️ Settings  Quit  Help"` in one
+  write left us perceiving `"MENU ♀"`: the agent would act on a menu whose other
+  entries were invisible to it, with nothing reporting a problem. `ScreenModel`
+  now uses a `_Screen` subclass that attaches those codepoints to the previous
+  cell (as pyte already does for combining marks), stepping over a wide char's
+  stub slot. Locked by `tests/test_zwj_text_loss.py` (mutation-verified:
+  reverting to `pyte.Screen` fails 7 checks). Core policy satisfied — real-run
+  verified by driving a live REPL, fuzz 17030 iterations / 0 defects, mypy clean,
+  16 deterministic gates green, vendored copy re-synced.
+- **REAL BUG (fixed, cmd-art):** see 10d below — the tmux launchers.
+- **Three rig artifacts, NOT emulation differences** (each traced, then
+  normalized in the probe with the reason written down): capture-pane emits a
+  literal TAB where we have already expanded to 8-col stops; NFC vs NFD for
+  combining marks; and — the instructive one — the pane's tty had `ONLCR` on, so
+  it rewrote LF to CRLF *before* the emulator saw it. With `stty -onlcr`, real
+  tmux stair-steps bare LF exactly as we do, **confirming HARD RULE 7** rather
+  than contradicting it. Lesson: when a differential test disagrees, suspect the
+  rig before the code — two of three "divergences" here were the harness.
+
+### 10d. tmux launchers verified (2026-07-27) — a permanently-open item closed
+
+`skills/cmd-art/tmux/fx-{split,popup}.sh` had shipped unverified since they were
+written. On real tmux: `fx-split` works (window really splits, effect renders in
+the new pane), `fx-popup` was **broken** — `display-popup` needs an attached
+client, and from a detached session it leaked tmux's raw `no current client` with
+exit 1, violating its own documented clean-exit contract. Now guarded.
+`tests/_tmux_launcher_probe.py` locks all five states, 18/18, zero residue; it
+SKIPs itself where tmux is absent, so it is safe to register everywhere.
+
 - **Process notes:** commits follow Conventional Commits on the branch (core → tests →
   drive-tui → packaging → ci → docs → reconcile). `B-SEC` (leaked PyPI token) was
   re-raised to the owner per NEXT-STEPS' standing order — still owner-gated.
@@ -783,8 +830,8 @@ OPEN OBJECTIVES (the §6 A-grade list #1–#7 is DONE through v0.1.8; what actua
 5. [M] tui-ui reactive/declarative layer; [M] kitty graphics protocol next to sixel.
 6. [Human eyeball] effort_selector cadence in a real Windows Terminal (travel SMALL,
    ~lambda x1..1.6; distances ultracode 4/max 14/xhigh 25/high 34/medium 45/low 53);
-   real-Mac interactive curses DECCKM/SS3 probe over SSH; tmux launchers on a real
-   tmux host; real-WT sixel render eyeball.
+   real-Mac interactive curses DECCKM/SS3 probe over SSH; real-WT sixel render
+   eyeball. (tmux launchers: DONE 2026-07-27 on real tmux 3.6b.)
 Discoverability (owner-gated, copy ready in docs/LAUNCH-COPY.md): C2 awesome-list PRs,
 then C4 Show HN / r/commandline + C5 skill-community posts (C1 proof reels are DONE).
 

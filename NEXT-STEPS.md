@@ -93,6 +93,48 @@ non-negotiable and overrides any shortcut that looks faster.
   owner to add an LLM API-key secret.
 - **Effort:** M-L
 
+### ~~A0-TMUX. Verify the cmd-art tmux launchers on a real tmux host~~ [DONE 2026-07-27]
+- **Result:** verified on real tmux 3.6b (macOS). `fx-split` works (window splits,
+  effect renders in the new pane). `fx-popup` was **broken**: `display-popup`
+  needs an attached client, and from a detached session it leaked tmux's raw
+  "no current client" with exit 1, violating its own clean-exit contract — now
+  guarded. `tests/_tmux_launcher_probe.py` locks all five states (18/18, zero
+  residue) and SKIPs itself where tmux is absent.
+
+### A0-DIFF2. Extend differential testing beyond tmux  [M]
+- **Goal:** `tests/_diff_tmux_pyte.py` proves our grid matches real tmux on 26
+  cases. Extend the same technique: (a) more cases — alt-screen enter/exit,
+  DECCKM arrows, mouse-mode sequences, OSC title, bracketed paste, SGR
+  underline styles/colours; (b) a second reference emulator (xterm via
+  `xterm -e`, kitty, or Alacritty) so we are not proving "we match tmux"
+  specifically; (c) generative payloads — random control-sequence soup diffed
+  against the reference, which is how remaining emulation gaps will surface.
+- **Why it matters:** this is the only evidence that perception is correct
+  rather than self-consistent, and it already found a real text-loss bug that
+  every existing test missed. It is also the most credible external artifact
+  this project can show.
+- **First step:** read `_diff_tmux_pyte.py` (note the rig-artifact section — tty
+  ONLCR, literal TAB, NFC — before adding cases); add the alt-screen and
+  DECCKM cases first, since drive-tui depends on both.
+- **Verify:** probe stays exit 0 with zero leaked sessions; any new divergence
+  is triaged as rig-vs-real before touching the core.
+- **Effort:** M
+
+### A0-PERF. Performance contract for the wait primitives  [M]
+- **Goal:** no perf test exists anywhere in the suite. Measured 2026-07-27 on
+  this machine: `content_hash` 0.34 ms and `visual_hash` 1.16 ms at 80x24, but
+  **5.35 / 16.85 ms at 300x100** — at the default `poll_ms=30`, `visual_hash`
+  eats 56% of the polling budget on a large terminal. Nothing prevents a change
+  from making that worse.
+- **First step:** add a deterministic benchmark (fixed payload, fixed sizes,
+  in-memory) asserting a per-call ceiling at a few sizes; then make
+  `visual_hash` incremental (hash only rows pyte marks dirty) instead of
+  re-walking every cell.
+- **Verify:** the benchmark fails if a change regresses the ceiling; the
+  optimized `visual_hash` must keep `test_visual_change` and the differential
+  probe green.
+- **Effort:** M
+
 ### A0-CLI-RESIZE. Expose resize as a CLI subcommand  [S]
 - **Goal:** the daemon + MCP support resize but the CLI has no verb — close the
   asymmetry (documented in SKILL.md as MCP-only for now).

@@ -152,14 +152,27 @@ pass/fail. Tests are standalone scripts, not pytest. Two tiers:
 
 - **Deterministic gates** (pure/in-memory, no PTY): `test_fx_contract`,
   `test_readiness`, `test_wait_any`, `test_visual_change`,
-  `test_drive_security`, `test_sixel`, `test_doc_counts` (anti-drift: doc
-  counts must match code), `test_vendor_sync`, `_sandbox_fuzz_core`, etc.
-  These run in CI on a 3-OS matrix (Windows/Ubuntu/macOS × py3.10/3.14).
-- **PTY probes** (`_drive_probe*`, `_tui_cli_probe`, `_mcp_probe`, `verify_fx`)
-  spawn real ConPTY/pty sessions — slow, serial-only, consent required.
+  `test_drive_security`, `test_zwj_text_loss`, `test_sixel`, `test_doc_counts`
+  (anti-drift: doc counts must match code), `test_version_sync` (ten version
+  sites), `test_vendor_sync`, `_sandbox_fuzz_core`. The authoritative list is
+  `build_suite()` in run_all.py. These run in CI on a 3-OS matrix
+  (Windows/Ubuntu/macOS × py3.10/3.14).
+- **Real-process probes** — spawn real ConPTY/pty/tmux; slow, serial-only, one
+  at a time, consent required: `_drive_probe*`, `_tui_cli_probe`, `_mcp_probe`,
+  `verify_fx`, `probe_pty_fx`, `_sandbox_posix_backend`,
+  `_sandbox_daemon_robustness`, plus the two real-tmux probes
+  (`_diff_tmux_pyte`, `_tmux_launcher_probe`), which SKIP themselves when tmux
+  is absent.
 
 Docs and counts are contract-tested: changing the number of effects/widgets
-requires updating README/SKILL.md counts or `test_doc_counts` fails.
+requires updating README/SKILL.md counts or `test_doc_counts` fails (it also
+bans hard-coded dev-box paths from portable docs).
+
+**Differential testing is the strongest evidence available here.**
+`tests/_diff_tmux_pyte.py` diffs our grid against a real tmux pane cell by
+cell — it is how the ZWJ/VS16 text-loss bug was found, and how HARD RULE 7 was
+confirmed. When it disagrees, suspect the rig first (tty `ONLCR`, capture-pane's
+literal TAB, NFC vs NFD were all harness artifacts, not emulation gaps).
 
 ### Project docs
 
