@@ -37,7 +37,7 @@ jobs:
       # secret is configured (a step-scoped env can't be read by that step's own if).
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Python
         uses: actions/setup-python@v5
