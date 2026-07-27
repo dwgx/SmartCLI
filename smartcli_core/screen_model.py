@@ -16,11 +16,40 @@ import zlib
 from typing import NamedTuple
 
 import pyte
+from pyte import modes as mo
+
+from wcwidth import wcwidth as wcwidth_cached  # pyte's own width dependency
+
+
+class _ByteStream(pyte.ByteStream):
+    """``pyte.ByteStream`` that dispatches NEL (``ESC E``) to ``next_line``.
+
+    pyte maps ``ESC E`` to ``linefeed``, which only carriage-returns when LNM is
+    set — but NEL is defined to always index AND return to column 0. Plain LF
+    shares ``linefeed`` and must keep its column, so the two cannot be fixed in
+    one method; the dispatch itself has to differ.
+    """
+
+    escape = {**pyte.Stream.escape, "E": "next_line"}
 
 
 class _Screen(pyte.Screen):
-    """``pyte.Screen`` with the zero-width-joiner text-loss bug fixed.
+    """``pyte.Screen`` with two real-terminal divergences fixed.
 
+    **1. IL/DL must not move the cursor column.** ``pyte``'s
+    ``insert_lines``/``delete_lines`` call ``carriage_return()``, snapping the
+    cursor to column 0. Real terminals keep the column: after
+    ``ESC[5;8H ESC[1L abc``, both tmux 3.6b and GNU screen render
+    ``"       abc"`` (column 8) while pyte rendered ``"abc"`` (column 0).
+    Two independent emulators agreeing settles it — ECMA-48 is ambiguous enough
+    here that reasoning alone would not have. Found by
+    ``tests/_diff_fuzz_tmux.py`` (generative differential fuzz), which is
+    exactly the class of bug hand-written cases miss: TUIs that repaint a list
+    by inserting a line and then writing at the current column landed their text
+    in the wrong column for us, so a recipe reading a "selected" row could read
+    the wrong text.
+
+    **2. A zero-width joiner must not truncate the batch.**
     ``pyte.Screen.draw`` walks the batch character by character and, for a
     character that is neither width-1, width-2, nor a true combining mark, does
     ``else: break`` — abandoning **every remaining character in that batch**.
@@ -42,6 +71,154 @@ class _Screen(pyte.Screen):
     stream FSM must still see them.
     """
 
+    # NOT changed: IL/DL when the cursor sits OUTSIDE a DECSTBM scroll region.
+    # The generative fuzz flagged it, but the two reference emulators DISAGREE
+    # with each other there: for `x ESC[8;9r ESC[2L`, tmux 3.6b performs the
+    # insert (x shifts to row 2) while GNU screen discards it entirely. When
+    # mature emulators diverge, the sequence is under-specified and there is no
+    # ground truth to match — so we keep pyte's behaviour rather than picking a
+    # side, and `_diff_fuzz_tmux.py` documents it as a known divergence. Real
+    # TUIs do not drive IL from outside their own region.
+
+    def index(self) -> None:
+        """IND — line feed, but a cursor OUTSIDE the scroll region must not scroll it.
+
+        pyte's ``index`` compares the cursor against the DECSTBM bottom margin
+        and, on a match, scrolls the region. When the cursor is *below* the
+        region entirely, that is wrong: the cursor should simply move down (or
+        stay on the last row), leaving the region untouched. Measured on tmux
+        3.6b: with region 3..6, text written at row 7 that autowraps continues on
+        row 8, while pyte wrapped it back inside the region to row 5 — so
+        anything a program painted below a scroll region (status bars, prompts
+        under a pager) landed on the wrong rows for us. Found by
+        ``tests/_diff_fuzz_tmux.py``.
+        """
+        top, bottom = self.margins or (0, self.lines - 1)
+        if self.cursor.y > bottom:
+            if self.cursor.y < self.lines - 1:
+                self.cursor.y += 1
+                self.dirty.add(self.cursor.y)
+            return
+        super().index()
+
+    def cursor_up(self, count: int | None = None) -> None:
+        """CUU — a cursor already OUTSIDE the region is not clamped into it.
+
+        pyte clamps to the DECSTBM top margin unconditionally, so a cursor below
+        the region could not move above it. Real terminals only apply the margin
+        clamp while the cursor is inside the region (measured on tmux 3.6b:
+        region 9..10, cursor at row 2, ``ESC[2A`` reaches row 0; pyte pinned it
+        at row 8). Found by ``tests/_diff_fuzz_tmux.py``.
+        """
+        top, bottom = self.margins or (0, self.lines - 1)
+        if not (top <= self.cursor.y <= bottom):
+            self.cursor.y = max(self.cursor.y - (count or 1), 0)
+            return
+        super().cursor_up(count)
+
+    def next_line(self) -> None:
+        """NEL (``ESC E``) — index AND carriage return, unconditionally.
+
+        pyte routes ``ESC E`` to ``linefeed``, which only returns to column 0
+        when LNM is set; NEL is defined to always do both. So ``ESC[2;5H ESC E``
+        left us writing at column 4 where tmux 3.6b writes at column 0. Found by
+        ``tests/_diff_fuzz_tmux.py``. (Registered below via the stream's escape
+        map so the dispatch actually reaches this method.)
+        """
+        self.index()
+        self.carriage_return()
+
+    def delete_characters(self, count: int | None = None) -> None:
+        """DCH — deleting a two-column glyph must remove BOTH of its cells.
+
+        pyte deletes one cell per requested count without regard to width, so
+        deleting a wide character left its stub behind as a stray blank and every
+        following column shifted by one (measured: ``中x`` + CR + ``ESC[1P``
+        gives ``"x"`` on tmux 3.6b, we produced ``" x"``). Found by
+        ``tests/_diff_fuzz_tmux.py``.
+        """
+        line = self.buffer[self.cursor.y]
+        x = self.cursor.x
+        extra = 0
+        if x < self.columns:
+            cur = line[x].data
+            if cur and (wcwidth_cached(cur[0]) == 2
+                        or (len(cur) > 1 and "️" in cur)):
+                extra = 1  # its stub travels with it
+        super().delete_characters((count or 1) + extra)
+
+    def _shift_lines(self, start: int, bottom: int, count: int, down: bool) -> None:
+        """Move whole rows within [start, bottom], filling the vacated ones.
+
+        pyte's own IL walks the range popping source rows after copying them,
+        which for ``count > 1`` leaves rows *missing* from its sparse buffer
+        rather than present-and-blank. A later DL then renumbered around those
+        holes and deleted the wrong row: ``ESC[3L Q ESC[1M`` left ``Q`` on screen
+        for us where tmux 3.6b and GNU screen both end up blank. Rebuilding the
+        affected span explicitly keeps every row present, so row indices stay
+        meaningful. Found by ``tests/_diff_fuzz_tmux.py``.
+        """
+        span = list(range(start, bottom + 1))
+        rows = [self.buffer.get(y) for y in span]
+        if down:
+            moved = [None] * count + rows[:-count] if count <= len(rows) else [None] * len(rows)
+        else:
+            moved = rows[count:] + [None] * count if count <= len(rows) else [None] * len(rows)
+        for y, row in zip(span, moved):
+            if row is None:
+                self.buffer.pop(y, None)
+                # Touch the row so it exists as a real blank line, not a hole.
+                self.buffer[y]  # defaultdict factory materialises it
+            else:
+                self.buffer[y] = row
+        self.dirty.update(span)
+
+    def insert_lines(self, count: int | None = None) -> None:
+        top, bottom = self.margins or (0, self.lines - 1)
+        if top <= self.cursor.y <= bottom:
+            self._shift_lines(self.cursor.y, bottom, min(count or 1,
+                                                         bottom - self.cursor.y + 1),
+                              down=True)
+            return
+        col = self.cursor.x
+        super().insert_lines(count)
+        self.cursor.x = col  # real terminals keep the column; pyte homes it
+
+    def delete_lines(self, count: int | None = None) -> None:
+        col = self.cursor.x
+        super().delete_lines(count)
+        self.cursor.x = col
+
+    def _clear_split_wide(self) -> None:
+        """Blank a two-column glyph the cursor is about to half-overwrite.
+
+        Writing into either half of a wide character must destroy the WHOLE
+        glyph — a terminal cannot show half of it. Real terminals blank both
+        cells: after ``中`` + ``ESC[1D`` + ``X``, tmux 3.6b and GNU screen both
+        render ``" X"``. pyte instead left the wide char in place and dropped the
+        new character entirely, so we rendered ``"中"`` — the write vanished, and
+        an agent reading that row saw stale text with nothing reporting a
+        problem. Found by ``tests/_diff_fuzz_tmux.py``.
+        """
+        line = self.buffer[self.cursor.y]
+        x = self.cursor.x
+        if x >= self.columns:
+            return
+        blank = self.cursor.attrs._replace(data=" ")
+        # Cursor sits on the stub half: blank the base to our left too.
+        if line[x].data == "" and x - 1 >= 0:
+            line[x - 1] = blank
+            line[x] = blank
+            self.dirty.add(self.cursor.y)
+            return
+        # Cursor sits on the base half of a wide glyph: blank its stub as well.
+        cur = line[x].data
+        if cur and (wcwidth_cached(cur[0]) == 2 or (len(cur) > 1 and "️" in cur)):
+            line[x] = blank
+            if x + 1 < self.columns and line[x + 1].data == "":
+                line[x + 1] = blank
+            self.dirty.add(self.cursor.y)
+
     def draw(self, data: str) -> None:
         from wcwidth import wcwidth  # pyte's own width dependency
 
@@ -62,8 +239,33 @@ class _Screen(pyte.Screen):
                     prev = line[idx]
                     line[idx] = prev._replace(data=prev.data + char)
                     self.dirty.add(self.cursor.y)
+                    if char == "️" and wcwidth(prev.data[:1]) == 1:
+                        # VARIATION SELECTOR-16 requests EMOJI presentation, which
+                        # real terminals render two cells wide even when wcwidth
+                        # reports 1 for the base character (measured: tmux 3.6b and
+                        # GNU screen both advance 2 for U+2640 U+FE0F). Claim the
+                        # stub cell and advance so every following column matches
+                        # the real terminal — otherwise one emoji shifts the whole
+                        # rest of the line by one.
+                        if self.cursor.x < self.columns:
+                            line[self.cursor.x] = \
+                                self.cursor.attrs._replace(data="")
+                            self.cursor.x = min(self.cursor.x + 1, self.columns)
                 continue
-            pending.append(char)
+            if pending:
+                super().draw("".join(pending))
+                pending = []
+            # A two-column glyph that cannot fit before the right margin wraps
+            # WHOLE to the next line; pyte squeezes it into the last cell.
+            # Measured on tmux 3.6b: an emoji written at column 40 of a 40-col
+            # screen appears on the next row, not split across the margin.
+            if (wcwidth(char) == 2 and self.cursor.x == self.columns - 1
+                    and mo.DECAWM in self.mode):
+                self.carriage_return()
+                self.linefeed()
+            # A write that lands on half of a wide glyph must destroy all of it.
+            self._clear_split_wide()
+            super().draw(char)
         if pending:
             super().draw("".join(pending))
 
@@ -93,7 +295,13 @@ def safe_screen_display(screen: pyte.Screen) -> list[str]:
                 out.append(" ")
                 is_wide = False
                 continue
-            is_wide = wcwidth(char[0]) == 2
+            # Skip the stub slot for anything occupying two columns. pyte checks
+            # only ``char[0]``, which misses an emoji-presentation cluster like
+            # U+2640 U+FE0F: its base is wcwidth 1, yet real terminals advance
+            # two columns (measured on tmux 3.6b and GNU screen), and _Screen.draw
+            # reserves the stub accordingly. Without this, the stub renders as an
+            # extra blank and every following column is off by one.
+            is_wide = wcwidth(char[0]) == 2 or (len(char) > 1 and "️" in char)
             out.append(char)
         return "".join(out)
 
@@ -119,7 +327,7 @@ class ScreenModel:
         self.screen = _Screen(cols, rows)
         # ByteStream decodes UTF-8 incrementally, so multibyte chars split across
         # feed() boundaries are reassembled correctly.
-        self.stream = pyte.ByteStream(self.screen)
+        self.stream = _ByteStream(self.screen)
         # Count of feed() batches pyte failed to parse (malformed control seqs).
         # Observable so a SYSTEMIC failure (e.g. a regression that makes every
         # feed raise) is not silently indistinguishable from the occasional

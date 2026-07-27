@@ -152,7 +152,7 @@ pass/fail. Tests are standalone scripts, not pytest. Two tiers:
 
 - **Deterministic gates** (pure/in-memory, no PTY): `test_fx_contract`,
   `test_readiness`, `test_wait_any`, `test_visual_change`,
-  `test_drive_security`, `test_zwj_text_loss`, `test_sixel`, `test_doc_counts`
+  `test_drive_security`, `test_terminal_fidelity`, `test_sixel`, `test_doc_counts`
   (anti-drift: doc counts must match code), `test_version_sync` (ten version
   sites), `test_vendor_sync`, `_sandbox_fuzz_core`. The authoritative list is
   `build_suite()` in run_all.py. These run in CI on a 3-OS matrix

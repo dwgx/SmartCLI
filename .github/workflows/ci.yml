@@ -58,8 +58,8 @@ jobs:
       - name: ten version sites agree (anti-drift)
         run: python tests/test_version_sync.py
 
-      - name: zero-width joiner text-loss lock (deterministic)
-        run: python tests/test_zwj_text_loss.py
+      - name: real-terminal fidelity locks (deterministic)
+        run: python tests/test_terminal_fidelity.py
 
       - name: sixel wire-format lock (deterministic)
         run: python tests/test_sixel.py
