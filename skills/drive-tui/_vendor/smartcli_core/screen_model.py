@@ -11,10 +11,61 @@ per-cell attribute reader that copes with the sparse dict-of-dicts buffer.
 
 from __future__ import annotations
 
+import unicodedata
 import zlib
 from typing import NamedTuple
 
 import pyte
+
+
+class _Screen(pyte.Screen):
+    """``pyte.Screen`` with the zero-width-joiner text-loss bug fixed.
+
+    ``pyte.Screen.draw`` walks the batch character by character and, for a
+    character that is neither width-1, width-2, nor a true combining mark, does
+    ``else: break`` — abandoning **every remaining character in that batch**.
+    Two extremely common codepoints land in that hole: VARIATION SELECTOR-16
+    (U+FE0F, ``wcwidth`` 0, ``combining`` 0) and ZERO WIDTH JOINER (U+200D).
+
+    So a program printing ``"MENU ♀️ Settings  Quit"`` in one write lost
+    everything after the emoji: the agent perceived ``"MENU ♀"`` and would act
+    on a menu whose other entries it could not see. Found by
+    ``tests/_diff_tmux_pyte.py``, which diffs our grid against a real tmux pane
+    — tmux keeps the whole line, so this was a genuine perception gap, not a
+    representation difference.
+
+    Fix: intercept those codepoints and append them to the previous cell's
+    ``data``, exactly as pyte already does for combining marks, then let pyte
+    draw the rest of the batch normally. The cursor does not advance (width 0),
+    and a wide character's empty stub slot is stepped over so the mark attaches
+    to the glyph itself. Controls (C0/C1, ESC) are never intercepted — the
+    stream FSM must still see them.
+    """
+
+    def draw(self, data: str) -> None:
+        from wcwidth import wcwidth  # pyte's own width dependency
+
+        pending: list[str] = []
+        for char in data:
+            code = ord(char)
+            is_control = code < 0x20 or 0x80 <= code <= 0x9F
+            if (not is_control and wcwidth(char) == 0
+                    and unicodedata.combining(char) == 0):
+                if pending:
+                    super().draw("".join(pending))
+                    pending = []
+                line = self.buffer[self.cursor.y]
+                idx = self.cursor.x - 1
+                if idx >= 0 and line[idx].data == "":
+                    idx -= 1  # step over the stub slot of a wide character
+                if idx >= 0:
+                    prev = line[idx]
+                    line[idx] = prev._replace(data=prev.data + char)
+                    self.dirty.add(self.cursor.y)
+                continue
+            pending.append(char)
+        if pending:
+            super().draw("".join(pending))
 
 
 def safe_screen_display(screen: pyte.Screen) -> list[str]:
@@ -65,7 +116,7 @@ class ScreenModel:
     def __init__(self, cols: int = 80, rows: int = 24) -> None:
         self._cols = cols
         self._rows = rows
-        self.screen = pyte.Screen(cols, rows)
+        self.screen = _Screen(cols, rows)
         # ByteStream decodes UTF-8 incrementally, so multibyte chars split across
         # feed() boundaries are reassembled correctly.
         self.stream = pyte.ByteStream(self.screen)

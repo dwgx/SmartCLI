@@ -164,6 +164,9 @@ def build_suite():
     suite.append(Test("test_version_sync (ten version sites agree)",
                       [PY, str(TESTS / "test_version_sync.py")], ROOT, 60,
                       optional=True))
+    suite.append(Test("test_zwj_text_loss (zero-width joiner truncation lock)",
+                      [PY, str(TESTS / "test_zwj_text_loss.py")], ROOT, 60,
+                      optional=True))
     suite.append(Test("test_wait_any (pexpect-style multi-marker wait)",
                       [PY, str(TESTS / "test_wait_any.py")], ROOT, 60,
                       optional=True))
