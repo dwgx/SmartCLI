@@ -1,8 +1,8 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.dwgx/smartcli",
-  "title": "SmartCLI drive-tui",
-  "description": "Drive interactive terminal programs (TUIs, REPLs, menus) through a PTY: perceive, send keys, wait.",
+  "title": "SmartCLI — drive terminal TUIs",
+  "description": "Let agents drive vim, htop, lazygit: send keys, wait on screen state, read the rendered cell grid.",
   "repository": {
     "url": "https://github.com/dwgx/SmartCLI",
     "source": "github"
