@@ -36,4 +36,10 @@ ENV PYTHONPATH=/app:/app/skills/cmd-art:/app/skills/tui-ui:/app/skills/drive-tui
     SMARTCLI_ROOT=/app
 
 ENTRYPOINT ["./docker-entrypoint.sh"]
-CMD ["fx", "gallery"]
+
+# Default to the stdio MCP server, NOT a demo. MCP directories (Glama, Docker's
+# MCP catalog) validate a server by running the image with no arguments and
+# speaking JSON-RPC to it — with `fx gallery` as the default they would get an
+# animation on stdout and score the server as broken. Humans wanting the demo
+# pass it explicitly: `docker run --rm -it ghcr.io/dwgx/smartcli fx gallery`.
+CMD ["mcp"]
