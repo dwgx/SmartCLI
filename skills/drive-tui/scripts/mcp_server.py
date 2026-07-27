@@ -60,7 +60,30 @@ except ImportError:
 TUI_PY = str(Path(_tui.__file__).resolve())
 PY = sys.executable
 
+def _our_version() -> str:
+    """This package's version, for the MCP `serverInfo` handshake.
+
+    Without an explicit version FastMCP reports the MCP SDK's own version, so
+    `initialize` answered `1.28.1` while the package was 0.2.0 — which is what
+    MCP directories display, and it reads like a bogus version claim. Resolved
+    from installed metadata first so it stays correct without a second bump site.
+    """
+    try:
+        from importlib.metadata import version
+        return version("smartcli-toolkit")
+    except Exception:
+        pass
+    try:  # source checkout, package not installed
+        from smartcli_core import __version__
+        return __version__
+    except Exception:
+        return "0.0.0+unknown"
+
+
 mcp = FastMCP("smartcli-drive-tui")
+# FastMCP does not forward a version to the low-level Server it wraps, so set it
+# on that object directly; it is what the `initialize` handshake reports.
+mcp._mcp_server.version = _our_version()
 
 
 def _call_session(sid: str, req: dict, timeout: float = 30.0) -> dict:

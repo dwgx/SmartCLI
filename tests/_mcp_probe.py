@@ -85,6 +85,17 @@ def main() -> int:
     alive = _fn("alive")
 
     print(f"REG_DIR={REG_DIR}")
+
+    # The `initialize` handshake's serverInfo is what MCP directories display.
+    # FastMCP does not forward a version to the Server it wraps, so without an
+    # explicit assignment this reported the MCP SDK's version (1.28.1) while the
+    # package was 0.2.0 — indistinguishable from a bogus version claim.
+    reported = getattr(M.mcp._mcp_server, "version", None)
+    expected = M._our_version()
+    check(reported == expected and reported not in (None, "0.0.0+unknown"),
+          "serverInfo reports this package's version, not the SDK's",
+          detail=f"reported={reported!r} expected={expected!r}")
+
     sid = ""
     try:
         # --- start ---
