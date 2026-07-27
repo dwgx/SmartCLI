@@ -2,7 +2,7 @@
 
 # 安装 SmartCLI
 
-SmartCLI 是构建在一套可插拔 PTY + `pyte` 内核之上的三个 Agent Skill（`cmd-art`、`drive-tui`、`tui-ui`）。它有三种获取方式，从「把文件夹直接丢进去」到常规的 pip 安装都行。根据你拿到文件的方式，挑对应的一种即可。
+SmartCLI 是构建在一套可插拔 PTY + `pyte` 内核之上的三个 Agent Skill（`cmd-art`、`drive-tui`、`tui-ui`）。它有四种获取方式，从「把文件夹直接丢进去」到常规的 pip 安装都行。根据你拿到文件的方式，挑对应的一种即可。
 
 ## 一句话版 —— 即放即用，零配置
 
@@ -19,7 +19,7 @@ python skills/drive-tui/scripts/tui.py doctor
 
 它会打印出 `smartcli_core` 是从哪里解析到的、运行时依赖是否齐全，如果缺了哪个还会给出确切的安装命令。
 
-## 三种场景
+## 四种场景
 
 ### 1. 整个仓库（推荐）
 
@@ -49,19 +49,25 @@ python <dropped-in>/drive-tui/scripts/tui.py doctor
 /plugin install smartcli@smartcli
 ```
 
-### 4. pip（把共享内核当作库用）
+### 4. pip（库 + TUI 驱动器 + MCP 服务器）
 
-要把 `smartcli_core` 当作一个普通的可导入库来用：
+Python 3.10+ 会安装可导入内核和两个驱动入口：
 
 ```bash
-pip install smartcli-toolkit   # import stays: from smartcli_core import PtySession
+pip install smartcli-toolkit
+smartcli-tui doctor
+smartcli-mcp
 ```
+
+库的导入方式仍是 `from smartcli_core import PtySession`；`smartcli-toolkit`
+是供 MCP Registry 通过 `uvx` 启动的 `smartcli-mcp` 别名。
 
 ## 依赖
 
 | 包 | 谁需要它 | 自动？ |
 |---|---|---|
 | `pyte` | `drive-tui` 内核（硬依赖） | 由 `doctor` 报告；按需安装 |
+| `mcp` | 已安装的 stdio MCP 服务器 | 由 pip / requirements.txt 安装 |
 | `pywinpty` | 仅 **Windows** 上的 `drive-tui` | 由 `doctor` 报告；按需安装 |
 | `pyfiglet`、`Pillow`、`wcwidth` | 可选的锦上添花 —— 没有它们一切都会优雅降级 | 从不必需 |
 

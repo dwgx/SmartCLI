@@ -1,10 +1,11 @@
 # NEXT-STEPS — SmartCLI prioritized task queue
 
-Written 2026-07-12 at the end of a long session. This file is the single source of
-truth for "what to do next". Tasks are ordered by impact/effort and written as
-**self-contained prompts**: a fresh AI with no memory of this session can pick any
-task and start. Each task states the goal, why it matters, a concrete first step,
-how to verify, and effort (S/M/L).
+Written 2026-07-12; snapshot + queue last reconciled **2026-07-27** (post-v0.2.0-branch
+work — see HANDOFF §10). This file is the single source of truth for "what to do
+next". Tasks are ordered by impact/effort and written as **self-contained prompts**:
+a fresh AI with no memory of this session can pick any task and start. Each task
+states the goal, why it matters, a concrete first step, how to verify, and effort
+(S/M/L).
 
 Read the "Standing method" section at the bottom BEFORE touching code. It is
 non-negotiable and overrides any shortcut that looks faster.
@@ -21,41 +22,151 @@ non-negotiable and overrides any shortcut that looks faster.
 
 ---
 
-## Verified ground-truth snapshot (checked against disk 2026-07-15)
+## Verified ground-truth snapshot (checked against disk 2026-07-27)
 
-- Release: **v0.1.6** live on PyPI as dist `smartcli-toolkit` (import stays
-  `smartcli_core`): `pip install smartcli-toolkit`. Repo github.com/dwgx/SmartCLI,
-  branch `main`, tags v0.1.0…v0.1.6 with GitHub Releases. 3 skills also on
-  skillhu.bz. `.claude-plugin/marketplace.json` present. Codecov + Read the Docs
-  (smartcli.readthedocs.io) live.
-- Version 0.1.6 is consistent across NINE sites: pyproject.toml, smartcli_core/__init__.py,
-  skills/cmd-art/fx/__init__.py, all 3 skills/*/SKILL.md, marketplace.json,
-  _vendor/smartcli_core/__init__.py, server.json (2 fields). After a bump run
-  tools/sync_vendor.py + tests/test_vendor_sync.py. VERIFIED.
-- Live counts (re-verified against code 2026-07-15): cmd-art **30 effects / 8 themes**;
+- Release: latest RELEASED = **v0.1.8** on PyPI as dist `smartcli-toolkit` (import
+  stays `smartcli_core`). Repo github.com/dwgx/SmartCLI, tags v0.1.0…v0.1.8 with
+  GitHub Releases. **v0.2.0 is code-complete but UNRELEASED** — committed on branch
+  `codex/cross-platform-mcp-hardening` (HANDOFF §10): security-hardened drive-tui
+  control plane, visual_hash + wait-visual-change, wheel ships smartcli_drive +
+  smartcli-tui/smartcli-mcp/smartcli-toolkit commands, mcp required dep, Python
+  floor 3.10. 3 skills also on skillhu.bz. `.claude-plugin/marketplace.json`
+  present. Codecov + Read the Docs (smartcli.readthedocs.io) live.
+- Version 0.2.0 (in-tree) is consistent across **TEN** sites: pyproject.toml,
+  smartcli_core/__init__.py, skills/cmd-art/fx/__init__.py, all 3 skills/*/SKILL.md,
+  marketplace.json, **plugin.json**, _vendor/smartcli_core/__init__.py, server.json
+  (2 fields). After a bump run tools/sync_vendor.py + tests/test_vendor_sync.py +
+  **tests/test_version_sync.py** (anti-drift gate added 2026-07-27). VERIFIED.
+- Live counts (re-verified against code 2026-07-27): cmd-art **30 effects / 8 themes**;
   drive-tui **8 recipes** (patterns/recipes/); tui-ui **17 widgets** (11 core + 6 in
-  ui/widgets_ext/); knowledge **143 md files**. `python -m fx list` = 28,
-  `python -m ui widgets` = 17. Anti-drift gate (test_doc_counts.py) enforces the
-  effect count across shipping docs.
-- CI (updated 2026-07-14): **8 workflows**. `ci.yml` is a **3-OS matrix**
-  (windows/ubuntu/macos × py3.11/3.12) running ~12 deterministic gates incl.
-  `test_doc_counts` (anti-drift) + POSIX-only `_sandbox_posix_backend.py` on the
-  non-Windows legs. Plus `publish.yml` + `publish-testpypi.yml` (OIDC),
-  `pages.yml`, `docker.yml` (GHCR), `codeql.yml`, `lint.yml`, `release-drafter.yml`.
-  VERIFIED present.
+  ui/widgets_ext/); knowledge **143 md files**. `python -m fx list` = 30,
+  `python -m ui widgets` = 17. Anti-drift gate (test_doc_counts.py) enforces effect
+  AND widget counts across shipping docs (extended 2026-07-27).
+- CI (updated 2026-07-27): **9 workflows**. `ci.yml` is a **3-OS matrix**
+  (windows/ubuntu/macos × **py3.10/3.14**) running the deterministic gates incl.
+  `test_doc_counts` + `test_version_sync` (anti-drift), `test_visual_change`,
+  `test_drive_security`, + POSIX-only `_sandbox_posix_backend.py` on non-Windows
+  legs; plus bounded **drive-smoke** (real-PTY probes, 3 OS) and **package**
+  (wheel/registry contract) jobs. Plus `publish.yml` (OIDC PyPI + `publish-mcp`
+  OIDC MCP-Registry job) + `publish-testpypi.yml`, `pages.yml`, `docker.yml`
+  (GHCR), `codeql.yml`, `lint.yml` (ruff correctness subset + mypy now BLOCK),
+  `release-drafter.yml`, `bench.yml`. VERIFIED present.
 - Core fixes (smartcli_core, done WITH authorization + adversarial verify):
   #1 blank_hash readiness gate, #2 unanchored `>>> ` docstrings, #4 WinptyBackend
   EOF/queue reset. **#5 + #6 FIXED & verified on real Debian 13 (2026-07-13)**:
   #5 arrows now adaptive (SS3 under DECCKM via ScreenModel.app_cursor, CSI else),
-  #6 POSIX terminate() now reaps the child (no zombie). Verified with
-  tests/_sandbox_posix_backend.py over SSH; Windows zero-regression.
-  NOT fixed (recorded known): #3 content_hash blind to selection-only move
-  (design tradeoff — fixing risks false-unstable). See
+  #6 POSIX terminate() now reaps the child (no zombie). **#3 RESOLVED in v0.2.0**:
+  content_hash stays text-only by design; new visual_hash + wait_visual_change
+  cover selection/attribute/cursor-only changes end-to-end. See
   skills/drive-tui/references/LIMITATIONS.md for the living log.
 - `research/cc-decompiled/` is gitignored and EXCLUDED from release. VERIFIED. Keep
   it excluded — do not re-expose it. Provenance wording already neutralized.
-- Env: Windows 11, Python 3.14.6, pyte 0.8.2 + pywinpty 3.0.5. No tmux, no WSL.
-  Always `export PYTHONIOENCODING=utf-8` (box/CJK glyphs crash on gbk).
+- Env: dual-host. Current working copy: macOS (Apple Silicon), Python 3.14.6, POSIX
+  pty. Historical primary: Windows 11, pyte 0.8.2 + pywinpty 3.0.5, no tmux/WSL.
+  Everywhere `export PYTHONIOENCODING=utf-8` (box/CJK glyphs crash on gbk). Since
+  v0.2.0 `mcp>=1.0` is a required dependency.
+
+---
+
+## A0. NEW since v0.2.0 (added 2026-07-27)
+
+### A0-REL. Release v0.2.0  [S] (OWNER decision — breaking changes)
+- **Goal:** merge `codex/cross-platform-mcp-hardening` into `main` and cut v0.2.0.
+- **Why it matters:** the branch carries security hardening + the installable
+  drive/MCP surface; until tagged, PyPI users get none of it. It is BREAKING:
+  drops Python 3.9, makes `mcp` a required dependency — that call is the owner's.
+- **First step (human):** review HANDOFF §10 + CHANGELOG [0.2.0]; merge the branch;
+  `git tag v0.2.0 && git push origin v0.2.0` (publish.yml then does PyPI + MCP
+  Registry via OIDC automatically). Before tagging, refresh the CHANGELOG date to
+  the actual release day.
+- **Verify:** publish.yml green (both publish + publish-mcp jobs); `pip install
+  smartcli-toolkit==0.2.0` in a clean 3.10 venv → `smartcli-tui doctor` works;
+  pip refuses the install on a 3.9 interpreter (Requires-Python metadata).
+- **Effort:** S
+
+### A0-HARBOR. Port the Terminal-Bench adapter to TB-2.0 / Harbor  [M-L]
+- **Goal:** the classic-TB adapter (`smartcli_tbench/`) targets an interface the
+  public leaderboard no longer uses; port to Harbor's tool/env-mediated agent API.
+- **First step:** read HANDOFF §9h (adapter design + caveat) and the Harbor agent
+  interface docs; map driver.py's wait primitives onto Harbor's session surface.
+- **Verify:** oracle smoke run green in bench.yml; scored runs additionally need the
+  owner to add an LLM API-key secret.
+- **Effort:** M-L
+
+### ~~A0-TMUX. Verify the cmd-art tmux launchers on a real tmux host~~ [DONE 2026-07-27]
+- **Result:** verified on real tmux 3.6b (macOS). `fx-split` works (window splits,
+  effect renders in the new pane). `fx-popup` was **broken**: `display-popup`
+  needs an attached client, and from a detached session it leaked tmux's raw
+  "no current client" with exit 1, violating its own clean-exit contract — now
+  guarded. `tests/_tmux_launcher_probe.py` locks all five states (18/18, zero
+  residue) and SKIPs itself where tmux is absent.
+
+### A0-DIFF2. Extend differential testing beyond tmux  [M]
+- **Goal:** `tests/_diff_tmux_pyte.py` proves our grid matches real tmux on 26
+  cases. Extend the same technique: (a) more cases — alt-screen enter/exit,
+  DECCKM arrows, mouse-mode sequences, OSC title, bracketed paste, SGR
+  underline styles/colours; (b) a second reference emulator (xterm via
+  `xterm -e`, kitty, or Alacritty) so we are not proving "we match tmux"
+  specifically; (c) generative payloads — random control-sequence soup diffed
+  against the reference, which is how remaining emulation gaps will surface.
+- **Why it matters:** this is the only evidence that perception is correct
+  rather than self-consistent, and it already found a real text-loss bug that
+  every existing test missed. It is also the most credible external artifact
+  this project can show.
+- **First step:** read `_diff_tmux_pyte.py` (note the rig-artifact section — tty
+  ONLCR, literal TAB, NFC — before adding cases); add the alt-screen and
+  DECCKM cases first, since drive-tui depends on both.
+- **Verify:** probe stays exit 0 with zero leaked sessions; any new divergence
+  is triaged as rig-vs-real before touching the core.
+- **Effort:** M
+
+### A0-PERF. Performance contract for the wait primitives  [M]
+- **Goal:** no perf test exists anywhere in the suite. Measured 2026-07-27 on
+  this machine: `content_hash` 0.34 ms and `visual_hash` 1.16 ms at 80x24, but
+  **5.35 / 16.85 ms at 300x100** — at the default `poll_ms=30`, `visual_hash`
+  eats 56% of the polling budget on a large terminal. Nothing prevents a change
+  from making that worse.
+- **First step:** add a deterministic benchmark (fixed payload, fixed sizes,
+  in-memory) asserting a per-call ceiling at a few sizes; then make
+  `visual_hash` incremental (hash only rows pyte marks dirty) instead of
+  re-walking every cell.
+- **Verify:** the benchmark fails if a change regresses the ceiling; the
+  optimized `visual_hash` must keep `test_visual_change` and the differential
+  probe green.
+- **Effort:** M
+
+### ~~A0-DIFF2 / A0-PERF (partial)~~ [DONE 2026-07-27]
+- **Result:** generative differential fuzz (`tests/_diff_fuzz_tmux.py`) shipped
+  and found **7 emulation bugs** hand-written cases missed (IL/DL column homing,
+  IL count>1 buffer holes, wide-glyph half-overwrite, DCH on wide, NEL column,
+  DECSTBM cursor clamping, orphaned wide stub) — all fixed, all cross-checked
+  against GNU screen, 10/10 seeds x 40 payloads now clean. Performance contract
+  (`tests/test_perf_contract.py`) shipped: `visual_hash` made incremental,
+  16.566 ms → 0.008 ms idle on 300x100. See HANDOFF §10e.
+- **Still open from those tasks:** a SECOND reference emulator in the差分 harness
+  (kitty/Alacritty via brew — `screen` is used ad-hoc today but is not wired into
+  the probe), alt-screen / DECCKM / mouse-mode / OSC / bracketed-paste cases, and
+  property-based tests (Hypothesis) over `readiness.py`'s timing invariants.
+
+### ~~A0-DIFF3. Second reference emulator + alt-screen/mode coverage~~ [DONE 2026-07-27]
+- **Result:** `_diff_two_refs.py` (tmux AND GNU screen, ground truth only where
+  both agree) 35/35; `test_readiness_properties.py` (7 Hypothesis invariants,
+  mutation-verified); and two more real bugs fixed — **pyte implements no
+  alternate screen buffer at all** (vim/less/htop painted over the main screen
+  and never restored it) and SGR ':' sub-parameters spilled escape debris onto
+  the grid. See HANDOFF §10f.
+- **Still open:** a GUI-terminal reference (kitty/Alacritty — neither is
+  installed here; both would need `brew install`), and DCS/DECRQSS round-trips.
+
+### A0-CLI-RESIZE. Expose resize as a CLI subcommand  [S]
+- **Goal:** the daemon + MCP support resize but the CLI has no verb — close the
+  asymmetry (documented in SKILL.md as MCP-only for now).
+- **Verify:** `tui.py resize --id <SID> --cols N --rows M` against a live session;
+  out-of-range sizes must return the error reply (test_drive_security already locks
+  the daemon path). Optional follow-up: `--theme` fallback for unthemed fx show
+  segments (SKILL.md documents current behavior honestly; making the flag real is a
+  small cli.py change).
+- **Effort:** S
 
 ---
 
@@ -173,10 +284,13 @@ These are fully executable and verifiable on the current Windows machine.
 - **Effort:** M
 
 ### ~~A3. MCP-server wrapper over the drive-tui daemon verb surface~~  [DONE 2026-07-15, v0.1.4]
-- **Result:** `skills/drive-tui/scripts/mcp_server.py` (FastMCP), 11 annotated tools
-  reusing tui.py's client so the per-session token auto-attaches. `server.json` also
-  ready for the official MCP Registry (one human `mcp-publisher` step left — see
-  docs/PACKAGING-NOTES.md). Covered by tests/_mcp_probe.py. *(original task below)*
+- **Result:** `skills/drive-tui/scripts/mcp_server.py` (FastMCP), now **14** annotated
+  tools (wait_change/wait_any/wait_visual_change joined over v0.1.6–v0.2.0) reusing
+  tui.py's client so the per-session token auto-attaches. MCP Registry listing is
+  **LIVE** (`io.github.dwgx/smartcli`) and re-publish on release is **automated**
+  (publish.yml `publish-mcp` OIDC job — no human step left). Since v0.2.0 the wheel
+  ships `smartcli-mcp`/`smartcli-toolkit` entry points and `mcp` is a required dep.
+  Covered by tests/_mcp_probe.py (+ CI drive-smoke/package jobs). *(original task below)*
 - **Goal:** expose the drive-tui daemon's verbs (spawn, send, wait, read-screen, etc.)
   as an MCP server so any MCP client can drive TUIs.
 - **Why it matters:** biggest adoption lever in the backlog — turns the project from
@@ -227,12 +341,13 @@ POSIX backend — that is exactly the class of false-green the standing method f
   self_test, fx list, ui widgets) on all three OSes, plus `_sandbox_posix_backend.py`
   gated `if: runner.os != 'Windows'` so the POSIX pty backend (#5 SS3 arrows / #6
   zombie reap) stays green on ubuntu + macos automatically — no more manual SSH run.
-  The interactive drive-tui PTY probes + effort_selector stay OUT of CI (need a live
-  TTY, hang-prone on runners); the pure-memory gates cover the code paths.
+  The interactive drive-tui PTY probes + effort_selector stayed OUT of CI at the time.
+  *(Update 2026-07-19, v0.2.0: the probes now DO run in CI, serially inside the
+  bounded drive-smoke/package jobs; the matrix legs test py3.10/3.14.)*
 - *(original task, for reference)* validate the POSIX backend in CI instead of by a
   manual SSH run to Debian 13 — now automated.
 
-### B-PyPI. PyPI Trusted-Publisher setup  [DONE 2026-07-13]
+### ~~B-PyPI. PyPI Trusted-Publisher setup~~  [DONE 2026-07-13]
 - **Status:** DONE and verified. Trusted Publisher registered on PyPI (owner `dwgx`,
   **repo `SmartCLI`** — GitHub repo name, not the `smartcli-toolkit` dist name; that
   mismatch was the original `invalid-publisher` failure) + `pypi` GitHub Environment
@@ -245,7 +360,8 @@ POSIX backend — that is exactly the class of false-green the standing method f
 ### B-SEC. Revoke the leaked PyPI API token  [S] (needs human; owner previously declined)
 - **Goal:** revoke the plaintext PyPI token that appeared in a prior session's chat.
 - **Why it matters:** live credential exposure. Owner chose NOT to revoke last time —
-  re-surface it, do not silently drop it.
+  re-surface it, do not silently drop it. *(Re-raised 2026-07-27: OIDC publishing is
+  verified working, so keeping the token has zero remaining utility — please revoke.)*
 - **First step (human):** on PyPI, delete that API token; rely on the OIDC publish flow
   (B-PyPI) instead.
 - **Verify:** old token 401s; a fresh OIDC publish still works.
@@ -258,7 +374,7 @@ POSIX backend — that is exactly the class of false-green the standing method f
   are already live on skillhu.bz.
 - **First step:** retry the publish CLI; if it still errors, log the exact error and
   move on — do not work around a broken external tool.
-- **Verify:** the skill page reflects v0.1.2.
+- **Verify:** the skill page reflects the current release version.
 - **Effort:** S (blocked on external tooling)
 
 ---

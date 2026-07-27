@@ -2,14 +2,14 @@
 name: tui-ui
 description: >-
   Design web-like user interfaces in the terminal and inside tmux with a
-  cell-grid Canvas, CSS-like box model, flexbox/grid layout, and 15 reusable
+  cell-grid Canvas, CSS-like box model, flexbox/grid layout, and 17 reusable
   widgets such as Panel, Table, Card, ProgressBar, Meter, Tabs, Tree, Badge,
   Banner, and a braille line chart. Use when an agent needs a dashboard, panel,
   table, status page, TUI layout, tmux dashboard, screenshot-driven CLI/TUI
   replica, ANSI frame, truecolor render, pyte PNG screenshot smoke test,
   wide-character alignment, or a new terminal widget.
 allowed-tools: Bash, Read
-version: 0.1.8
+version: 0.2.0
 ---
 
 # tui-ui
@@ -23,8 +23,9 @@ box-drawing never desync your columns.
 
 Pure Python **stdlib** (optional `pyfiglet` for the Banner, optional `wcwidth` for an
 authoritative width — a stdlib fallback covers the same edge cases). Output is a
-plain string you can `print`, pipe, feed to the fx play loop, or render to PNG with
-the SmartCLI pyte harness.
+plain string you can `print`, pipe, wrap in a registered fx `Effect` (the fx play
+loop drives registered effects only — it does not accept raw ANSI frames), or
+render to PNG with the SmartCLI pyte harness.
 
 ## When to use
 - Building a status page / dashboard / control panel that should look designed, not dumped.
@@ -37,11 +38,13 @@ the SmartCLI pyte harness.
 Run from the skill directory `skills/tui-ui` as a package:
 
 ```
-python -m ui widgets                                  # list widgets
+python -m ui widgets                                  # list widgets (--json for machine-readable)
 python -m ui demo <name> --width 60 --height 12       # render one widget
 python -m ui gallery --width 100 --height 30           # the showcase dashboard "page"
 python -m ui demo table --theme synthwave              # --theme applies a palette
 python -m ui sixel image.png --cols 40 --rows 20      # TRUE-graphics bitmap (sixel)
+python -m ui sixel --cols 40 --rows 20                # no image: renders a demo gradient
+python -m ui sixel image.png --mode braille           # sampling density: half|quad|sextant|braille
 python -m ui sixel --probe                             # does this terminal support sixel?
 ```
 
@@ -50,7 +53,8 @@ terminals that support it (Windows Terminal ≥1.22, xterm, WezTerm, mlterm): th
 `ui.sixel` module encodes any RGB pixel grid — including a `SubcellRaster.px`
 buffer, via `raster_to_sixel(raster)` — to a DCS escape string
 (`encode_sixel(pixels)` / `print_sixel(...)`). `supports_sixel()` runs a DA1 probe
-(returns True/False/None-unknown). This is the graphics-protocol escape hatch above
+(returns True/False/None-unknown; on Windows it always returns None — there is no
+reliable raw-console DA1 round-trip). This is the graphics-protocol escape hatch above
 the half/quad/sextant/braille sub-cell rendering; the sub-cell path still works on
 every terminal, sixel is the upgrade where available.
 
@@ -59,6 +63,13 @@ Or by path from anywhere (a PEP-366 prelude bootstraps the package):
 
 On Windows set `PYTHONIOENCODING=utf-8` (or the CLI auto-reconfigures stdout) so
 box/CJK glyphs encode. The CLI renders **once** and exits — bounded, no loop.
+
+Geometry law: a terminal cell is ~2× taller than wide (`ASPECT = 2`), so any
+isotropic metric on the cell grid must correct y — `dist = sqrt(dx² + (dy*2)²)`
+— or circles render as vertical columns; `ui.field` bakes this in. The one
+exception is `SubcellRaster`: its sub-cell pixels are screen-square (the
+subdivision cancels ASPECT), so raster geometry uses a plain Euclidean metric —
+never apply the correction twice.
 
 ## The box model (`ui/box.py`)
 A `Box` wraps content in the CSS nesting order **margin → border → padding →
@@ -143,7 +154,7 @@ semantic slots (`bg fg muted border accent ok warn err`) plus gradient `stops`.
 | `badge` | Inline status pill / chip (`ok`/`warn`/`err`/`accent`) |
 | `banner` | Big FIGlet text (needs `pyfiglet`; degrades to a bold label) |
 
-Plus 4 shader/raster-backed extras shipped in `ui/widgets_ext/` (the effort-replica primitives + a sub-cell chart; also in `python -m ui widgets`):
+Plus 6 shader/raster-backed extras shipped in `ui/widgets_ext/` (the effort-replica primitives, a sub-cell chart, and an fzf-style filter pair; also in `python -m ui widgets`):
 
 | key | what it renders |
 |---|---|
@@ -151,6 +162,8 @@ Plus 4 shader/raster-backed extras shipped in `ui/widgets_ext/` (the effort-repl
 | `radial_glow` | Localized rounded/pulsing radial glow (background light field) |
 | `slider_track` | Thin solid slider rail with a marker + tick labels |
 | `braille_chart` | Smooth sub-cell line chart of a data series (braille 2×4 px/cell) |
+| `fuzzy_filter_list` | fzf-style fuzzy-filtered list with match highlighting |
+| `preview_pane` | Content preview pane (title + line numbers); pairs with the fuzzy list |
 
 ## Add a widget (the recipe)
 Drop a module in `ui/widgets_ext/` — `registry.load_all()` discovers it, no wiring.
@@ -185,16 +198,20 @@ class Spark(Widget):
         return cls(theme=theme)
 ```
 
-Contract every widget honors: `measure(avail_w, avail_h) -> (w, h)` and
-`render(region_w, region_h) -> Canvas` of exactly that region. Set class attrs
+Contract for new widgets: `measure(avail_w, avail_h) -> (w, h)` and
+`render(region_w, region_h) -> Canvas` of exactly that region. (Some historical
+built-ins return a taller Canvas and rely on the parent `blit` to clip it — do
+not imitate that.) Set class attrs
 `width`/`height` (int / `Fr` / `"auto"`) if a parent stack should size it specially.
 Then: `python -m ui widgets` (it appears) and `python -m ui demo spark`.
 
 ## Width & alignment (why columns don't misalign)
 The engine never uses `len()`. `ui.core.width(s)` returns **display cells**: CJK /
-fullwidth → 2, combining marks → 0, ANSI stripped to 0, and the emoji edge cases
-handled — ZWJ sequences (`👩‍💻`=2), VS16 (`♀️`=2), regional-indicator flag pairs
-(`🇯🇵`=2). `Canvas.put_text` is wide-aware: a double-width glyph occupies its cell
+fullwidth → 2, combining marks → 0, ANSI stripped to 0, and emoji measured the
+way pyte/tmux advance the cursor — as a per-codepoint sum: a ZWJ sequence counts
+each emoji (`👩‍💻`=4), VS16 does not widen its base (`♀️`=1), and a
+regional-indicator flag pair is two wide codepoints (`🇯🇵`=4).
+`Canvas.put_text` is wide-aware: a double-width glyph occupies its cell
 plus a continuation cell that is never serialized, so a CJK char can't shove the
 columns behind it. `blit` heals any wide glyph it cuts at a seam.
 
@@ -202,10 +219,12 @@ columns behind it. `blit` heals any wide glyph it cuts at a seam.
 `to_ansi()` emits only CSI **SGR** color runs (`\x1b[…m`, run-length like fx) and
 newlines — no cursor moves, no alt-screen, no scroll region. A frame is therefore
 composable and safe to print inside a tmux pane; tmux re-parses it through its own VT
-layer identically. There is **no real tmux/docker/WSL on this box**, so rendering is
-verified with **pyte** (a faithful VT emulator) → **PNG** via PIL — the standard
-no-tmux snapshot method. Always label such captures as pyte-simulation, not a
-real-tmux capture (see `tools/screenshot/shot.py:RENDER_LABEL`).
+layer identically. If tmux is available on the machine, verify frames in a real
+pane; when it is not, verify with **pyte** (a faithful VT emulator) → **PNG** via
+PIL — the standard no-tmux snapshot method — and always label such captures as
+pyte-simulation, not a real-tmux capture (see `tools/screenshot/shot.py:RENDER_LABEL`).
+
+Run from the repo root; needs `pip install pyte pillow`:
 
 ```python
 import sys; sys.path[:0] = ["tools/screenshot", "skills/tui-ui"]
@@ -218,7 +237,9 @@ shot.screen_to_png(screen, "out.png")     # faithful cell-grid render
 
 ## Knowledge base — look before you build
 Before recreating or inventing any effect, consult the SmartCLI knowledge graph at
-`D:/Project/SmartCLI/knowledge/INDEX.md` — 95 sourced concept notes + 27 case studies,
+`knowledge/INDEX.md` (from the repo root; in a standalone skill install without
+the repo, the `references/` twins below are the authority) — 95 sourced concept
+notes + 27 case studies,
 organized around one discipline: **pick your lane.**
 - **Replica** (reproduce a real, existing UI/animation/screenshot): measure ground truth
   first, never head-canon. Start at [[hard-lessons]] (mirrors `references/HARD-LESSONS.md`)
@@ -266,8 +287,9 @@ Minimum checks for a screenshot replica:
 - Inspect the generated PNG contact set manually before handoff; pyte checks catch
   blanks, clipping, color presence, and mojibake, but not taste, exact spacing, or
   whether an active color reads like the reference.
-- Run one real Windows Terminal interactive smoke for input semantics, alt-screen
-  restoration, cursor restoration, and resize behavior. Pyte is not a substitute for
+- Run one interactive smoke in a real terminal (Windows Terminal, iTerm2, or your
+  platform's terminal) for input semantics, alt-screen restoration, cursor
+  restoration, and resize behavior. Pyte is not a substitute for
   keyboard/input-loop verification.
 
 For interactive replicas, make `Enter` and `Esc` behavior observable: emit the selected
@@ -286,12 +308,16 @@ cleanly at sizes (40,12), (80,24), (120,40), (200,50).
 - `ui/box.py` — the CSS box model (`Box`, `Fr`, dim resolution, clipping).
 - `ui/layout.py` — `VStack`/`HStack`/`Grid`/`Page` + carry-remainder `fr` resolution.
 - `ui/widgets.py` — the 11 core web-style widgets.
-- `ui/widgets_ext/` — 4 shipped extras (`gradient_rule`, `radial_glow`, `slider_track`, `braille_chart`) + drop a module here to add your own.
+- `ui/widgets_ext/` — 6 shipped extras (`gradient_rule`, `radial_glow`, `slider_track`, `braille_chart`, `fuzzy_filter_list`, `preview_pane`) + drop a module here to add your own.
 - `ui/registry.py` — `@register` + folder discovery.
 - `ui/cli.py` — `widgets` / `demo` / `gallery` (+ `--width --height --theme`).
 - `ui/field.py` — CellField shader engine (`Ripple`/`RadialGlow`/`LinearGradient`/`Plasma` + ASPECT dist).
+- `ui/raster.py` — `SubcellRaster`: off-screen pixel buffer downsampled to half/quad/sextant/braille sub-cell glyphs (screen-square pixels — no ASPECT term here).
+- `ui/box_junction.py` — `BoxGrid` edge algebra: lines deposit N/E/S/W arm weights and the glyph is a pure table lookup, so crossings auto-connect (`┼`, `┿`, …).
+- `ui/color_model.py` — honest color degrade (truecolor → 256 → 16 → mono, real nearest-match) + display-width helpers for CJK/emoji alignment.
+- `ui/sixel.py` — Sixel encoder: any RGB pixel grid → DCS escape string (`encode_sixel`/`print_sixel`, `supports_sixel()` DA1 probe).
 - `self_test.py` — bounded render assertions.
 - `references/HARD-LESSONS.md` — **read before any replica**: 10 rules from a dozen failed iterations (knowledge twin: [[hard-lessons]]).
 - `references/RENDERING-MODEL.md` — first-principles: cell grid, shader fields, sub-cell, box algebra (knowledge twin: [[rendering-model]]).
 - `examples/effort_selector.py` — worked replica of a real /effort-style selector (ground-truth-driven; measured constants: [[effort-selector]]).
-- `D:/Project/SmartCLI/knowledge/INDEX.md` — the knowledge graph: look here before building (replica vs creative lanes).
+- `knowledge/INDEX.md` (repo root; absent in standalone skill installs — use the `references/` twins instead) — the knowledge graph: look here before building (replica vs creative lanes).

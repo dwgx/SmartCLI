@@ -3,7 +3,7 @@
 # Installing SmartCLI
 
 SmartCLI is three Agent Skills (`cmd-art`, `drive-tui`, `tui-ui`) over one
-pluggable PTY + `pyte` core. There are three ways to get it, from "just drop the
+pluggable PTY + `pyte` core. There are four ways to get it, from "just drop the
 folder in" to a normal pip install. Pick the one that matches how you got the
 files.
 
@@ -29,7 +29,7 @@ python skills/drive-tui/scripts/tui.py doctor
 That prints where `smartcli_core` resolved from and whether the runtime deps are
 present, with the exact install command if any are missing.
 
-## The three scenarios
+## The four scenarios
 
 ### 1. Whole repo (recommended)
 
@@ -63,19 +63,26 @@ so it installs as a plugin bundling all three skills:
 /plugin install smartcli@smartcli
 ```
 
-### 4. pip (the shared core as a library)
+### 4. pip (library + TUI driver + MCP server)
 
-To use `smartcli_core` as a normal importable library:
+Python 3.10+ installs the importable core and both drive entry points:
 
 ```bash
-pip install smartcli-toolkit   # import stays: from smartcli_core import PtySession
+pip install smartcli-toolkit
+smartcli-tui doctor
+smartcli-mcp                   # stdio MCP server
 ```
+
+The import remains `from smartcli_core import PtySession`. The
+`smartcli-toolkit` executable is an alias of `smartcli-mcp` for MCP Registry
+clients that launch the distribution name through `uvx`.
 
 ## Dependencies
 
 | Package | Needed by | Auto? |
 |---|---|---|
 | `pyte` | `drive-tui` core (hard dependency) | reported by `doctor`; install on request |
+| `mcp` | installed stdio MCP server | installed by pip / requirements.txt |
 | `pywinpty` | `drive-tui` on **Windows** only | reported by `doctor`; install on request |
 | `pyfiglet`, `Pillow`, `wcwidth` | optional niceties — everything degrades gracefully without them | never required |
 
@@ -107,4 +114,3 @@ python tests/test_vendor_sync.py     # the regression lock
 ```
 
 If you change `smartcli_core/`, run `sync_vendor.py` before committing.
-

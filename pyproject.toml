@@ -1,23 +1,13 @@
 # pyproject.toml — packaging metadata for SmartCLI.
 #
 # ---------------------------------------------------------------------------
-# HONEST NOTE ON THE INSTALL TARGET (read before `pip install .`):
+# INSTALL TARGET (read before `pip install .`):
 #
-# This repo is a multi-skill workspace, not a single tidy importable package.
-# The only clean top-level package is `smartcli_core/` (it has __init__.py and
-# exports PtySession et al.). The three skills run IN PLACE via their own
-# entry points — `python -m fx`, `python -m ui`, and
-# `skills/drive-tui/scripts/tui.py` — with a sys.path insertion, and are NOT
-# structured as installable packages under a single namespace.
-#
-# Therefore:
-#   * `pip install .` installs the shared core package (`smartcli_core`) plus
-#     its REQUIRED deps (pyte; pywinpty on Windows). That is real and works.
-#   * It does NOT relocate/install the skills — keep using them from the repo
-#     checkout as the SKILL.md / HANDOFF.md commands show.
-#   * The PRIMARY, fully-honest install path for reproducing the whole dev
-#     environment is:   python -m pip install -r requirements.txt
-#     (plus requirements-optional.txt for the optional extras).
+# The distribution installs the typed shared core (`smartcli_core`) and the
+# drive/MCP command package (`smartcli_drive`). It exposes `smartcli-tui`,
+# `smartcli-mcp`, and the registry-compatible `smartcli-toolkit` executable.
+# The visual `cmd-art` and `tui-ui` skills still run in place from a checkout;
+# they are intentionally not repackaged under an artificial namespace.
 #
 # Dependency floors are `>=` known-good baselines. Installed & VERIFIED on the
 # dev box (Windows 11, CPython 3.14.6): pyte 0.8.2, pywinpty 3.0.5,
@@ -30,15 +20,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "smartcli-toolkit"
-version = "0.1.8"
-description = "Pluggable-PTY + pyte screen model + semantic snapshot / readiness core for driving interactive terminal programs (SmartCLI shared core)."
+version = "0.2.0"
+description = "Cross-platform PTY, semantic terminal screen model, CLI and MCP server for driving interactive TUIs."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
-# Floor is the HONEST minimum: skills/tui-ui/ui/core.py evaluates a runtime
-# `tuple[int, int, int]` subscription at import (PEP 585), which requires 3.9+.
-# No match/case and no runtime `X | Y` types are used, so nothing forces higher.
-requires-python = ">=3.9"
+# The packaged MCP/drive surface uses PEP 604 unions, so 3.10 is the real floor.
+requires-python = ">=3.10"
 
 authors = [{name = "dwgx"}]
 
@@ -64,7 +52,6 @@ classifiers = [
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -76,12 +63,21 @@ classifiers = [
 ]
 
 # REQUIRED runtime deps (mirror requirements.txt). pyte is a hard top-level
-# import; pywinpty is imported only on the Windows PTY backend path, hence the
-# environment marker. POSIX uses the stdlib `pty` backend (no extra package).
+# import, mcp powers the installed stdio server, and pywinpty is imported only
+# on Windows. POSIX uses the stdlib `pty` backend.
 dependencies = [
     "pyte>=0.8.1",
+    "mcp>=1.0",
     "pywinpty>=2.0; platform_system == 'Windows'",
 ]
+
+[project.scripts]
+# Keep an executable matching the distribution name so MCP Registry clients can
+# launch the PyPI package with `uvx smartcli-toolkit`. The explicit aliases are
+# friendlier for humans and scripts.
+smartcli-toolkit = "smartcli_drive.mcp_server:main"
+smartcli-mcp = "smartcli_drive.mcp_server:main"
+smartcli-tui = "smartcli_drive.tui:main"
 
 [project.urls]
 Homepage = "https://github.com/dwgx/SmartCLI"
@@ -96,18 +92,17 @@ art = ["pyfiglet>=1.0.0"]        # real FIGlet fonts (else built-in block font)
 image = ["Pillow>=10.0.0"]       # real raster images (else PNM/procedural demo)
 width = ["wcwidth>=0.2.0"]       # authoritative cell width (else unicodedata)
 all = ["pyfiglet>=1.0.0", "Pillow>=10.0.0", "wcwidth>=0.2.0"]
-# MCP server over the drive-tui daemon verb surface (skills/drive-tui/scripts/
-# mcp_server.py). Lets any MCP client drive interactive TUIs. Optional — the
-# CLI and library work without it.
-mcp = ["mcp>=1.0"]
 # Dev-only: multi-process coverage over the script-style suite (see
 # tools/coverage_run.py + .coveragerc). Not needed to run SmartCLI.
 dev = ["coverage[toml]>=7.0"]
 
 [tool.setuptools]
-# Only the shared core is a clean installable package (see HONEST NOTE above).
-# The skills are intentionally left out — they run in place from the checkout.
-packages = ["smartcli_core"]
+# `smartcli_drive` maps to the existing skill scripts so one implementation
+# serves source checkouts, standalone skill installs, console scripts and MCP.
+packages = ["smartcli_core", "smartcli_drive"]
+
+[tool.setuptools.package-dir]
+smartcli_drive = "skills/drive-tui/scripts"
 
 [tool.setuptools.package-data]
 # PEP 561: ship the py.typed marker inside the wheel so downstream type
@@ -116,10 +111,11 @@ smartcli_core = ["py.typed"]
 
 [tool.ruff]
 # Lint the shared core strictly; the skills run in place and lean on runtime
-# discovery, so they're linted more leniently (see per-file ignores). The CI
-# lint job is advisory (continue-on-error) — it reports, it doesn't block.
+# discovery, so they're linted more leniently (see per-file ignores). In CI the
+# correctness subset (ruff E9,F63,F7,F82) and mypy block; the full ruff check
+# and format check stay advisory.
 line-length = 100
-target-version = "py39"
+target-version = "py310"
 extend-exclude = ["research", "_refs", "docs/site/assets", "**/_vendor/**"]
 
 [tool.ruff.lint]
@@ -134,7 +130,7 @@ ignore = [
 "skills/**" = ["E402"]               # skills insert paths before importing core
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.10"
 # Only the shared core ships as a typed package; check it, ignore the rest.
 files = ["smartcli_core"]
 ignore_missing_imports = true

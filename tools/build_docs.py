@@ -29,6 +29,7 @@ DOCS = ROOT / "docs"
 # the nav in mkdocs.yml exactly — keep them in sync if you change the nav.
 MAPPING = [
     ("README.md", "index.md"),
+    ("INSTALL.md", "install.md"),
     ("README-USAGE.md", "usage.md"),
     ("skills/cmd-art/SKILL.md", "skills-cmd-art.md"),
     ("skills/drive-tui/SKILL.md", "skills-drive-tui.md"),
@@ -79,6 +80,44 @@ def _rewrite_repo_links(text: str, src_rel: str) -> str:
     return _LINK_RE.sub(repl, text)
 
 
+_WIKI_RE = re.compile(r"\[\[([^\]|]+)\]\]")
+# These appear in the section READMEs as literal syntax examples, not links.
+_WIKI_LITERALS = {"filename-slug", "links", "see also"}
+
+
+def _knowledge_slug_map() -> dict[str, str]:
+    """slug -> repo path for every note in knowledge/.
+
+    `tmux-capture-pane` exists in three domains on purpose; principles/ is the
+    canonical flag reference (knowledge/INDEX.md says so), so it wins.
+    """
+    out: dict[str, str] = {}
+    for path in sorted((ROOT / "knowledge").rglob("*.md")):
+        rel = path.relative_to(ROOT).as_posix()
+        slug = path.stem
+        if slug in out and "/principles/" not in "/" + rel:
+            continue
+        out[slug] = rel
+    return out
+
+
+def _rewrite_wiki_links(text: str) -> str:
+    """Turn [[slug]] into a real link to the note on GitHub.
+
+    knowledge/INDEX.md is ~90% wiki-links; without this the docs-site page
+    renders them as dead literal text.
+    """
+    slugs = _knowledge_slug_map()
+
+    def repl(m: re.Match) -> str:
+        slug = m.group(1)
+        if slug in _WIKI_LITERALS or slug not in slugs:
+            return m.group(0)
+        return f"[{slug}]({GH_BLOB}{slugs[slug]})"
+
+    return _WIKI_RE.sub(repl, text)
+
+
 def main() -> int:
     DOCS.mkdir(parents=True, exist_ok=True)
     missing = []
@@ -89,6 +128,8 @@ def main() -> int:
             continue
         text = src.read_text(encoding="utf-8")
         text = _rewrite_repo_links(text, src_rel)
+        if src_rel.startswith("knowledge/"):
+            text = _rewrite_wiki_links(text)
         (DOCS / dst_name).write_text(text, encoding="utf-8")
         print(f"  {src_rel} -> docs/{dst_name}")
     if missing:

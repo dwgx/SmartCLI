@@ -5,6 +5,7 @@
 #   docker run --rm -it ghcr.io/dwgx/smartcli fx play donut --seconds 5
 #   docker run --rm -it ghcr.io/dwgx/smartcli ui gallery
 #   docker run --rm -it ghcr.io/dwgx/smartcli drive ...   # scripts/tui.py verbs
+#   docker run --rm -i  ghcr.io/dwgx/smartcli mcp         # stdio MCP server
 #
 # POSIX pty backend (stdlib) is used inside the container — no pywinpty needed.
 FROM python:3.12-slim
@@ -19,8 +20,10 @@ ENV PYTHONIOENCODING=utf-8 \
 
 WORKDIR /app
 
-# Only pyte is needed on POSIX (pywinpty is Windows-only, gated by marker).
-RUN pip install --no-cache-dir "pyte>=0.8.1"
+# Keep image runtime dependencies aligned with the package/source install.
+# pywinpty is Windows-only and its marker skips it in this Linux image.
+COPY requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the shared core + the three skills + the entrypoint dispatcher.
 COPY smartcli_core/ ./smartcli_core/

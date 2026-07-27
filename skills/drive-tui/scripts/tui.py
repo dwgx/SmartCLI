@@ -20,8 +20,10 @@ import argparse
 import hmac
 import json
 import os
+import re
 import secrets
 import socket
+import stat
 import subprocess
 import sys
 import tempfile
@@ -29,46 +31,130 @@ import time
 from pathlib import Path
 
 # --- locate smartcli_core wherever this skill folder ended up ----------------
-# Robust discovery (repo checkout / standalone skill / plugin drop-in / pip):
-# see smartcli_bootstrap.locate_core. Makes "drop the folder in and it works"
-# real instead of assuming a fixed repo-root depth.
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import smartcli_bootstrap  # noqa: E402
+# Package import serves the wheel/entrypoint path; the fallback preserves direct
+# execution from a source checkout or standalone copied skill.
+try:
+    from . import smartcli_bootstrap
+except ImportError:  # pragma: no cover - exercised by direct script probes
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import smartcli_bootstrap  # type: ignore[no-redef]  # noqa: E402
 
 smartcli_bootstrap.locate_core()
 
 from smartcli_core import PtySession  # noqa: E402
 
-REG_DIR = Path(
-    os.environ.get("SMARTCLI_TUI_DIR") or (Path(tempfile.gettempdir()) / "smartcli_tui")
-)
+
+def _default_reg_dir() -> Path:
+    """Return a per-user registry location, never a shared fixed /tmp path."""
+    if os.name == "nt":
+        # tempfile.gettempdir() resolves to the current user's temp directory on
+        # supported Windows versions and carries that user's ACL.
+        return Path(tempfile.gettempdir()) / "smartcli_tui"
+    runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
+    if runtime_dir:
+        return Path(runtime_dir) / "smartcli_tui"
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Caches" / "SmartCLI" / "sessions"
+    return Path.home() / ".cache" / "smartcli" / "sessions"
+
+
+REG_DIR = Path(os.environ.get("SMARTCLI_TUI_DIR") or _default_reg_dir())
 HOST = "127.0.0.1"
+DEFAULT_MAX_SESSIONS = 8
+MAX_COLS = 1000
+MAX_ROWS = 500
+MAX_CELLS = 100_000
+_SID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
+_ENV_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 # --- registry: one JSON file per session id --------------------------------
 
+def _validate_sid(sid: str) -> str:
+    """Reject path-like or unbounded session ids before touching the filesystem."""
+    if not isinstance(sid, str) or not _SID_RE.fullmatch(sid):
+        raise SystemExit(
+            "error: session id must be 1-64 characters using only letters, "
+            "digits, '.', '_' or '-', and must start with a letter or digit"
+        )
+    return sid
+
+
 def _reg_path(sid: str) -> Path:
+    sid = _validate_sid(sid)
     return REG_DIR / f"{sid}.json"
+
+
+def _max_sessions() -> int:
+    raw = os.environ.get("SMARTCLI_MAX_SESSIONS", str(DEFAULT_MAX_SESSIONS))
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise SystemExit("error: SMARTCLI_MAX_SESSIONS must be an integer") from exc
+    if not 1 <= value <= 128:
+        raise SystemExit("error: SMARTCLI_MAX_SESSIONS must be between 1 and 128")
+    return value
+
+
+def _parse_env_items(items: list[str]) -> dict[str, str]:
+    """Parse repeated KEY=VALUE values without invoking a shell."""
+    result: dict[str, str] = {}
+    for item in items:
+        key, sep, value = item.partition("=")
+        if not sep or not _ENV_KEY_RE.fullmatch(key):
+            raise SystemExit(f"error: invalid --env {item!r}; expected KEY=VALUE")
+        if key.startswith("SMARTCLI_TUI_"):
+            raise SystemExit(f"error: --env may not override SmartCLI control variable {key!r}")
+        result[key] = value
+    return result
+
+
+def _validate_size(cols: int, rows: int) -> tuple[int, int]:
+    if cols < 1 or rows < 1:
+        raise SystemExit("error: terminal dimensions must be positive")
+    if cols > MAX_COLS or rows > MAX_ROWS or cols * rows > MAX_CELLS:
+        raise SystemExit(
+            f"error: terminal is too large ({cols}x{rows}); limits are "
+            f"{MAX_COLS} columns, {MAX_ROWS} rows and {MAX_CELLS} cells"
+        )
+    return cols, rows
+
+
+def _ensure_reg_dir() -> None:
+    """Create the registry directory and reject an unsafe POSIX endpoint."""
+    REG_DIR.mkdir(parents=True, exist_ok=True)
+    if os.name == "nt":
+        return
+    try:
+        info = REG_DIR.lstat()
+    except OSError as exc:
+        raise SystemExit(f"error: cannot inspect session registry {REG_DIR}: {exc}") from exc
+    if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
+        raise SystemExit(f"error: session registry is not a real directory: {REG_DIR}")
+    if info.st_uid != os.getuid():
+        raise SystemExit(f"error: session registry is not owned by this user: {REG_DIR}")
+    try:
+        os.chmod(REG_DIR, 0o700)
+    except OSError as exc:
+        raise SystemExit(f"error: cannot secure session registry {REG_DIR}: {exc}") from exc
 
 
 def _write_reg(sid: str, info: dict) -> None:
     # The reg file holds the per-session capability token, so it must not be
     # world-readable. On POSIX create the dir 0700 and the file 0600 (a shared
     # /tmp is multi-user); on Windows the per-user temp dir already restricts it.
-    REG_DIR.mkdir(parents=True, exist_ok=True)
-    if os.name != "nt":
-        try:
-            os.chmod(REG_DIR, 0o700)
-        except OSError:
-            pass
+    _ensure_reg_dir()
     p = _reg_path(sid)
+    # O_EXCL prevents a duplicate/racing daemon from replacing another
+    # session's capability file. On POSIX, create it as 0600 from the start.
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
     if os.name != "nt":
-        # Create with 0600 from the start (O_CREAT|O_EXCL-style) so the token is
-        # never briefly world-readable between write and chmod.
-        fd = os.open(str(p), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            fh.write(json.dumps(info))
+        flags |= getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+        fd = os.open(str(p), flags, 0o600)
     else:
-        p.write_text(json.dumps(info), encoding="utf-8")
+        flags |= getattr(os, "O_NOINHERIT", 0) | getattr(os, "O_BINARY", 0)
+        fd = os.open(str(p), flags, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(json.dumps(info))
 
 
 def _read_reg(sid: str) -> dict:
@@ -113,17 +199,36 @@ def _call(sid: str, req: dict, timeout: float = 30.0) -> dict:
         req = {**req, "token": token}
     try:
         resp = _send_request(int(info["port"]), req, timeout=timeout)
-    except (ConnectionRefusedError, ConnectionResetError, socket.timeout, OSError) as exc:
+    except (TimeoutError, ConnectionRefusedError, ConnectionResetError, OSError) as exc:
         raise SystemExit(
             f"error: session '{sid}' is not reachable (stale entry? {exc}). "
-            f"Run 'close --id {sid}' to clean up."
-        )
+            f"Close the session (CLI: close --id {sid}; MCP: the close tool) "
+            "to clean up the stale entry."
+        ) from exc
     if resp.get("error"):
         raise SystemExit(f"error: {resp['error']}")
     return resp
 
 
 # --- daemon: owns the live PtySession, serves requests on a socket ----------
+
+def _snapshot_response(sess: PtySession, snap, **fields) -> dict:
+    """Build one consistent text/JSON/hash response for every observing verb."""
+    content_hash = sess.model.content_hash()
+    visual_hash = sess.model.visual_hash()
+    structured = json.loads(snap.to_json())
+    structured["hash"] = content_hash
+    structured["visual_hash"] = visual_hash
+    return {
+        "ok": True,
+        "alive": sess.is_alive(),
+        "text": snap.to_text(),
+        "json": json.dumps(structured, ensure_ascii=False),
+        "hash": content_hash,
+        "visual_hash": visual_hash,
+        **fields,
+    }
+
 
 def _handle(sess: PtySession, req: dict, expected_token: str) -> dict:
     """Dispatch one request against the live session. Returns a JSON-able dict.
@@ -143,8 +248,7 @@ def _handle(sess: PtySession, req: dict, expected_token: str) -> dict:
     if action == "snapshot":
         sess.pump()
         snap = sess.snapshot()
-        return {"ok": True, "alive": sess.is_alive(), "text": snap.to_text(),
-                "json": snap.to_json()}
+        return _snapshot_response(sess, snap)
 
     if action == "send_text":
         sess.send_text(req.get("text", ""))
@@ -164,57 +268,81 @@ def _handle(sess: PtySession, req: dict, expected_token: str) -> dict:
             max_wait_ms=int(req.get("max_wait_ms", 10000)),
             quiet_ms=int(req.get("quiet_ms", 200)),
         )
-        return {"ok": True, "reason": reason, "alive": sess.is_alive(),
-                "text": snap.to_text(), "json": snap.to_json()}
+        return _snapshot_response(sess, snap, reason=reason)
 
     if action == "wait_regex":
         matched, snap = sess.wait_for(
             req["pattern"], timeout_ms=int(req.get("timeout_ms", 10000)))
-        return {"ok": True, "matched": matched, "alive": sess.is_alive(),
-                "text": snap.to_text(), "json": snap.to_json()}
+        return _snapshot_response(sess, snap, matched=matched)
 
     if action == "wait_change":
         changed, snap = sess.wait_change(
             baseline_hash=req.get("baseline_hash"),
             timeout_ms=int(req.get("timeout_ms", 10000)))
-        return {"ok": True, "changed": changed, "alive": sess.is_alive(),
-                "hash": sess.model.content_hash(),
-                "text": snap.to_text(), "json": snap.to_json()}
+        return _snapshot_response(sess, snap, changed=changed)
+
+    if action == "wait_visual_change":
+        changed, snap = sess.wait_visual_change(
+            baseline_hash=req.get("baseline_hash"),
+            timeout_ms=int(req.get("timeout_ms", 10000)))
+        return _snapshot_response(sess, snap, changed=changed)
 
     if action == "wait_any":
         index, snap = sess.wait_any(
             list(req.get("patterns", [])),
             timeout_ms=int(req.get("timeout_ms", 10000)))
-        return {"ok": True, "index": index, "matched": index >= 0,
-                "alive": sess.is_alive(),
-                "text": snap.to_text(), "json": snap.to_json()}
+        return _snapshot_response(sess, snap, index=index, matched=index >= 0)
 
     if action == "alive":
         sess.pump()
         return {"ok": True, "alive": sess.is_alive()}
 
     if action == "resize":
-        sess.resize(int(req["cols"]), int(req["rows"]))
+        # _validate_size raises SystemExit for CLI callers; SystemExit is a
+        # BaseException, so it would sail through the per-connection
+        # `except Exception` guard and tear down the daemon + live session.
+        # Convert it to an error response here instead.
+        try:
+            cols, rows = _validate_size(int(req["cols"]), int(req["rows"]))
+        except SystemExit as exc:
+            return {"ok": False, "error": str(exc)}
+        sess.resize(cols, rows)
         return {"ok": True}
 
     if action == "close":
         return {"ok": True, "_shutdown": True}
 
-    return {"error": f"unknown action '{action}'"}
+    return {"ok": False, "error": f"unknown action '{action}'"}
 
 
-def _run_daemon(sid: str, cmd, cols: int, rows: int, token: str) -> None:
+def _run_daemon(
+    sid: str,
+    cmd,
+    cols: int,
+    rows: int,
+    token: str,
+    cwd: str | None = None,
+    child_env: dict[str, str] | None = None,
+) -> None:
     """Serve one PtySession on a localhost socket until told to close or child dies."""
+    _validate_size(cols, rows)
     srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     srv.bind((HOST, 0))
     srv.listen(8)
     port = srv.getsockname()[1]
 
+    if cwd:
+        os.chdir(cwd)
+    if child_env:
+        os.environ.update(child_env)
+
     sess = PtySession(cols=cols, rows=rows)
     sess.start(cmd)
     _write_reg(sid, {"sid": sid, "port": port, "pid": os.getpid(),
                      "cmd": cmd, "cols": cols, "rows": rows,
+                     "cwd": cwd or os.getcwd(),
+                     "env_keys": sorted((child_env or {}).keys()),
                      "token": token, "started": time.time()})
     try:
         while True:
@@ -251,8 +379,7 @@ def _run_daemon(sid: str, cmd, cols: int, rows: int, token: str) -> None:
                     resp = _handle(sess, req, token)
                     shutdown = bool(resp.get("_shutdown"))
                     conn.sendall((json.dumps(resp) + "\n").encode("utf-8"))
-                except (socket.timeout, OSError, ValueError,
-                        UnicodeDecodeError) as exc:
+                except (TimeoutError, OSError, ValueError, UnicodeDecodeError) as exc:
                     # ValueError covers json.JSONDecodeError and non-dict .get();
                     # OSError/timeout cover a slow/rude client. Best-effort error
                     # reply, then close — the daemon keeps serving.
@@ -287,6 +414,7 @@ def _run_daemon(sid: str, cmd, cols: int, rows: int, token: str) -> None:
 
 def _run_steps(cmd, steps, cols: int, rows: int) -> int:
     """Execute a JSON step list against a freshly spawned program; print snapshots."""
+    _validate_size(cols, rows)
     def emit(label, snap, extra=""):
         print(f"===== {label}{(' ' + extra) if extra else ''} =====")
         print(snap.to_text())
@@ -321,6 +449,15 @@ def _run_steps(cmd, steps, cols: int, rows: int) -> int:
                     baseline_hash=step.get("baseline_hash"),
                     timeout_ms=int(step.get("timeout_ms", 10000)))
                 emit(f"step{i}:wait_change", snap, f"changed={changed} alive={sess.is_alive()}")
+            elif act == "wait_visual_change":
+                changed, snap = sess.wait_visual_change(
+                    baseline_hash=step.get("baseline_hash"),
+                    timeout_ms=int(step.get("timeout_ms", 10000)))
+                emit(
+                    f"step{i}:wait_visual_change",
+                    snap,
+                    f"changed={changed} alive={sess.is_alive()}",
+                )
             elif act == "snapshot":
                 sess.pump()
                 emit(f"step{i}:snapshot", sess.snapshot(), f"alive={sess.is_alive()}")
@@ -340,9 +477,21 @@ def _print_snap(resp: dict, as_json: bool) -> None:
 
 
 def cmd_start(args) -> int:
+    _validate_size(args.cols, args.rows)
     sid = args.id or f"s{os.getpid()}_{int(time.time() * 1000) % 100000}"
+    _validate_sid(sid)
     if _reg_path(sid).exists():
         raise SystemExit(f"error: session '{sid}' already exists")
+    _ensure_reg_dir()
+    active_count = sum(1 for _ in REG_DIR.glob("*.json"))
+    max_sessions = _max_sessions()
+    if active_count >= max_sessions:
+        raise SystemExit(
+            f"error: session limit reached ({active_count}/{max_sessions}); "
+            "close an existing session or raise SMARTCLI_MAX_SESSIONS"
+        )
+    cwd = _resolve_cwd(args.cwd)
+    child_env = _parse_env_items(list(args.env or []))
     # Mint a per-session capability token: only holders of this token (the
     # creator, who can read the per-user reg file where it is persisted) may
     # drive the loopback daemon. Passed to the daemon via an ENV VAR, NOT argv —
@@ -354,7 +503,13 @@ def cmd_start(args) -> int:
     daemon = [sys.executable, os.path.abspath(__file__), "_daemon",
               "--id", sid, "--cmd", args.cmd,
               "--cols", str(args.cols), "--rows", str(args.rows)]
-    daemon_env = {**os.environ, "SMARTCLI_TUI_TOKEN": token}
+    if cwd:
+        daemon += ["--cwd", cwd]
+    daemon_env = {
+        **os.environ,
+        "SMARTCLI_TUI_TOKEN": token,
+        "SMARTCLI_TUI_CHILD_ENV": json.dumps(child_env),
+    }
     popen_kwargs = dict(close_fds=True, stdin=subprocess.DEVNULL,
                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                         env=daemon_env)
@@ -385,12 +540,21 @@ def cmd_start(args) -> int:
         time.sleep(0.05)
     else:
         raise SystemExit("error: session daemon did not start in time")
-    print(sid)
+    if args.json:
+        print(json.dumps({"ok": True, "sid": sid}))
+    else:
+        print(sid)
     return 0
 
 
 def cmd_snapshot(args) -> int:
-    _print_snap(_call(args.id, {"action": "snapshot"}), args.json)
+    resp = _call(args.id, {"action": "snapshot"})
+    print(
+        f"# hash={resp.get('hash')} visual_hash={resp.get('visual_hash')} "
+        f"alive={resp.get('alive')}",
+        file=sys.stderr,
+    )
+    _print_snap(resp, args.json)
     return 0
 
 
@@ -444,11 +608,25 @@ def cmd_wait_regex(args) -> int:
 
 def cmd_wait_change(args) -> int:
     req = {"action": "wait_change", "timeout_ms": args.timeout_ms}
-    if args.baseline_hash:
+    if args.baseline_hash is not None:
         req["baseline_hash"] = args.baseline_hash
     resp = _call(args.id, req, timeout=args.timeout_ms / 1000.0 + 15.0)
     print(f"# changed={resp.get('changed')} hash={resp.get('hash')} "
           f"alive={resp.get('alive')}", file=sys.stderr)
+    _print_snap(resp, args.json)
+    return 0
+
+
+def cmd_wait_visual_change(args) -> int:
+    req = {"action": "wait_visual_change", "timeout_ms": args.timeout_ms}
+    if args.baseline_hash is not None:
+        req["baseline_hash"] = args.baseline_hash
+    resp = _call(args.id, req, timeout=args.timeout_ms / 1000.0 + 15.0)
+    print(
+        f"# changed={resp.get('changed')} visual_hash={resp.get('visual_hash')} "
+        f"alive={resp.get('alive')}",
+        file=sys.stderr,
+    )
     _print_snap(resp, args.json)
     return 0
 
@@ -484,20 +662,43 @@ def cmd_close(args) -> int:
     try:
         _call(args.id, {"action": "close"})
     except SystemExit:
-        pass
-    print(f"closed {args.id}")
+        # The documented stale-entry cleanup path must actually remove the file.
+        try:
+            _reg_path(args.id).unlink()
+        except OSError:
+            pass
+    if args.json:
+        print(json.dumps({"ok": True, "sid": args.id, "closed": True}))
+    else:
+        print(f"closed {args.id}")
     return 0
 
 
 def cmd_list(args) -> int:
-    if not REG_DIR.exists():
-        return 0
-    for p in sorted(REG_DIR.glob("*.json")):
+    sessions = []
+    for p in sorted(REG_DIR.glob("*.json")) if REG_DIR.exists() else []:
         try:
             info = json.loads(p.read_text(encoding="utf-8"))
-            print(f"{info['sid']}\tport={info['port']}\tpid={info['pid']}\tcmd={info['cmd']}")
+            sessions.append({
+                "sid": info["sid"],
+                "port": int(info["port"]),
+                "pid": int(info["pid"]),
+                "cmd": info["cmd"],
+                "cols": int(info.get("cols", 0)),
+                "rows": int(info.get("rows", 0)),
+                "cwd": info.get("cwd"),
+                "started": info.get("started"),
+            })
         except Exception:
             continue
+    if args.json:
+        print(json.dumps({"ok": True, "sessions": sessions}))
+    else:
+        for info in sessions:
+            print(
+                f"{info['sid']}\tport={info['port']}\tpid={info['pid']}\t"
+                f"cmd={info['cmd']}\tcwd={info['cwd']}"
+            )
     return 0
 
 
@@ -505,7 +706,31 @@ def cmd_run(args) -> int:
     steps = json.loads(Path(args.steps).read_text(encoding="utf-8"))
     if not isinstance(steps, list):
         raise SystemExit("error: steps file must contain a JSON list")
-    return _run_steps(args.cmd, steps, args.cols, args.rows)
+    cwd = _resolve_cwd(args.cwd)
+    child_env = _parse_env_items(list(args.env or []))
+    old_cwd = os.getcwd()
+    old_env = {key: os.environ.get(key) for key in child_env}
+    try:
+        if cwd:
+            os.chdir(cwd)
+        os.environ.update(child_env)
+        return _run_steps(args.cmd, steps, args.cols, args.rows)
+    finally:
+        os.chdir(old_cwd)
+        for key, previous in old_env.items():
+            if previous is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = previous
+
+
+def _resolve_cwd(value: str | None) -> str | None:
+    if not value:
+        return None
+    cwd = str(Path(value).expanduser().resolve())
+    if not Path(cwd).is_dir():
+        raise SystemExit(f"error: --cwd is not a directory: {cwd}")
+    return cwd
 
 
 def cmd__daemon(args) -> int:
@@ -514,7 +739,14 @@ def cmd__daemon(args) -> int:
     token = os.environ.get("SMARTCLI_TUI_TOKEN") or getattr(args, "token", None)
     if not token:
         raise SystemExit("error: daemon started without a token")
-    _run_daemon(args.id, args.cmd, args.cols, args.rows, token)
+    try:
+        child_env = json.loads(os.environ.pop("SMARTCLI_TUI_CHILD_ENV", "{}"))
+    except json.JSONDecodeError as exc:
+        raise SystemExit("error: invalid internal child environment payload") from exc
+    # The controlled process must not inherit the capability used to control its
+    # daemon. Remove it before PtySession spawns the target.
+    os.environ.pop("SMARTCLI_TUI_TOKEN", None)
+    _run_daemon(args.id, args.cmd, args.cols, args.rows, token, args.cwd, child_env)
     return 0
 
 
@@ -526,13 +758,21 @@ def build_parser() -> argparse.ArgumentParser:
                    help="pip-install any missing runtime deps (pyte/pywinpty) "
                         "now, then continue; otherwise missing deps are only "
                         "reported. Same as SMARTCLI_AUTO_INSTALL=1.")
-    sub = p.add_subparsers(dest="command", required=True)
+    sub = p.add_subparsers(
+        dest="command", required=True,
+        metavar="{start,snapshot,send-text,send-line,keys,wait,wait-regex,"
+                "wait-change,wait-visual-change,wait-any,alive,close,list,"
+                "run,doctor}")
 
     sp = sub.add_parser("start", help="spawn a program in a detached persistent session")
     sp.add_argument("--cmd", required=True, help="command line to spawn, e.g. \"python\"")
     sp.add_argument("--id", help="session id (default: auto-generated)")
     sp.add_argument("--cols", type=int, default=100)
     sp.add_argument("--rows", type=int, default=30)
+    sp.add_argument("--cwd", help="working directory for the target program")
+    sp.add_argument("--env", action="append", default=[], metavar="KEY=VALUE",
+                    help="environment variable for the target (repeatable)")
+    sp.add_argument("--json", action="store_true", help="emit machine-readable JSON")
     sp.set_defaults(func=cmd_start)
 
     sp = sub.add_parser("snapshot", help="print a semantic snapshot of the session")
@@ -589,12 +829,23 @@ def build_parser() -> argparse.ArgumentParser:
                              "hash, or from now), then snapshot — the precise "
                              "'did my action land?' primitive")
     sp.add_argument("--id", required=True)
-    sp.add_argument("--baseline-hash", dest="baseline_hash", default=None,
+    sp.add_argument("--baseline-hash", dest="baseline_hash", type=int, default=None,
                     help="hash to wait to change away from (default: the screen now). "
                          "Pass the 'hash' from a prior snapshot/wait-change.")
     sp.add_argument("--timeout-ms", dest="timeout_ms", type=int, default=10000)
     sp.add_argument("--json", action="store_true")
     sp.set_defaults(func=cmd_wait_change)
+
+    sp = sub.add_parser(
+        "wait-visual-change",
+        help="wait for text, styling, selection or cursor state to change",
+    )
+    sp.add_argument("--id", required=True)
+    sp.add_argument("--baseline-hash", dest="baseline_hash", type=int, default=None,
+                    help="visual_hash from a prior snapshot (default: current state)")
+    sp.add_argument("--timeout-ms", dest="timeout_ms", type=int, default=10000)
+    sp.add_argument("--json", action="store_true")
+    sp.set_defaults(func=cmd_wait_visual_change)
 
     sp = sub.add_parser("wait-any",
                         help="wait for ANY of several regexes (pexpect expect([...]) "
@@ -616,9 +867,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     sp = sub.add_parser("close", help="terminate the session and its daemon")
     sp.add_argument("--id", required=True)
+    sp.add_argument("--json", action="store_true")
     sp.set_defaults(func=cmd_close)
 
     sp = sub.add_parser("list", help="list active sessions")
+    sp.add_argument("--json", action="store_true")
     sp.set_defaults(func=cmd_list)
 
     sp = sub.add_parser("run", help="one-shot: run a JSON step list against a fresh program")
@@ -626,12 +879,17 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--steps", required=True, help="path to a JSON file: a list of step objects")
     sp.add_argument("--cols", type=int, default=100)
     sp.add_argument("--rows", type=int, default=30)
+    sp.add_argument("--cwd", help="working directory for the target program")
+    sp.add_argument("--env", action="append", default=[], metavar="KEY=VALUE",
+                    help="environment variable for the target (repeatable)")
     sp.set_defaults(func=cmd_run)
 
     sp = sub.add_parser("doctor", help="report smartcli_core location + dependency status")
     sp.set_defaults(func=cmd_doctor)
 
-    sp = sub.add_parser("_daemon", help=argparse.SUPPRESS)
+    # No help= on purpose: parsers without help are omitted from --help, which
+    # keeps this internal re-exec verb out of the public command list.
+    sp = sub.add_parser("_daemon")
     sp.add_argument("--id", required=True)
     sp.add_argument("--cmd", required=True)
     # token now arrives via the SMARTCLI_TUI_TOKEN env var (not argv, which leaks
@@ -639,6 +897,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--token", default=None)
     sp.add_argument("--cols", type=int, default=100)
     sp.add_argument("--rows", type=int, default=30)
+    sp.add_argument("--cwd", default=None)
     sp.set_defaults(func=cmd__daemon)
 
     return p

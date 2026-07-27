@@ -20,12 +20,12 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
 
 from .screen_model import ScreenModel
 
 _ERROR_RE = re.compile(r"\b(error|failed|traceback|exception)\b", re.I)
 _RED_FGS = {"red", "brightred"}
+LineEntry = str | tuple[int, str, bool]
 
 
 @dataclass
@@ -57,18 +57,18 @@ class Snapshot:
         screen_reverse: DECSCNM (screen-wide reverse) active.
     """
 
-    size: Tuple[int, int]
-    lines: List[object]  # list[tuple[int, str, bool]] | "..."
-    cursor: Tuple[int, int]
+    size: tuple[int, int]
+    lines: list[LineEntry]
+    cursor: tuple[int, int]
     cursor_hidden: bool = False
-    selected_line: Optional[int] = None
-    selected: Optional[Span] = None
-    selected_reason: Optional[str] = None
-    status_bar: Optional[str] = None
-    status_bar_row: Optional[int] = None
-    title: Optional[str] = None
-    menu_items: List[Span] = field(default_factory=list)
-    errors: List[Tuple[int, str, str]] = field(default_factory=list)
+    selected_line: int | None = None
+    selected: Span | None = None
+    selected_reason: str | None = None
+    status_bar: str | None = None
+    status_bar_row: int | None = None
+    title: str | None = None
+    menu_items: list[Span] = field(default_factory=list)
+    errors: list[tuple[int, str, str]] = field(default_factory=list)
     screen_reverse: bool = False
 
     # -- rendering ---------------------------------------------------------
@@ -104,16 +104,16 @@ class Snapshot:
 
         body_lines = []
         for entry in self.lines:
-            if entry == "...":
-                body_lines.append("...")
+            if isinstance(entry, str):
+                body_lines.append(entry)
                 continue
-            row, text, sel = entry  # type: ignore[misc]
-            marker = "*" if sel else " "
+            row, text, line_selected = entry
+            marker = "*" if line_selected else " "
             body_lines.append(f"{row:>3}{marker}| {text}")
 
         return header + "\n" + "\n".join(body_lines)
 
-    def to_json(self, indent: Optional[int] = None) -> str:
+    def to_json(self, indent: int | None = None) -> str:
         """Full structured JSON. Empty/None fields are omitted to save tokens."""
         rows, cols = self.size
         obj: dict = {
@@ -123,14 +123,7 @@ class Snapshot:
                 "col": self.cursor[1],
                 "hidden": self.cursor_hidden,
             },
-            "lines": [
-                "..." if e == "..." else {
-                    "row": e[0],  # type: ignore[index]
-                    "text": e[1],  # type: ignore[index]
-                    **({"sel": True} if e[2] else {}),  # type: ignore[index]
-                }
-                for e in self.lines
-            ],
+            "lines": [self._line_to_json(entry) for entry in self.lines],
         }
         if self.title:
             obj["title"] = self.title
@@ -172,10 +165,17 @@ class Snapshot:
         obj["hints"] = hints
         return json.dumps(obj, indent=indent, ensure_ascii=False)
 
+    @staticmethod
+    def _line_to_json(entry: LineEntry) -> object:
+        if isinstance(entry, str):
+            return entry
+        row, text, selected = entry
+        return {"row": row, "text": text, **({"sel": True} if selected else {})}
 
-def _contiguous_spans(cols: List[int]) -> List[Tuple[int, int]]:
+
+def _contiguous_spans(cols: list[int]) -> list[tuple[int, int]]:
     """``[0,1,2,5,6]`` -> ``[(0,3),(5,7)]`` (end exclusive)."""
-    spans: List[Tuple[int, int]] = []
+    spans: list[tuple[int, int]] = []
     for x in sorted(cols):
         if spans and x == spans[-1][1]:
             spans[-1] = (spans[-1][0], x + 1)
@@ -197,11 +197,11 @@ def build_snapshot(model: ScreenModel) -> Snapshot:
     base_reverse = model.base_reverse
 
     # ---- per-cell attribute scan, reduced to per-line facts ----
-    line_hi_spans: List[List[Tuple[int, int]]] = []
-    line_red: List[bool] = []
+    line_hi_spans: list[list[tuple[int, int]]] = []
+    line_red: list[bool] = []
     for y in range(rows):
         cells = model.row_cells(y)
-        hi_cols: List[int] = []
+        hi_cols: list[int] = []
         red = False
         for x, ch in enumerate(cells):
             is_blank = ch.data == " "
@@ -225,7 +225,7 @@ def build_snapshot(model: ScreenModel) -> Snapshot:
         line_red.append(red)
 
     # ---- lines array with blank collapsing ----
-    lines_out: List[object] = []
+    lines_out: list[LineEntry] = []
     blank_run = False
     for y in range(rows):
         text = display[y].rstrip()
@@ -241,14 +241,14 @@ def build_snapshot(model: ScreenModel) -> Snapshot:
         lines_out.pop()
 
     # ---- menu items: every highlighted span with its text ----
-    menu_items: List[Span] = []
+    menu_items: list[Span] = []
     for y in range(rows):
         for (a, b) in line_hi_spans[y]:
             menu_items.append(Span(y, a, b, display[y][a:b].strip()))
 
     # ---- selected: widest highlighted span, else cursor line ----
-    selected: Optional[Span] = None
-    selected_reason: Optional[str] = None
+    selected: Span | None = None
+    selected_reason: str | None = None
     if menu_items:
         selected = max(menu_items, key=lambda s: s.col_end - s.col_start)
         selected_reason = "reverse_or_bg"
@@ -258,8 +258,8 @@ def build_snapshot(model: ScreenModel) -> Snapshot:
         selected_reason = "cursor_line"
 
     # ---- status bar: last non-blank row if it sits in the bottom 1-2 rows ----
-    status_bar: Optional[str] = None
-    status_bar_row: Optional[int] = None
+    status_bar: str | None = None
+    status_bar_row: int | None = None
     last_nonblank = None
     for y in range(rows - 1, -1, -1):
         if display[y].rstrip():
@@ -270,7 +270,7 @@ def build_snapshot(model: ScreenModel) -> Snapshot:
         status_bar_row = last_nonblank
 
     # ---- errors: red fg lines or keyword matches ----
-    errors: List[Tuple[int, str, str]] = []
+    errors: list[tuple[int, str, str]] = []
     for y in range(rows):
         text = display[y].rstrip()
         if not text:

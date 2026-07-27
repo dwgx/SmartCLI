@@ -49,12 +49,14 @@ screen state.
 
 ## Run
 
-From the repo root:
+From the repo root. This harness spawns real PTY sessions serially across six
+scenarios — per the repo red line, get the user's consent before running it and
+don't stack it with other PTY work:
 
-```powershell
-python tools\agentcli\validate_agentcli.py
-python tools\agentcli\validate_agentcli.py --external
-python tools\agentcli\validate_agentcli.py --no-screenshots
+```bash
+python tools/agentcli/validate_agentcli.py
+python tools/agentcli/validate_agentcli.py --external
+python tools/agentcli/validate_agentcli.py --no-screenshots
 ```
 
 Outputs:

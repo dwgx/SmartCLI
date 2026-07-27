@@ -19,6 +19,11 @@
 # 0.8.x API (pyte.Screen / pyte.Stream) is stable.
 pyte>=0.8.1
 
+# Official Python MCP SDK used by smartcli-mcp / smartcli-toolkit. This is a
+# required distribution dependency because MCP Registry clients launch the
+# installed package directly via uvx.
+mcp>=1.0
+
 # pywinpty — ConPTY wrapper used by smartcli_core WinptyBackend. Imported lazily
 # (`import winpty`) only inside the Windows spawn path, so it is Windows-only:
 # the marker keeps `pip install -r` clean on Linux/mac. The PtyProcess.spawn /

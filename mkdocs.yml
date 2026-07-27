@@ -1,22 +1,21 @@
-# mkdocs-material documentation site config — PREPARED, not yet wired to hosting.
+# mkdocs-material documentation site config.
 #
-# TO GO LIVE (the step only you can do), pick one:
-#   A) Read the Docs: sign in at https://readthedocs.org, "Import a Project",
-#      connect dwgx/SmartCLI. RTD auto-detects this mkdocs.yml. (Add a
-#      .readthedocs.yaml if you want to pin the build — a starter is below in
-#      docs/PACKAGING-NOTES.md.)
-#   B) GitHub Pages: `pip install mkdocs-material && mkdocs gh-deploy` publishes to
-#      the gh-pages branch. NOTE: the showcase site already occupies Pages via
-#      docs/site + pages.yml, so only do this if you move the showcase to a
-#      subpath or a separate Pages target first.
+# LIVE at https://smartcli.readthedocs.io/ — Read the Docs builds it via
+# .readthedocs.yaml, whose pre_build step runs tools/build_docs.py to assemble
+# the docs/*.md stubs. The showcase site (docs/site/, deployed by pages.yml to
+# GitHub Pages) is a SEPARATE site — do NOT run `mkdocs gh-deploy`, it would
+# overwrite the showcase on the gh-pages branch.
 #
-# Local preview:  pip install mkdocs-material && mkdocs serve
+# Local preview:
+#   pip install mkdocs-material && python tools/build_docs.py && mkdocs serve
 site_name: SmartCLI
 site_description: Three terminal Agent Skills over one pluggable PTY + pyte core.
-site_url: https://dwgx.github.io/SmartCLI/
+site_url: https://smartcli.readthedocs.io/
 repo_url: https://github.com/dwgx/SmartCLI
 repo_name: dwgx/SmartCLI
-edit_uri: edit/main/
+# Empty on purpose: the docs/*.md pages are generated, so an "edit this page"
+# link would point at a path that does not exist in the repo.
+edit_uri: ""
 
 theme:
   name: material
@@ -65,6 +64,7 @@ exclude_docs: |
 # Simplest path: keep authoring in the repo root/README and let RTD render them.
 nav:
   - Home: index.md
+  - Install: install.md
   - Usage: usage.md
   - Skills:
       - cmd-art: skills-cmd-art.md
@@ -73,7 +73,7 @@ nav:
   - Knowledge graph: knowledge.md
   - Changelog: changelog.md
 
-# NOTE: the nav above references docs/*.md stubs that do NOT exist yet — see
-# docs/PACKAGING-NOTES.md for the one-liner that symlinks/copies README.md,
-# README-USAGE.md, the SKILL.md files, knowledge/INDEX.md and CHANGELOG.md into
-# docs/ at build time. Left as a prepared step so nothing 404s silently.
+# NOTE: the docs/*.md pages in the nav above are GENERATED (and gitignored) by
+# tools/build_docs.py from README.md, INSTALL.md, README-USAGE.md, the SKILL.md
+# files, knowledge/INDEX.md and CHANGELOG.md. If you change the nav, update that
+# script's MAPPING to match — its own header says the same.

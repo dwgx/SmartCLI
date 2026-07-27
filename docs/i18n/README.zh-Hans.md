@@ -53,6 +53,8 @@ SmartCLI 通过它的感知 → 行动 → 确认循环驱动 **lazygit** ——
 pip install smartcli-toolkit
 ```
 
+需要 Python 3.10 或更高版本。安装包包含共享库、持久 TUI 驱动器和 stdio MCP 服务器。
+
 > **分发名与导入名：** PyPI 上的分发包名是 `smartcli-toolkit`
 > （`smartcli` / `smart-cli` 这些名字已被占用或被屏蔽），但可导入的
 > 包名是 `smartcli_core`。所以在 `pip install smartcli-toolkit` 之后，你依然要
@@ -66,16 +68,11 @@ cd SmartCLI
 python -m pip install -r requirements.txt
 ```
 
-`requirements.txt` 只拉取两个必需的运行时依赖：`pyte`（所有平台）和
-`pywinpty`（仅 Windows —— 环境标记会在 POSIX 上跳过它，POSIX 使用标准库的 `pty`
-后端）。在检出目录中，`pip install .` 会安装同一个可导入的
-`smartcli_core` 包。
-
-关于安装范围的坦诚说明：`pip install smartcli-toolkit` 安装的是干净、可导入的 `smartcli_core`
-包及其必需依赖。它**不会**搬移那三个 skill —— 它们通过各自的入口点就地运行
-（`python -m fx`、`python -m ui`、
-`skills/drive-tui/scripts/tui.py`），正如快速上手中所示。这是有意为之的设计；
-参见 [`pyproject.toml`](../../pyproject.toml) 顶部的说明。
+`requirements.txt` 安装 `pyte`、MCP SDK，以及仅 Windows 需要的 `pywinpty`
+（POSIX 使用标准库 `pty`）。`pip install .` 会安装 `smartcli_core`，并提供
+`smartcli-tui`、`smartcli-mcp` 和 `smartcli-toolkit` 三个命令。可视化的
+`cmd-art` 与 `tui-ui` skill 仍从源码检出目录通过 `python -m fx` 和
+`python -m ui` 就地运行。
 
 **可选附加项**（真正的 FIGlet 字体、位图图像、权威的单元格宽度 ——
 缺失时都会优雅降级到标准库的回退方案）：
@@ -98,6 +95,10 @@ set PYTHONIOENCODING=utf-8
 
 在开发机上验证过的依赖版本（Windows 11，CPython 3.14.6）：`pyte` 0.8.2、
 `pywinpty` 3.0.5、`pyfiglet` 1.0.4、`Pillow` 12.2.0、`wcwidth` 0.8.1。
+
+**诊断。** `python -m smartcli_core` 会打印你的操作系统、Python、终端、PTY 后端
+和依赖版本。`smartcli-tui doctor` 报告内核是从哪里加载的，以及 drive 相关依赖
+是否齐全。提交与终端环境相关的 bug 时，请附上这两条命令的输出。
 
 ## 快速上手
 
@@ -125,11 +126,22 @@ python -m ui demo table --width 80 --height 12 --theme dashboard
 持久会话 CLI（状态可在多次 shell 调用之间保留）：
 
 ```bash
-python skills/drive-tui/scripts/tui.py start --cmd "python" --cols 80 --rows 24
-python skills/drive-tui/scripts/tui.py wait-regex --id <SID> ">>> " --timeout-ms 15000
-python skills/drive-tui/scripts/tui.py send-line --id <SID> "print(6*7)"
-python skills/drive-tui/scripts/tui.py snapshot --id <SID>
-python skills/drive-tui/scripts/tui.py close --id <SID>
+smartcli-tui start --cmd "python3 -i -q" --cols 80 --rows 24
+smartcli-tui wait-regex --id <SID> ">>> " --timeout-ms 15000
+smartcli-tui send-line --id <SID> "print(6*7)"
+smartcli-tui snapshot --id <SID>
+smartcli-tui close --id <SID>
+```
+
+Windows 上请把子命令换成 `py -i -q`。从源码运行时，可用
+`python skills/drive-tui/scripts/tui.py` 替换 `smartcli-tui`。
+
+也可以从任意 MCP 客户端来驱动——同一套动词以 MCP 工具的形式暴露，每个会话的
+token 会自动附加：
+
+```bash
+pip install smartcli-toolkit
+smartcli-mcp     # stdio MCP 服务器；smartcli-toolkit 是等价别名
 ```
 
 ### 作为库使用
@@ -161,8 +173,9 @@ ocean、synthwave、viridis、pastel、matrix-green、rainbow）。效果都是�
 
 **`tui-ui`**（`skills/tui-ui`）—— 一个类 Web 的终端布局引擎，输出 tmux 安全的
 ANSI 帧（仅使用 SGR 颜色段 + 换行；不移动光标，不使用备用屏幕）。**17 个
-组件**（badge、banner、braille_chart、card、gradient_rule、kv、meter、panel、
-progress、radial_glow、rule、slider_track、table、tabs、tree），底层是一套真正的**引擎**：
+组件**（badge、banner、braille_chart、card、fuzzy_filter_list、gradient_rule、kv、
+meter、panel、preview_pane、progress、radial_glow、rule、slider_track、table、
+tabs、tree），底层是一套真正的**引擎**：
 `field.py`（着色器合成器）、`raster.py`（子单元格 half/quad/braille 像素）、
 `box_junction.py`（边代数式的方框连接）、`color_model.py`（诚实的 truecolor → 256 →
 16 → mono 降级）。对 CJK/emoji/ZWJ 做到显示单元格精确，列永不错位。

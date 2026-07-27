@@ -1,30 +1,31 @@
 # SmartCLI — Handoff (承上启下)
 
-*Written 2026-07-08, last updated **2026-07-15**. This is the single document a fresh AI reads first to pick up SmartCLI without re-deriving anything. It records the **current release state**, what the project IS, what already WORKS (with the exact commands to see it), the brain (`knowledge/`), the hard-won rules that must never be re-lost, the environment, and the open tasks framed so you can start in one move. Baked-in truths (re-verified against code 2026-07-15): there are **THREE** skills, the live `fx` registry has **30** effects, `tui-ui` has **17** widgets, drive-tui has **8** recipes, and `knowledge/` has **143** `.md` files. **Read §9 (2026-07-15, v0.1.3→v0.1.8) first for the most recent work — god-tier fx, spectrum_bars + cbonsai (catalog 30), sextant+OKLab, wait_change + wait_any, Sixel graphics output, MCP server + LIVE MCP Registry listing, a Terminal-Bench adapter, Codecov + Read the Docs; then §8/§7 for the CI/CD, website, and POSIX history.***
+*Written 2026-07-08, last updated **2026-07-27**. This is the single document a fresh AI reads first to pick up SmartCLI without re-deriving anything. It records the **current release state**, what the project IS, what already WORKS (with the exact commands to see it), the brain (`knowledge/`), the hard-won rules that must never be re-lost, the environment, and the open tasks framed so you can start in one move. Baked-in truths (re-verified against code 2026-07-27): there are **THREE** skills, the live `fx` registry has **30** effects, `tui-ui` has **17** widgets, drive-tui has **8** recipes, and `knowledge/` has **143** `.md` files. **Read §10 (2026-07-27, v0.2.0 on branch) first for the most recent work — control-plane security hardening, visual_hash + wait_visual_change, the wheel gaining smartcli_drive + three console scripts, MCP Registry OIDC auto-publish, and a full-repo doc-accuracy review; then §9 (v0.1.3→v0.1.8) and §8/§7 for history.***
 
 ---
 
 ## 0. Release & current state (v0.1.8) — READ THIS FIRST
 
-SmartCLI is **published and public**; latest release **v0.1.8** (2026-07-15). This section is the authoritative current-state record; anything older in this doc that contradicts it is stale. **The full arc of the 2026-07-15 work (v0.1.3 → v0.1.8) is in §9 — read it first for the most recent state.** v0.1.8 added `wait_any` (pexpect multi-marker wait), **Sixel graphics output** in tui-ui, and a **Terminal-Bench agent adapter** (`smartcli_tbench/`, not shipped in the wheel) — each with an independent adversarial review (see §9h). v0.1.7 shipped the last two knowledge→effect ports (`spectrum_bars` + `cbonsai`, catalog 30) and the **MCP Registry** listing (`io.github.dwgx/smartcli`, active — §9g).
+SmartCLI is **published and public**; latest **released** version is **v0.1.8** (2026-07-15). **v0.2.0 is code-complete but UNRELEASED**: the whole workstream sits committed on branch **`codex/cross-platform-mcp-hardening`** (commits landed 2026-07-27; no tag, not merged to `main`, not on PyPI yet — releasing it is the owner's call). See §10 for its contents: drive-tui control-plane security hardening, `visual_hash` + `wait_visual_change` (closes old known-#3), the wheel now shipping `smartcli_drive` + three console scripts (`smartcli-tui`/`smartcli-mcp`/`smartcli-toolkit`), `mcp` as a required dependency, Python floor 3.10, CI drive-smoke/package jobs, and MCP Registry OIDC auto-publish. This section is the authoritative current-state record; anything older in this doc that contradicts it is stale. v0.1.8 added `wait_any`, **Sixel graphics output**, and a **Terminal-Bench agent adapter** (§9h). v0.1.7 shipped `spectrum_bars` + `cbonsai` (catalog 30) and the **MCP Registry** listing (`io.github.dwgx/smartcli`, active — §9g).
 
 **Where it lives:**
-- **PyPI:** `pip install smartcli-toolkit` → https://pypi.org/project/smartcli-toolkit/ . The dist name is **`smartcli-toolkit`**; the **import package stays `smartcli_core`** (`from smartcli_core import PtySession`). Latest = **0.1.7** (the JSON index can lag a few minutes after a release — the `Publish to PyPI` workflow going green is the source of truth, not the index).
+- **PyPI:** `pip install smartcli-toolkit` → https://pypi.org/project/smartcli-toolkit/ . The dist name is **`smartcli-toolkit`**; the **import package stays `smartcli_core`** (`from smartcli_core import PtySession`). Latest on PyPI = **0.1.8** (the JSON index can lag a few minutes after a release — the `Publish to PyPI` workflow going green is the source of truth, not the index).
 - **MCP Registry:** **LIVE** — `io.github.dwgx/smartcli` on `registry.modelcontextprotocol.io` (published 2026-07-15 via `mcp-publisher`; ownership verified by the `mcp-name` marker in the PyPI README). MCP clients (Claude/Cursor/VS Code) + aggregators (Smithery/Glama/MCP.so) auto-discover it.
 - **GitHub:** public repo **github.com/dwgx/SmartCLI**, branch `main`, tags **v0.1.0 … v0.1.8** each with a matching GitHub Release.
 - **Claude plugin marketplace:** `.claude-plugin/marketplace.json` is present → users run **`/plugin marketplace add dwgx/SmartCLI`**.
 - **skillhu.bz:** all 3 skills published — skillhu.bz/skill/cmd-art, skillhu.bz/skill/drive-tui, skillhu.bz/skill/tui-ui.
 - **Codecov:** live (badge in README, ~50% on the deterministic subset). **Read the Docs:** live at https://smartcli.readthedocs.io/ (mkdocs, separate from the hand-written showcase site on GitHub Pages).
 
-**Version consistency (VERSION = 0.1.8) — NINE sites must move together on a bump:** `pyproject.toml`, `smartcli_core/__init__.py` `__version__`, `skills/cmd-art/fx/__init__.py` `__version__`, all 3 `skills/*/SKILL.md` `version:` fields, `.claude-plugin/marketplace.json` plugin version, **`skills/drive-tui/_vendor/smartcli_core/__init__.py`** (the vendored copy — `test_vendor_sync` requires it byte-identical), and **`server.json`** (TWO version fields there: top-level + `packages[0].version`, both must equal the package version or the MCP-registry publish fails). After bumping, run `python tools/sync_vendor.py` then `python tests/test_vendor_sync.py`.
+**Version consistency (VERSION = 0.2.0 in-tree; 0.1.8 on PyPI) — TEN sites must move together on a bump:** `pyproject.toml`, `smartcli_core/__init__.py` `__version__`, `skills/cmd-art/fx/__init__.py` `__version__`, all 3 `skills/*/SKILL.md` `version:` fields, `.claude-plugin/marketplace.json` plugin version, **`.claude-plugin/plugin.json`** (the site that historically drifted — it sat at 0.1.2 until v0.2.0 re-aligned it), **`skills/drive-tui/_vendor/smartcli_core/__init__.py`** (the vendored copy — `test_vendor_sync` requires it byte-identical), and **`server.json`** (TWO version fields there: top-level + `packages[0].version`, both must equal the package version or the MCP-registry publish fails). After bumping, run `python tools/sync_vendor.py`, then `python tests/test_vendor_sync.py` and `python tests/test_version_sync.py` (the anti-drift gate over all ten sites, added 2026-07-27).
 
-**CI / publishing (8 workflows — updated 2026-07-14, was 2: ci + publish):**
-- `.github/workflows/ci.yml` — **3-OS matrix** (windows-latest + ubuntu-latest + macos-latest × py3.11/3.12), ~12 deterministic gates on every push/PR: `verify_fx`, `test_fx_contract`, `test_readiness`, `test_degenerate_inputs`, `_sandbox_fuzz_core`, `test_vendor_sync`, **`test_doc_counts` (anti-drift)**, `_readme_literal`, tui-ui `self_test`, `fx list`, `ui widgets`, plus POSIX-only `_sandbox_posix_backend.py` on the non-Windows legs. (Was "Windows-only" in earlier drafts — no longer true; the Linux matrix listed as an OPEN TASK in §6#2 is DONE.)
+**CI / publishing (9 workflows — updated 2026-07-27):**
+- `.github/workflows/ci.yml` — **3-OS matrix** (windows-latest + ubuntu-latest + macos-latest × **py3.10/3.14**, the support boundaries since v0.2.0), deterministic gates on every push/PR: `verify_fx`, `test_fx_contract`, `test_readiness`, `test_degenerate_inputs`, `_sandbox_fuzz_core`, `test_vendor_sync`, **`test_doc_counts` (anti-drift)**, **`test_version_sync` (ten version sites)**, `test_visual_change`, `test_drive_security`, `_readme_literal`, tui-ui `self_test`, `fx list`, `ui widgets`, plus POSIX-only `_sandbox_posix_backend.py` on the non-Windows legs. v0.2.0 added two more jobs: **`drive-smoke`** (3 OS, 15-min timeout — the real-PTY probes `_tui_cli_probe`/`_mcp_probe`/`_sandbox_daemon_robustness` run in CI for the first time, serially, one child at a time) and **`package`** (20-min timeout — wheel build + twine check + `server.json` schema validation + version-site assertions + clean-venv install exercising `smartcli-tui doctor`, the installed MCP entry, and a uvx launch).
 - `.github/workflows/publish.yml` — PyPI **Trusted Publishing (OIDC)**, tag-push triggered (prerelease tags guarded off prod). `publish-testpypi.yml` mirrors it to TestPyPI.
-- Other workflows: `pages.yml` (deploy docs/site), `docker.yml` (GHCR image), `codeql.yml` (security scan), `lint.yml`, `release-drafter.yml`.
+- `publish.yml` also gained (v0.2.0) a **`publish-mcp` job**: after a successful PyPI tag publish it re-publishes `server.json` metadata to the MCP Registry via GitHub OIDC using a pinned, checksum-verified `mcp-publisher` — no more manual device-login step.
+- Other workflows: `pages.yml` (deploy docs/site), `docker.yml` (GHCR image), `codeql.yml` (security scan), `lint.yml` (since v0.2.0 the ruff correctness subset E9,F63,F7,F82 + mypy BLOCK; full ruff/format stay advisory), `release-drafter.yml`, `bench.yml` (Terminal-Bench, workflow_dispatch).
 - publish.yml OIDC — ✅ **WORKING (verified 2026-07-13):** the one-time setup is done — a Trusted Publisher is registered on PyPI (owner `dwgx`, **repo `SmartCLI`** — the GitHub repo name, NOT the PyPI dist name; that mismatch was the original `invalid-publisher` bug) and the `pypi` GitHub Environment exists. A `workflow_dispatch` run (29245353129) completed green: the OIDC handshake succeeded and the publish step ran against `upload.pypi.org` (0.1.2 files were `skip-existing`-skipped as already present). So **tag-push auto-publish now works**: bump the version everywhere, `git tag vX.Y.Z && git push origin vX.Y.Z`. `skip-existing:true` is set so a re-run on an existing version is a no-op, not an error. (Historical: v0.1.0/0.1.1/0.1.2 were originally uploaded **manually with `twine --disable-progress-bar`** because OIDC was not yet configured — no longer necessary.)
 
-**Live counts (re-verified against code 2026-07-15):** cmd-art **28 effects / 8 themes**; drive-tui **8 recipes**; tui-ui **17 widgets** (11 core + 6 in `ui/widgets_ext/`: `braille_chart`, `gradient_rule`, `radial_glow`, `slider_track`, `fuzzy_filter_list`, `preview_pane`); knowledge **143 `.md` files**. `python -m fx list` prints 28; `python -m ui widgets` prints 17. The anti-drift gate `tests/test_doc_counts.py` enforces the effect count (incl. CJK phrasings) across shipping docs — a doc that says a stale count fails the gate; it does NOT check version/widget/knowledge numbers, so verify those by hand against code.
+**Live counts (re-verified against code 2026-07-27):** cmd-art **30 effects / 8 themes**; drive-tui **8 recipes**; tui-ui **17 widgets** (11 core + 6 in `ui/widgets_ext/`: `braille_chart`, `gradient_rule`, `radial_glow`, `slider_track`, `fuzzy_filter_list`, `preview_pane`); knowledge **143 `.md` files**. `python -m fx list` prints 30; `python -m ui widgets` prints 17. The anti-drift gates: `tests/test_doc_counts.py` enforces the effect AND widget counts (incl. CJK phrasings, plus a D:-path ban) across shipping docs, and `tests/test_version_sync.py` enforces the ten version sites — knowledge-note counts are still verified by hand against disk.
 
 **Security note:** a PyPI API token's plaintext appeared in a prior session's chat. The owner chose **not** to revoke it. Recommended action still stands: revoke it and rely on the OIDC publish workflow (after the one-time Trusted-Publisher setup above).
 
@@ -36,29 +37,29 @@ SmartCLI is **published and public**; latest release **v0.1.8** (2026-07-15). Th
 
 **Shared core (`smartcli_core/`).** A pluggable PTY backend + `pyte` screen model + semantic snapshot + readiness sync — modules `pty_backend / screen_model / snapshot / readiness / session`. **⚠️ POLICY: DO-NOT-MODIFY except with real-run-path verification + independent adversarial review + no regression across the full recipe suite.** (It was DO-NOT-MODIFY outright; in v0.1.1/v0.1.2 it was deliberately modified under this exception with user authorization — see §2 core fixes #1/#2/#4.) The deliberate architecture call: the core is a **pluggable PTY layer, NOT tmux-bound**. Target programs may run in Linux containers (tmux there) while local dev runs on Windows (ConPTY via pywinpty). Screen perception uses `pyte` structured-text snapshots (chosen over screenshot/vision on purpose) so one screen model feeds both the agent (perceive, up) and rendering (down). The hard, valuable part is the ACI layer: readiness sync, compression of raw screen to a semantic tree, and action translation (intent → key sequence).
 
-**drive-tui skill (`skills/drive-tui/`).** Teaches an AI to DRIVE interactive terminal programs (REPLs, installers, vim, agent CLIs like kiro-cli, arrow-key menus, y/N prompts, password fields, curses UIs) through a PTY via a **perceive → decide → act → wait → confirm** loop — never blind-`sleep`, always re-snapshot after acting. The surface is a thin CLI `scripts/tui.py` with two modes: **A) persistent session** (a detached localhost-only daemon owns one live program; state survives across shell calls — `start/snapshot/send-text/send-line/keys/wait/wait-regex/alive/close/list`) and **B) one-shot `run`** (a JSON step list against a fresh process). On top sits an importable **pattern library** (`patterns/`) that `classify()`s a screen and `drive()`s it with one of **8 recipes**. Fault-isolated `@register` + pkgutil discovery; recipes fail loud on bad intent.
+**drive-tui skill (`skills/drive-tui/`).** Teaches an AI to DRIVE interactive terminal programs (REPLs, installers, vim, agent CLIs like kiro-cli, arrow-key menus, y/N prompts, password fields, curses UIs) through a PTY via a **perceive → decide → act → wait → confirm** loop — never blind-`sleep`, always re-snapshot after acting. The surface is a thin CLI `scripts/tui.py` with two modes: **A) persistent session** (a detached localhost-only daemon owns one live program; state survives across shell calls — `start/snapshot/send-text/send-line/keys/wait/wait-regex/wait-change/wait-visual-change/wait-any/alive/close/list/doctor`, most with `--json` machine-readable output since v0.2.0) and **B) one-shot `run`** (a JSON step list against a fresh process). On top sits an importable **pattern library** (`patterns/`) that `classify()`s a screen and `drive()`s it with one of **8 recipes**. Fault-isolated `@register` + pkgutil discovery; recipes fail loud on bad intent.
 
 **cmd-art skill (`skills/cmd-art/`).** Helps a human design CMD/terminal visual effects and ASCII art from a one-line request, via `fx` — a "living-template" engine: an `Effect` ABC + `@register` decorator + pkgutil auto-discovery, so effects, themes, and multi-effect shows all compose. Pure Python stdlib (optional `pyfiglet`/`PIL`), truecolor tuned for Windows Terminal. CLI is `python -m fx <list|show|play|gallery|random|show --seq/--script>`; `play` is **bounded by default** (10s on a TTY), degrades to one plain frame on non-TTY, and always restores the terminal via try/finally. Effects are **pure frame producers** (return one full frame; never print/sleep/touch ANSI modes — the play loop owns the terminal). 8 themes; a legacy `scripts/ascii_fx.py` shim preserves the old surface.
 
 **tui-ui skill (`skills/tui-ui/`).** A web-like terminal UI layout engine + widgets emitting **tmux-safe ANSI frames** (SGR color runs + newlines only — no cursor moves, no alt-screen). You compose a tree of renderables (CSS box model margin→border→padding→content, border-box default; `VStack/HStack/Grid/Page` with `Fr` fractional units); it resolves sizes, composites cell grids, and serializes **once**. Everything is display-cell accurate (CJK/emoji/ZWJ/VS16/flag-pairs via `ui.core.width()`, never `len()`), so columns never desync. Beyond widgets it has a real **ENGINE**: `field.py` (CellField shader — LinearGradient/RadialGlow/Ripple/Plasma + Over/Add/Mask/Translate compositors, ASPECT=2 distance), `raster.py` (sub-cell half/quad/braille pixels), `box_junction.py` (edge-algebra auto-connecting `┼┬┤`), `color_model.py` (honest truecolor→256→16→mono degrade). It produces *frames*; something else owns the terminal (contrast drive-tui). **17 widgets live** (11 core + 6 in `ui/widgets_ext/`: `gradient_rule`, `radial_glow`, `slider_track`, `braille_chart`).
 
-**Knowledge graph (`knowledge/`).** A navigable wiki-link graph — **140 `.md` files**, of which **122 concept/works entries** (120 unique slugs; `tmux-capture-pane` intentionally ×3), plus 7 READMEs, INDEX, and 10 `sources/` research digests. Each note carries an exact formula/sequence/constant, a **Source:**, and double-bracketed cross-links. Core discipline is lane-selection: **replica task → measure ground truth first** (start at `[[hard-lessons]]` + `[[effort-selector]]`); **creative task → compose the four primitives** (start at `[[rendering-model]]`). Integrity (re-checked 2026-07-13): 0 dangling links (every `[[slug]]` resolves; the only bracketed non-links are the literal `[[filename-slug]]`/`[[links]]`/`[[see also]]` syntax examples in the section READMEs). A handful of digest-level uncertainties are still honestly marked `*(verify)*` in `INDEX.md` (neo/sl/notcurses/chafa) — see §3 for the correct status.
+**Knowledge graph (`knowledge/`).** A navigable wiki-link graph — **143 `.md` files**, of which **125 concept/works entries** (98 concept incl. 3 ground-truth + 27 works; 123 unique slugs — `tmux-capture-pane` intentionally ×3), plus 7 READMEs, INDEX, and 10 `sources/` research digests. Each note carries an exact formula/sequence/constant, a **Source:**, and double-bracketed cross-links. Core discipline is lane-selection: **replica task → measure ground truth first** (start at `[[hard-lessons]]` + `[[effort-selector]]`); **creative task → compose the four primitives** (start at `[[rendering-model]]`). Integrity (re-checked 2026-07-13): 0 dangling links (every `[[slug]]` resolves; the only bracketed non-links are the literal `[[filename-slug]]`/`[[links]]`/`[[see also]]` syntax examples in the section READMEs). A handful of digest-level uncertainties are still honestly marked `*(verify)*` in `INDEX.md` (neo/sl/notcurses/chafa) — see §3 for the correct status.
 
 ---
 
 ## 2. Current state — DONE & verified (with the exact commands to see it)
 
-Run everything from repo root `D:\Project\SmartCLI` unless a `cd` is shown. Set `PYTHONIOENCODING=utf-8` on Windows first (the CLIs also auto-reconfigure stdout).
+Run everything from the repo root unless a `cd` is shown (commands below use Windows-style `\` from the original session; swap for `/` on POSIX). Set `PYTHONIOENCODING=utf-8` first (the CLIs also auto-reconfigure stdout).
 
 **cmd-art — 30 effects, all render.**
 ```
 cd skills\cmd-art
-python -m fx list            # 28: banner_scroll, boids, cube, decrypt, donut, fire,
-                             # fireworks, flames, gradient_text, image2ascii, julia,
-                             # life, mandelbrot, nebula, perlin, plasma, rain,
-                             # solarsystem, sparkle, sphere, starfield, text3d,
-                             # text_converge, text_decrypt, text_flyin, tunnel,
-                             # typewriter, water
+python -m fx list            # 30: banner_scroll, boids, cbonsai, cube, decrypt,
+                             # donut, fire, fireworks, flames, gradient_text,
+                             # image2ascii, julia, life, mandelbrot, nebula, perlin,
+                             # plasma, rain, solarsystem, sparkle, spectrum_bars,
+                             # sphere, starfield, text3d, text_converge,
+                             # text_decrypt, text_flyin, tunnel, typewriter, water
 python -m fx gallery         # one frame of each
 python -m fx play donut --seconds 5
 python -m fx show --seq "donut:fire:3,plasma::3"
@@ -69,7 +70,7 @@ Themes: mono, fire, ocean, synthwave, viridis, pastel, matrix-green, rainbow. Ve
 ```
 python skills\tui-ui\examples\effort_selector.py --once --stage ultracode --frame 1
 ```
-24 KB, composing engine `field.Ripple` with **zero inline ripple math** (the ripple is sampled from the primitive; verified at runtime — `.sample` called, no inline `math.cos`). Measured constants: XDR 8-step violet palette `rgb(62,22,118)→rgb(140,80,240)`, `trackChars` with `┋` (U+2506), triangle cols `[1,10,20,30,40,53]`, `λ=20`, `travel = elapsed_ticks × 0.03`, aspect-corrected distance, SS3 `ESC O C` navigation. (Caveat: real-terminal cadence eyeball still open — see §5.)
+24 KB, composing engine `field.Ripple` with **zero inline ripple math** (the ripple is sampled from the primitive; verified at runtime — `.sample` called, no inline `math.cos`). Measured constants: XDR 8-step violet palette `rgb(62,22,118)→rgb(140,80,240)`, `trackChars` with `┋` (U+2506), triangle cols `[1,10,20,30,40,53]`, `λ=20`, `travel = elapsed_ticks × 0.03`, aspect-corrected distance, SS3 `ESC O C` navigation. (Caveat: real-terminal cadence eyeball still open — see §6.)
 
 **drive-tui — 8 recipes, REPL drive confirmed end-to-end.**
 ```
@@ -114,7 +115,7 @@ Missing external tools = skipped, not failed. Six scenarios: repl/confirm/progre
 - **FIXED #4 — stale EOF on backend reuse.** `WinptyBackend.spawn` now **resets `queue` / `_eof` / `_reader`** so a re-used backend cannot inherit a stale EOF sentinel.
 - **FIXED #5 (2026-07-13, verified on real Linux) — arrows now adaptive.** Was: arrows always emitted CSI (`ESC[A`), never SS3, so curses/DECCKM apps ignored them. Now `send_keys` reads the live screen's cursor-key mode (`ScreenModel.app_cursor` — pyte records DECCKM as mode value `32`) and emits SS3 (`ESC O A`) to application-cursor apps, CSI otherwise. Verified on Debian 13 ncurses (a `keypad(True)` probe read our `Up` as `KEY_UP`); Windows default path unchanged.
 - **FIXED #6 (2026-07-13, verified on real Linux) — POSIX `terminate()` reaps the child.** Was: `SIGTERM` with no `waitpid`, leaving a `<defunct>` zombie. Now polls `waitpid(WNOHANG)` ~1s, `SIGKILL` fallback, blocking reap. Verified on Debian 13 (`_sandbox_posix_backend.py`: `[KNOWN] zombie` → `[OK] reaped`).
-- **NOT fixed (recorded as known, with reasons):** **#3** `content_hash` is blind to selection-only cursor movement (design tradeoff — fixing it risks false-*unstable*).
+- **#3 RESOLVED in v0.2.0** (was: `content_hash` blind to selection-only cursor movement, recorded as a design tradeoff): `content_hash` deliberately stays text-only, and a parallel primitive **`visual_hash`** (text + SGR attributes + cursor) with **`wait_visual_change`** now covers highlight-bar moves and cursor-only motion, across core/daemon/CLI/one-shot-run/MCP. See §10.
 
 *Skill-code degenerate-input fixes (all with regression locks in `tests/test_degenerate_inputs.py`):* `field.Ripple` (wavelength 0 / falloff 0 / empty palette), `SliderTrack` (empty positions list), `BrailleChart` (non-finite series), and `fx` **Param int coerce** (zero-padded `08`/`010` and `+`/`-` signed based literals now parse; clean error otherwise).
 
@@ -143,7 +144,7 @@ Plus: 3 external-AI fixes (2026-07-07) still exit 0 — README literal import-or
 - **Replica task** (recreate a real program's look) → *measure ground truth first.* Start at **`[[hard-lessons]]`** (the 10 rules, §4 below) and **`[[effort-selector]]`** (the worked replica). Decompile / drive / capture the real thing before you write render code.
 - **Creative task** (design something new) → *compose the four primitives.* Start at **`[[rendering-model]]`**: field shaders (`field.py`), sub-cell raster (`raster.py`), box junctions (`box_junction.py`), honest color degrade (`color_model.py`). Most "new" effects are a composition of these plus a case study in `works/`.
 
-The **Works wing** (`works/`, 27 studied programs — cbonsai, no-more-secrets, sl, asciiquarium, cava, firework-rs, chafa, notcurses, neo …) is the design brain: each has a real source URL and the extracted algorithm. The six newest concept notes distilled from them are the ready building blocks: `effects/procedural-branching` (cbonsai recursion), `effects/decrypt-reveal` (nms 3-phase reveal), `effects/sprite-scroll` (sl/asciiquarium blit), `effects/color-mask-sprites` (parallel glyph/color layers), `effects/particle-system` (firework-rs float physics), `effects/spectrum-bars` (cava log-bins + eighth-blocks). `sources/` holds the 10 raw research digests behind the notes. The `neo`/`sl`/`notcurses`/`chafa` notes carry **digest-level `*(verify)*` flags** that `INDEX.md` states honestly (README-level color math, un-re-fetched constants, `ncpile_rasterize` quantization, chafa's cost function) — these are the remaining source-confirmation gaps, not errors. Treat them as "usable, but re-fetch the primary source before quoting an exact constant." (Earlier drafts of this handoff claimed the flags were all resolved; that was wrong — `INDEX.md` is the accurate record.)
+The **Works wing** (`works/`, 27 studied programs — cbonsai, no-more-secrets, sl, asciiquarium, cava, firework-rs, chafa, notcurses, neo …) is the design brain: each has a real source URL and the extracted algorithm. The six newest concept notes distilled from them are the ready building blocks: `effects/procedural-branching` (cbonsai recursion), `effects/decrypt-reveal` (nms 3-phase reveal), `effects/sprite-scroll` (sl/asciiquarium blit), `effects/color-mask-sprites` (parallel glyph/color layers), `effects/particle-system` (firework-rs float physics), `effects/spectrum-bars` (cava log-bins + eighth-blocks). `sources/` holds the 10 raw research digests behind the notes. The `neo`/`sl`/`notcurses`/`chafa` notes were **source-verified on 2026-07-08** (each note's `Source:` line names the file checked) and carry no inline `*(verify)*` flags; the one remaining unresolved `*(verify)*` is the galleries note in `works/README.md`. (Re-checked against disk 2026-07-27 — an earlier draft of this paragraph had the direction reversed; when in doubt, grep the notes themselves.)
 
 ---
 
@@ -168,7 +169,8 @@ Reproducible ground-truth archive (INTERNAL-ONLY — gitignored, EXCLUDED from p
 
 ## 5. Environment (how to run things)
 
-- **OS/host:** Windows 11 Pro (10.0.26200) + MSYS2 bash + PowerShell. **NO tmux, NO WSL distro** — tmux cannot run locally; `skills/cmd-art/tmux/*.sh` can't be exercised here. Git-bash / MSYS2 tooling at `D:/Software/Git`.
+- **Current working copy (since 2026-07-19): macOS (Apple Silicon), Python 3.14.6**, checkout at `/Users/dwgx/Documents/Project/SmartCLI` — the v0.2.0 branch work and the 2026-07-27 review both happened here. The Windows 11 machine below remains the historical primary dev target; treat the project as dual-host and write repo-relative paths in anything agent-facing.
+- **OS/host (historical primary):** Windows 11 Pro (10.0.26200) + MSYS2 bash + PowerShell. **NO tmux, NO WSL distro** — tmux cannot run locally; `skills/cmd-art/tmux/*.sh` can't be exercised there. Git-bash / MSYS2 tooling at `D:/Software/Git`.
 - **Runtimes:** Python **3.14.6**, Node 24.16. `pyte` + `pywinpty` pip-installed and importable. Caveat: `import pyte` works but `pyte.__version__` does NOT exist — don't rely on it.
 - **PTY backend rule:** on Windows drive PTYs via **pywinpty (ConPTY)**, not tmux; keep the backend pluggable so Linux/mac use pexpect/posix pty. ANSI truecolor works in Windows Terminal without tmux.
 - **ConPTY caveats (baked into drive-tui SKILL.md):** (1) *startup quiet-gap* — the child's banner can land ~3s after spawn (Python REPL) while the first byte is ~20ms; use a strict `wait-regex` with a generous timeout (e.g. 15000ms) for the FIRST prompt, NOT bare `wait`/`wait_ready` (it may declare STABLE on a still-blank screen). (2) *raw Ctrl-C does NOT reliably interrupt* a line-mode child under ConPTY — recover by `close` + `start` a fresh session (C-c works on POSIX).
@@ -192,8 +194,8 @@ Reproducible ground-truth archive (INTERNAL-ONLY — gitignored, EXCLUDED from p
 Ranked by impact/effort. The v0.1.2 release, the deterministic/mutation-verified test suite, and the core #1/#2/#4 fixes are DONE — these are what's left.
 
 1. **[DONE 2026-07-13] Ship a `py.typed` marker in `smartcli_core`.** Added + `[tool.setuptools.package-data]`; verified present inside the built wheel. Not version-bumped/published yet.
-2. **[DONE 2026-07-14] Linux (+ macOS) CI matrix.** `ci.yml` is now a **3-OS matrix** (windows/ubuntu/macos × py3.11/3.12) running ~12 deterministic gates on every push/PR, plus `tests/_sandbox_posix_backend.py` on the non-Windows legs — the POSIX backend (verified on real Debian 13 2026-07-13, #5/#6 fixed) is now kept green automatically instead of by a manual SSH run. The `test_doc_counts` anti-drift gate also gates PRs now.
-3. **[DONE 2026-07-15, v0.1.4] MCP-server wrapper** — `skills/drive-tui/scripts/mcp_server.py` (FastMCP), 11 tools mapping the daemon verbs, reusing tui.py's client so the per-session token is auto-attached (no unauthenticated verb), all with standard `ToolAnnotations`. `pip install "smartcli-toolkit[mcp]"`. Covered by `tests/_mcp_probe.py`. **`server.json` is ready for the official MCP Registry** — see §9 for the one remaining human step (`mcp-publisher` device-login).
+2. **[DONE 2026-07-14] Linux (+ macOS) CI matrix.** `ci.yml` is a **3-OS matrix** (windows/ubuntu/macos; since v0.2.0 the Python legs are the support boundaries **3.10/3.14**) running the deterministic gates on every push/PR, plus `tests/_sandbox_posix_backend.py` on the non-Windows legs — the POSIX backend (verified on real Debian 13 2026-07-13, #5/#6 fixed) is kept green automatically instead of by a manual SSH run. The `test_doc_counts` anti-drift gate also gates PRs now.
+3. **[DONE 2026-07-15, v0.1.4; grown since] MCP-server wrapper** — `skills/drive-tui/scripts/mcp_server.py` (FastMCP), now **14 tools** (wait_change/wait_any/wait_visual_change joined over v0.1.6–v0.2.0) mapping the daemon verbs, reusing tui.py's client so the per-session token is auto-attached (no unauthenticated verb), all with standard `ToolAnnotations`. Since v0.2.0 plain `pip install smartcli-toolkit` suffices (`mcp` is a required dep) and the wheel ships `smartcli-mcp`/`smartcli-toolkit` entry points. Covered by `tests/_mcp_probe.py`. **MCP Registry: LIVE** (`io.github.dwgx/smartcli`), and re-publishing on release is automated (publish.yml `publish-mcp` OIDC job) — no human step remains.
 4. **[DONE 2026-07-15, v0.1.6] Await-change wait primitive** — `wait_change` (not multi-marker, but the higher-value "did my action land?" primitive pilotty/termscope converged on): block until the screen content-hash changes from a baseline. In session/daemon/CLI (`wait-change`)/MCP. `tests/test_wait_change.py`. Multi-marker `wait-any` remains a smaller open nicety.
 5. **[DONE 2026-07-15, v0.1.4] Golden-frame snapshot test** — `tests/test_golden_frames.py` + `tests/golden/*.txt`: every widget rendered to a deterministic frame, diffed against a committed baseline (`--update` to regen), renders twice to reject non-determinism. Skips widgets whose optional dep is absent (banner→pyfiglet).
 6. **[DONE 2026-07-15, v0.1.6] Shared `easing.py`** — 14 canonical Penner easings, used by the text effects. (A `Gradient(stops,…)` builder was NOT separately done; theme.gradient already covers most of it.)
@@ -204,7 +206,7 @@ Ranked by impact/effort. The v0.1.2 release, the deterministic/mutation-verified
 
 **Release chore — DONE (was: blocks tag-push auto-publish):** the PyPI Trusted-Publisher setup + `pypi` GitHub Environment are complete and OIDC-verified (§0). Tag-push auto-publish now works; twine is no longer needed.
 
-**Still-open replica polish (unchanged from earlier rounds):** eyeball `effort_selector.py`'s animation cadence in a REAL Windows Terminal. Keep `field.Ripple` `travel` **small (~λ×1..1.6, breathing)** so the ripple stays localized on the ultracode/max side; `travel < ~26` keeps low/medium/high/xhigh clean dim-gray. Label distances: ultracode 4, max 14, xhigh 25, high 34, medium 45, low 53. It's bit-exact in pyte; the only gap is the real-terminal eyeball. **drive-tui is now POSIX-verified** (2026-07-13, Debian 13 over SSH: spawn/read/write/resize, DECCKM SS3 arrows, and zombie-free terminate all pass `tests/_sandbox_posix_backend.py`). **macOS: the POSIX backend core is now verified** (2026-07-13, GitHub Actions `macos-latest`: `tests/_sandbox_posix_backend.py` PASSed spawn/read/drive/resize + #6 zombie-free reap on the BSD pty path). The interactive curses DECCKM/SS3-arrow probe is SKIPPED on CI runners (no controllable terminal) — it still wants one real-Mac run over SSH (see `docs/MACOS-VERIFY.md`). Still unverified: the tmux launchers `skills/cmd-art/tmux/*.sh` (need a real tmux host).
+**Still-open replica polish (unchanged from earlier rounds):** eyeball `effort_selector.py`'s animation cadence in a REAL Windows Terminal. Keep `field.Ripple` `travel` **small (~λ×1..1.6, breathing)** so the ripple stays localized on the ultracode/max side; `travel < ~26` keeps low/medium/high/xhigh clean dim-gray. Label distances: ultracode 4, max 14, xhigh 25, high 34, medium 45, low 53. It's bit-exact in pyte; the only gap is the real-terminal eyeball. **drive-tui is now POSIX-verified** (2026-07-13, Debian 13 over SSH: spawn/read/write/resize, DECCKM SS3 arrows, and zombie-free terminate all pass `tests/_sandbox_posix_backend.py`). **macOS: the POSIX backend core is now verified** (2026-07-13, GitHub Actions `macos-latest`: `tests/_sandbox_posix_backend.py` PASSed spawn/read/drive/resize + #6 zombie-free reap on the BSD pty path). The interactive curses DECCKM/SS3-arrow probe is SKIPPED on CI runners (no controllable terminal) — it still wants one real-Mac run over SSH (see `docs/MACOS-VERIFY.md`). **tmux launchers VERIFIED 2026-07-27** on real tmux 3.6b (macOS): `tests/_tmux_launcher_probe.py` drives both `skills/cmd-art/tmux/*.sh` through all five states (no tmux / outside a session / detached / attached client / real split) — 18/18. It found a real bug: `fx-popup` leaked tmux's raw "no current client" with exit 1 when no client was attached, violating its own clean-exit contract; now guarded.
 
 **Standing re-verify-after-workflows:** confirm the 3 external fixes + full `tests/run_all.py` stay exit-0 after any workflow that edits fx effects or recipe `matches()` (`external-ai-fixes.md`).
 
@@ -334,8 +336,10 @@ site + POSIX fixes; this section catches up everything since. Verified against d
   `test_vendor_sync`, `test_doc_counts`, `_readme_literal`, tui-ui `self_test`,
   `fx list`, `ui widgets`) + POSIX-only `_sandbox_posix_backend.py` on the
   non-Windows legs. This closes OPEN TASK §6#2 (Linux matrix) AND finally covers the
-  macOS BSD-pty path in CI. The interactive PTY probes stay OUT of CI (need a live
-  TTY, hang-prone on runners) — the pure-memory gates are the crown jewels here.
+  macOS BSD-pty path in CI. The interactive PTY probes stayed OUT of CI at the time
+  (need a live TTY, hang-prone on runners) — *changed in v0.2.0*: they now run
+  serially inside the bounded `drive-smoke`/`package` jobs (see §0/§10); the
+  pure-memory gates remain the per-matrix-leg crown jewels.
 - **`publish.yml`** now guards prod PyPI against prerelease tags; **`publish-testpypi.yml`**
   mirrors to TestPyPI. **`docker.yml`** builds a GHCR image (buildx cache).
   **`codeql.yml`** security scan, **`lint.yml`**, **`release-drafter.yml`**,
@@ -371,8 +375,9 @@ only as `<video>` posters / `showcase/` stills.
 `_drive_probe1..5` were print-only (a human had to eyeball them) — they now **assert**
 and return non-zero on failure (0d3b3b4), so `run_all.py` actually gates on them.
 `_tui_cli_probe.py` (drive-tui CLI end-to-end + token auth) is now in the `run_all.py`
-suite (added 2026-07-14). run_all's suite is ~22 entries; the deterministic subset is
-what CI runs.
+suite (added 2026-07-14). run_all's suite has since grown to 29 entries (count them
+via `build_suite()`, don't trust this number); the deterministic subset is what the
+CI matrix runs.
 
 ### 8e. i18n + anti-drift accuracy pass (2026-07-14)
 - **The 4 localized READMEs (zh-Hans/zh-Hant/ja/ko) said a stale 18 (should be 19) and
@@ -407,7 +412,8 @@ what CI runs.
    add `CONTRIBUTING.md` + a coverage badge. Do NOT include `research/cc-decompiled/`.
 3. **macOS / tmux real-host verification**: CI covers the macOS POSIX core, but the
    interactive DECCKM/SS3 curses probe is still CI-skipped (needs a real Mac over SSH,
-   see `docs/MACOS-VERIFY.md`); real tmux launchers still unverified. Don't claim tmux.
+   see `docs/MACOS-VERIFY.md`). tmux launchers are now VERIFIED on real tmux 3.6b
+   (2026-07-27, `tests/_tmux_launcher_probe.py`).
 4. **A-grade backlog** (§6): MCP-server wrapper (biggest adoption lever), `wait_any`
    multi-marker wait, tui-ui golden-frame snapshot test, `easing.py`/`Gradient` builder,
    spectrum-bars + cbonsai effects.
@@ -463,7 +469,8 @@ verify + independent adversarial review + full-suite green).**
   unchanged, forwarded to wcwidth). `tests/test_char_width.py`.
 - fractals `julia`/`mandelbrot` (smooth/continuous iteration coloring) + `perlin` (fBm).
 - **Codecov + Read the Docs went live.** Codecov: repo tokenless upload works
-  (dwgx org enabled it); CI passes `CODECOV_TOKEN` too (harmless if unset).
+  (dwgx org enabled it); the CI upload step is advisory/soft-fail and uses
+  `CODECOV_TOKEN` only if that secret is configured (see the ci.yml step comment).
   RTD: `.readthedocs.yaml` runs `tools/build_docs.py` (assembles docs/*.md from
   README/SKILL/CHANGELOG/INDEX and REWRITES repo-relative links to absolute
   github.com URLs — the fix for the localized-README language switcher 404ing).
@@ -490,9 +497,12 @@ verify + independent adversarial review + full-suite green).**
   PreviewPane negative-scroll wrap. **This is why review is non-negotiable — the
   bug was invisible to me and to the passing test.**
 
-### 9e. Standing state after this session
-- **Regression: `python tests\run_all.py` = 27/27** (grew as tests were added).
-- **git clean, synced with origin.** Latest tag **v0.1.8** (§9h; §9g = v0.1.7).
+### 9e. Standing state after this session *(2026-07-15 snapshot — superseded by §10)*
+- **Regression: `python tests\run_all.py` = 27/27** at the time (the suite has since
+  grown to 29 entries — count via `build_suite()`).
+- **git clean, synced with origin** was true then. *No longer:* the v0.2.0 work sits
+  committed on branch `codex/cross-platform-mcp-hardening`, unmerged/untagged — see §10.
+  Latest tag **v0.1.8** (§9h; §9g = v0.1.7).
 - **The default `%TEMP%\smartcli_tui` dir often holds ONE session that is NOT ours**
   (`s10456_*`, a SaoMoLa/VRChat uploader). It's a live third-party process — do
   NOT close it. Probes use an isolated `SMARTCLI_TUI_DIR`, unaffected.
@@ -573,8 +583,8 @@ disprove; findings fixed before ship).
   membership, so `64`/`14` can't false-positive as attribute `4`). **Real WT render
   NOT eyeballed** (captured stdout can't display sixel — see §9f#4); bytes are proven
   correct. Exact spec/constants from a research pass (VT330/340 + Dankwardt + libsixel).
-- **Terminal-Bench adapter** (`smartcli_tbench/`, NOT in the wheel — `packages =
-  ["smartcli_core"]` only). Targets **classic `laude-institute/terminal-bench`**
+- **Terminal-Bench adapter** (`smartcli_tbench/`, NOT in the wheel — the `packages`
+  list excludes it; since v0.2.0 that list is `smartcli_core` + `smartcli_drive`). Targets **classic `laude-institute/terminal-bench`**
   (`BaseAgent.perform_task(instruction, session: TmuxSession)` — verified from source).
   `driver.py` reimplements `wait_stable`/`wait_for`/`wait_any`/`wait_change` over
   `capture_pane()`; `loop.py` = the perceive→decide→act→wait→confirm loop
@@ -595,11 +605,230 @@ disprove; findings fixed before ship).
 
 ---
 
+## 10. 2026-07-19 → 2026-07-27 — the v0.2.0 arc (branch `codex/cross-platform-mcp-hardening`, UNRELEASED)
+
+The work was authored ~2026-07-19 (by a codex-branded agent; it sat uncommitted in the
+working tree for a week) and was audited, verified, fixed, committed, and reconciled on
+2026-07-27 by a 3-workflow ultracode review (10-agent understand pass → 13-agent doc
+review → staged fix fan-out). **This section is the record of both.**
+
+### 10a. What v0.2.0 contains (all committed on the branch; NOT tagged/merged/published)
+
+- **drive-tui control-plane security hardening** (`scripts/tui.py`): session ids
+  validated (`^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$`) before any registry path use (no
+  traversal); registry moved to a per-user dir (`$XDG_RUNTIME_DIR` / macOS
+  `~/Library/Caches/SmartCLI/sessions` / `~/.cache/smartcli/sessions`,
+  `SMARTCLI_TUI_DIR` overrides) with POSIX symlink/ownership/0700 checks fail-closed;
+  registry files O_EXCL (+O_NOFOLLOW/O_CLOEXEC POSIX, O_NOINHERIT Windows) 0600 — a
+  capability cannot be replaced; the driven child no longer inherits
+  `SMARTCLI_TUI_TOKEN`; `--env` cannot override `SMARTCLI_TUI_*`; caps: max sessions
+  default 8 (`SMARTCLI_MAX_SESSIONS` 1–128), terminal size ≤1000×500 / 100k cells.
+  Locked by `tests/test_drive_security.py` (deterministic, in CI).
+- **`visual_hash` + `wait_visual_change`** (smartcli_core, DO-NOT-MODIFY exception):
+  `ScreenModel.visual_hash()` = chained crc32 over cell text + SGR attributes +
+  cursor; `PtySession.wait_visual_change()`; wired through daemon/CLI
+  (`wait-visual-change`)/one-shot run/MCP. Resolves old known-#3 (§2). `content_hash`
+  stays text-only by design. Plus a real bug fix: `wait_change`'s explicit baseline is
+  **int end-to-end** (the old `Optional[str]` annotation made CLI/MCP pass strings
+  that never compared equal → instant false "changed"; CLI now parses
+  `--baseline-hash` as int and honors 0). Typing modernized to PEP 604/585 →
+  **Python floor 3.9→3.10** (runtime union alias in snapshot.py). Locked by
+  `tests/test_visual_change.py`.
+- **Packaging:** the wheel ships `smartcli_drive` (mapped from
+  `skills/drive-tui/scripts`, new `scripts/__init__.py`) next to `smartcli_core`;
+  console scripts `smartcli-tui` / `smartcli-mcp` / `smartcli-toolkit` (dist-named
+  alias so `uvx smartcli-toolkit` starts the MCP server); `mcp>=1.0` promoted from
+  `[mcp]` extra to required dep; `server.json` gains registryBaseUrl+runtimeHint=uvx;
+  plugin.json (drifted at 0.1.2) re-aligned. Docker entrypoint gained an `mcp` verb.
+- **CI/publishing:** matrix → py3.10/3.14 boundaries; new bounded `drive-smoke`
+  (3-OS real-PTY probes, first time in CI) + `package` (wheel/registry contract)
+  jobs; lint partially blocking (ruff correctness subset + mypy); publish.yml
+  `publish-mcp` job auto-publishes to the MCP Registry via OIDC with a pinned,
+  sha256-verified mcp-publisher.
+
+### 10b. The 2026-07-27 verification & review session (this is the adversarial review the core policy requires)
+
+- **Verified before committing:** mypy clean (7 files — the only CI blocking gate with
+  zero prior local verification); all deterministic gates green locally; vendored copy
+  byte-identical; ten version sites = 0.2.0; **live single-session PTY end-to-end** of
+  `wait-visual-change` (idle → changed=False; explicit int baseline after a screen
+  change → changed=True; `--json` surfaces; zero leaked sessions).
+- **Bugs found & fixed during review:** daemon `resize` with out-of-range dims raised
+  `SystemExit` (a BaseException) straight through the per-connection
+  `except Exception` guard → killed the whole session; now converted to an error
+  reply, mutation-verified in `test_drive_security.py`. MCP `start` rows default
+  aligned 24→30. `python -m smartcli_core` diagnostics now reports `mcp`.
+- **New anti-drift gates:** `tests/test_version_sync.py` (ten sites);
+  `test_doc_counts.py` extended to widget counts + a D:-path ban over shipping docs.
+- **Doc-accuracy review:** 13-agent partitioned review of every agent-facing doc
+  (3 SKILL.md + references, MCP tool descriptions, README*/INSTALL/CONTRIBUTING/
+  SECURITY, CLAUDE.md, 8 i18n files, 5 site pages, runbooks, knowledge/) produced
+  **157 adversarially-confirmed findings** (40 high) — headline classes: the 0.2.0
+  surface (wait-visual-change/--json/--cwd/--env/session caps) was absent from every
+  doc an agent reads; widget count 15→17 drift across 8+ files; machine-specific
+  `D:/Project` paths in portable docs; an end-anchored regex example in the MCP
+  wait_any docstring (the project's own documented never-matches anti-pattern);
+  stale runbooks (mkdocs/"not yet live", packaging configs pinned to 0.1.2/py3.9,
+  invalid bench model id). Fixes applied by a staged fix fan-out + re-verify pass
+  (initial 8-wide fan-out died to API 529 storms; re-run in batches of 2 — that
+  pacing lesson generalizes: match fan-out width to API health).
+### 10c. Differential testing against a real terminal (2026-07-27) — the premise is now MEASURED
+
+The project's central premise — that pyte's cell grid matches what a real
+terminal shows — had never been measured. The screenshot harness honestly labels
+itself `pyte-simulation`, and a simulation agreeing with itself proves nothing.
+**This machine has tmux 3.6b**, which invalidated the long-standing "no tmux on
+this box" assumption and made the measurement possible.
+
+**`tests/_diff_tmux_pyte.py`** feeds identical bytes to a real tmux pane and to
+`ScreenModel`, then diffs the grids cell by cell — 25 cases over cursor
+addressing, erase ops, autowrap/deferred wrap, DECSTBM, IL/DL, DCH/ICH,
+DECSC/DECRC, RI, CJK width, tabs, box drawing, truecolor and emoji. Result:
+**26/26 agree**, but only after finding two real bugs and three rig artifacts.
+
+- **REAL BUG (fixed, core):** `pyte.Screen.draw` does `else: break` on a
+  character that is neither width-1, width-2, nor a true combining mark —
+  abandoning the rest of the batch. **VS16 (U+FE0F) and ZWJ (U+200D) are exactly
+  that shape**, so a program printing `"MENU ♀️ Settings  Quit  Help"` in one
+  write left us perceiving `"MENU ♀"`: the agent would act on a menu whose other
+  entries were invisible to it, with nothing reporting a problem. `ScreenModel`
+  now uses a `_Screen` subclass that attaches those codepoints to the previous
+  cell (as pyte already does for combining marks), stepping over a wide char's
+  stub slot. Locked by `tests/test_zwj_text_loss.py` (mutation-verified:
+  reverting to `pyte.Screen` fails 7 checks). Core policy satisfied — real-run
+  verified by driving a live REPL, fuzz 17030 iterations / 0 defects, mypy clean,
+  16 deterministic gates green, vendored copy re-synced.
+- **REAL BUG (fixed, cmd-art):** see 10d below — the tmux launchers.
+- **Three rig artifacts, NOT emulation differences** (each traced, then
+  normalized in the probe with the reason written down): capture-pane emits a
+  literal TAB where we have already expanded to 8-col stops; NFC vs NFD for
+  combining marks; and — the instructive one — the pane's tty had `ONLCR` on, so
+  it rewrote LF to CRLF *before* the emulator saw it. With `stty -onlcr`, real
+  tmux stair-steps bare LF exactly as we do, **confirming HARD RULE 7** rather
+  than contradicting it. Lesson: when a differential test disagrees, suspect the
+  rig before the code — two of three "divergences" here were the harness.
+
+### 10d. tmux launchers verified (2026-07-27) — a permanently-open item closed
+
+`skills/cmd-art/tmux/fx-{split,popup}.sh` had shipped unverified since they were
+written. On real tmux: `fx-split` works (window really splits, effect renders in
+the new pane), `fx-popup` was **broken** — `display-popup` needs an attached
+client, and from a detached session it leaked tmux's raw `no current client` with
+exit 1, violating its own documented clean-exit contract. Now guarded.
+`tests/_tmux_launcher_probe.py` locks all five states, 18/18, zero residue; it
+SKIPs itself where tmux is absent, so it is safe to register everywhere.
+
+### 10e. Generative differential fuzz + the performance contract (2026-07-27)
+
+Hand-written differential cases only find bugs someone thought to look for.
+**`tests/_diff_fuzz_tmux.py`** removes the author from the loop: it generates
+random-but-structured VT streams, feeds each to a real tmux pane AND to
+`ScreenModel`, and diffs the grids. It found **seven more emulation bugs** that
+every existing test missed — each minimized to a 2-3 sequence repro and each
+checked against a SECOND emulator (GNU screen) before the core was touched:
+
+1. **IL/DL homed the cursor column** (pyte calls `carriage_return`); real
+   terminals keep it. A TUI repainting a list by inserting a line and writing at
+   the current column landed its text in the wrong column.
+2. **IL with count > 1 left rows MISSING** from pyte's sparse buffer instead of
+   present-and-blank, so a later DL renumbered around the holes and deleted the
+   wrong row (`ESC[3L Q ESC[1M` left `Q` on screen).
+3. **Half-overwriting a wide glyph** kept the glyph AND dropped the incoming
+   character — the write silently vanished. Affects CJK, not just emoji.
+4. **DCH on a wide glyph** removed one cell, leaving its stub as a stray blank
+   that shifted every following column.
+5. **NEL (`ESC E`) did not return to column 0** — pyte routes it to `linefeed`,
+   which only carriage-returns under LNM. Fixed with a `_ByteStream` that
+   dispatches `ESC E` separately, since plain LF must keep its column.
+6. **A cursor OUTSIDE a DECSTBM region** was dragged into it by `index()` and
+   clamped by `cursor_up()`, so anything painted below a scroll region (a status
+   bar under a pager) landed on the wrong rows.
+7. **An overwritten wide base left an orphaned stub** one cell right, so every
+   following column rendered one place off. This one needed a VS16 cluster plus a
+   DECSTBM change plus two ICH rounds to surface — every mechanism agreed in
+   isolation; the fault was purely in their accumulation.
+
+Plus: a two-column glyph with one column left now wraps whole instead of being
+squeezed into the last cell.
+
+**Where the reference emulators DISAGREE** (IL/DL from outside a region; ZWJ
+cluster width) the probe documents the divergence instead of picking a side —
+with no ground truth there is nothing to match. That judgement call matters:
+two of the first three "divergences" were the harness, not the code (tty `ONLCR`,
+capture-pane's literal TAB, NFC vs NFD). **Suspect the rig first.**
+
+Convergence: **10/10 seeds x 40 payloads clean**, curated probe 26/26.
+
+**Performance contract (`tests/test_perf_contract.py`) — the suite had NO perf
+test at all.** `visual_hash` cost **16.6 ms on a 300x100 screen**, i.e. 55% of
+the default 30 ms `wait_visual_change` polling budget, rehashing rows that had
+not changed. It is now incremental (per-row CRCs, recomputing only pyte's dirty
+rows): **16.566 ms → 0.008 ms** idle, 0.225 ms with one row changed. A first
+attempt was *slower* (22 ms) because the cache key cost more to build than the
+hash it saved — measuring caught that. The test asserts equivalence against a
+separate from-scratch computation (80 chunked adversarial payloads) as well as
+timing ceilings set ~20x above measured values; both mutation-verified.
+
+### 10f. Two references, property tests, and the alt-screen bug (2026-07-27, cont.)
+
+**A second reference emulator.** Matching tmux alone cannot distinguish "correct"
+from "identical to tmux". `tests/_diff_two_refs.py` adds **GNU screen** (a
+different codebase, its own VT parser) and treats a behaviour as ground truth
+only when BOTH agree; where they disagree the case is recorded as UNDEFINED
+rather than judged. **35/35** on everything the two agree about — so every fix
+made during the fuzz work is now justified by two independent implementations.
+Measured, not assumed: screen renders U+FFFD for astral-plane codepoints, so
+those cases are reported as SKIPPED (a decoding limitation) rather than lumped in
+with genuine disagreement.
+
+**Property-based tests over readiness.** `tests/test_readiness_properties.py`
+states seven invariants as Hypothesis properties (250 generated schedules each,
+virtual clock so runs are instant and cannot flake): never settle before
+`min_wait_ms` or `quiet_ms`; always terminate within budget; the `blank_hash`
+gate never lets a never-painted screen settle but DOES release once real output
+arrives; `wait_for_regex` only reports a real match; `wait_any` returns a valid,
+earliest-in-list index. Mutation-verified with three independent breakages, each
+caught by exactly the property that should catch it.
+
+**The alt-screen bug — the most consequential find of the whole exercise.**
+pyte implements **no** alternate-screen mode (1049/1047/47 just set an unknown
+bit). So `vim`, `less`, `htop` — every full-screen program drive-tui exists to
+drive — painted their alternate screen ON TOP of the main one, and on exit the
+main screen was never restored: an agent read a merged, impossible screen with
+nothing reporting a problem. Now implemented per xterm and verified against tmux:
+1049 saves the cursor + clears the alt buffer on entry and restores both on exit,
+47/1047 switch without the cursor save, and the cursor is deliberately NOT homed
+on entry (measured). `ScreenModel.screen.alt_screen` exposes the state.
+
+**SGR sub-parameters.** pyte's parser does not know ':' (ITU-T T.416), so
+`ESC[4:3mU` drew the literal `"3mU"` on the grid. Neovim/kitty/delta emit this
+routinely. Colons inside `CSI ... m` are now normalised to ';' before parsing —
+the attribute may degrade, no debris reaches the grid.
+
+Also verified already-correct and now locked: DECCKM, mouse 1000/1002/1006,
+OSC 0/7, bracketed paste, DECAWM off, cursor hide/show.
+
+Totals after this round: curated tmux probe **35/35**, three-way probe **35/35**,
+generative fuzz **10/10 seeds x 40 payloads**, deterministic gates **17** + the
+Hypothesis suite, `visual_hash` **2000x faster** on idle polls.
+
+- **Process notes:** commits follow Conventional Commits on the branch (core → tests →
+  drive-tui → packaging → ci → docs → reconcile). `B-SEC` (leaked PyPI token) was
+  re-raised to the owner per NEXT-STEPS' standing order — still owner-gated.
+  **Releasing v0.2.0 (merge + `git tag v0.2.0 && git push origin v0.2.0`) is the
+  owner's decision** — it drops Python 3.9 and makes `mcp` a hard dep (breaking for
+  some users; CHANGELOG documents both).
+
+---
+
 ## CONTINUATION PROMPT (paste to next AI)
 
 ```
-You are the next AI taking over SmartCLI at D:\Project\SmartCLI on Windows 11.
-Read D:\Project\SmartCLI\HANDOFF.md and knowledge\INDEX.md before doing anything else.
+You are the next AI taking over SmartCLI. The repo lives at the checkout root you were
+launched in (historically D:\Project\SmartCLI on Windows 11; since 2026-07-19 also
+/Users/dwgx/Documents/Project/SmartCLI on macOS — treat it as dual-host, use
+repo-relative paths). Read HANDOFF.md (§0 then §10 first) and knowledge/INDEX.md
+before doing anything else.
 
 STANDING DIRECTIVES (non-negotiable):
 - Token budget is UNLIMITED. Optimize for MAX QUALITY, never for brevity or cost.
@@ -609,7 +838,7 @@ STANDING DIRECTIVES (non-negotiable):
 - VERIFY ON THE REAL RUN PATH. A green preview or a monkeypatched harness is not proof.
   Run the script's own full startup (python script.py, no patches), capture stderr,
   and open the result in a REAL terminal to show the user.
-- CONSULT knowledge\INDEX.md FIRST. The exact formulas, ANSI sequences, and constants
+- CONSULT knowledge/INDEX.md FIRST. The exact formulas, ANSI sequences, and constants
   are already measured on disk. Do not head-canon anything that a note already states.
 - smartcli_core\ is DO-NOT-MODIFY *except* with real-run-path verification + independent
   adversarial review + no regression across the full recipe suite (this is how the
@@ -620,15 +849,17 @@ Three Agent Skills over one pluggable PTY+pyte core (smartcli_core\ = pty_backen
 screen_model/snapshot/readiness/session; NOT tmux-bound — pluggable so Windows uses
 ConPTY/pywinpty and Linux/mac use posix pty). The skills:
   - drive-tui  : DRIVE interactive TUIs via perceive->decide->act->wait->confirm,
-                 never blind-sleep. CLI scripts/tui.py (persistent daemon + one-shot run)
-                 + 8 importable recipes (repl, menu_select, pager, search_filter,
-                 confirm, form, progress, wizard).
+                 never blind-sleep. CLI scripts/tui.py (persistent daemon + one-shot run;
+                 wait/wait-regex/wait-change/wait-visual-change/wait-any primitives,
+                 --json machine output) + 8 importable recipes (repl, menu_select,
+                 pager, search_filter, confirm, form, progress, wizard). Also a stdio
+                 MCP server (smartcli-mcp, 14 tools, per-session token auto-attached).
   - cmd-art    : DESIGN terminal visuals via `python -m fx` — 30 effects, 8 themes,
                  pure frame-producer Effect ABC + @register auto-discovery.
   - tui-ui     : web-like cell-accurate layout engine emitting tmux-safe ANSI frames
                  (SGR + newlines only). 17 widgets + ENGINE (field/raster/box_junction/
                  color_model). Produces frames; something else owns the terminal.
-The BRAIN is knowledge\ (143 md files, 0 dangling links):
+The BRAIN is knowledge/ (143 md files, 0 dangling links):
 a wiki-link graph of formulas+sources+cross-links. The LESSONS are in
 skills\tui-ui\references\HARD-LESSONS.md ⇄ [[hard-lessons]].
 
@@ -649,56 +880,69 @@ sys.stdout.reconfigure(encoding='utf-8', errors='replace') at startup; isatty()=
 must gate keyboard input ONLY, never the animation loop; TUI navigation is ESC O C
 (SS3 application-cursor mode), not ESC [ C.
 
-ENVIRONMENT: Windows 11, Python 3.14.6 + pyte + pywinpty (pyte.__version__ does not exist).
-NO tmux, NO WSL locally. Git-bash at D:/Software/Git. Set PYTHONIOENCODING=utf-8.
-ConPTY: first prompt can lag ~3s — use strict wait-regex w/ 15000ms timeout, not bare
-wait; raw Ctrl-C is unreliable on ConPTY — recover with close+start.
-The codex subagent dispatcher (192.168.11.4:8990) is QUOTA-EXHAUSTED / DEAD — do all live
-research with built-in WebSearch / WebFetch, do not block on codex.
+ENVIRONMENT: dual-host. macOS working copy (current): Python 3.14.6, POSIX pty backend.
+Windows 11 box (historical primary): pywinpty/ConPTY, NO tmux, NO WSL, Git-bash at
+D:/Software/Git. Everywhere: pyte (pyte.__version__ does not exist), set
+PYTHONIOENCODING=utf-8. ConPTY: first prompt can lag ~3s — use strict wait-regex w/
+15000ms timeout, not bare wait; raw Ctrl-C is unreliable on ConPTY — recover with
+close+start. Target programs: use "python3 -i -q" (POSIX) / "py -i -q" (Windows),
+never assume a bare `python` on PATH. The codex subagent dispatcher (192.168.11.4:8990)
+is QUOTA-EXHAUSTED / DEAD — do live research with built-in WebSearch / WebFetch.
+Pace multi-agent fan-outs to API health: an 8-wide fan-out died to 529 storms on
+2026-07-27; batches of 2 completed fine.
 
-RELEASE STATE (latest v0.1.7, 2026-07-15): PUBLIC. PyPI `pip install smartcli-toolkit`
-(import stays smartcli_core); GitHub github.com/dwgx/SmartCLI (tags v0.1.0…v0.1.7 +
-Releases); 3 skills on skillhu.bz; `/plugin marketplace add dwgx/SmartCLI`; Codecov +
-Read the Docs (smartcli.readthedocs.io) live; MCP Registry LIVE (io.github.dwgx/smartcli).
-VERSION 0.1.7 must stay consistent across
-NINE sites: pyproject / smartcli_core __init__ / fx __init__ / 3 SKILL.md /
-marketplace.json / _vendor/smartcli_core/__init__ / server.json (2 fields there). After a
-bump run `python tools/sync_vendor.py` then `python tests/test_vendor_sync.py`. publish.yml
-(OIDC) auto-publishes on tag push (`git tag vX.Y.Z && git push origin vX.Y.Z`; twine not
-needed; PyPI JSON index lags a few min — the workflow going green is the truth). CI is a
-3-OS matrix (win/ubuntu/macos × py3.11/3.12), ~12 deterministic gates incl. anti-drift
-`test_doc_counts`; ~9 workflows. cc-decompiled/ stays gitignored/excluded.
+RELEASE STATE: latest RELEASED = v0.1.8 (2026-07-15, PyPI + GitHub tags v0.1.0…v0.1.8).
+**v0.2.0 is code-complete but UNRELEASED on branch codex/cross-platform-mcp-hardening**
+(see HANDOFF §10) — releasing it (merge + tag) is the OWNER's decision (it drops py3.9
+and makes mcp a required dep). PUBLIC surfaces: PyPI `pip install smartcli-toolkit`
+(import stays smartcli_core; from 0.2.0 the wheel also ships smartcli_drive + the
+smartcli-tui / smartcli-mcp / smartcli-toolkit commands); GitHub github.com/dwgx/SmartCLI;
+3 skills on skillhu.bz; `/plugin marketplace add dwgx/SmartCLI`; Codecov + Read the Docs
+(smartcli.readthedocs.io) live; MCP Registry LIVE (io.github.dwgx/smartcli, re-publish
+automated via publish.yml OIDC). VERSION must stay consistent across TEN sites:
+pyproject / smartcli_core __init__ / fx __init__ / 3 SKILL.md / marketplace.json /
+plugin.json / _vendor/smartcli_core/__init__ / server.json (2 fields there). After a
+bump run `python tools/sync_vendor.py`, then `python tests/test_vendor_sync.py` and
+`python tests/test_version_sync.py`. publish.yml (OIDC) auto-publishes on tag push
+(`git tag vX.Y.Z && git push origin vX.Y.Z`; twine not needed; PyPI JSON index lags a
+few min — the workflow going green is the truth). CI: 3-OS matrix (win/ubuntu/macos ×
+py3.10/3.14) deterministic gates incl. anti-drift test_doc_counts + test_version_sync,
+plus bounded drive-smoke (real-PTY probes) and package (wheel/registry contract) jobs;
+9 workflows. cc-decompiled/ stays gitignored/excluded.
 
-OPEN OBJECTIVES — "reach A-grade" gaps (ranked by impact/effort; start immediately):
-1. [DONE 2026-07-13] py.typed marker shipped in smartcli_core (verified in the wheel).
-2. [DONE 2026-07-14] Linux + macOS CI matrix — ci.yml runs the deterministic suite +
-   _sandbox_posix_backend.py on win/ubuntu/macos × py3.11/3.12. POSIX backend stays green
-   automatically (was Windows-only). Next structural gap is hosting the mkdocs site (§6#8).
-3. [M] MCP-server wrapper over the drive-tui daemon verb surface — biggest adoption lever.
-4. [S] Pattern-list / multi-marker wait (pexpect-style wait-any returning which matched).
-5. [M] Golden-frame snapshot regression test for tui-ui (baseline + diff).
-6. [M] Shared easing.py + Gradient(stops,steps,direction) builder for cmd-art.
-7. [S-M] Ship spectrum-bars + cbonsai fx effects ([[spectrum-bars]] / [[procedural-branching]]
-   are ready); verify with test_fx_contract.py + on the real run path.
-8. [L] mkdocs-material docs site + CONTRIBUTING.md + pytest/coverage badge.
-Discoverability (0 stars): record a demo GIF/asciinema for README top, then Show HN /
-r/commandline / awesome-claude-code + awesome-cli-apps PRs.
-Still-open replica polish: eyeball effort_selector cadence in a REAL Windows Terminal
-(keep field.Ripple travel SMALL, ~lambda x1..1.6; travel < ~26 keeps low/med/high/xhigh
-clean dim-gray; distances ultracode 4/max 14/xhigh 25/high 34/medium 45/low 53). POSIX-
-verify drive-tui (daemon start_new_session + C-c path) on Linux/mac; tmux launchers need a
-real tmux host. Rely on WebSearch/WebFetch (codex dispatcher is dead).
+OPEN OBJECTIVES (the §6 A-grade list #1–#7 is DONE through v0.1.8; what actually remains):
+1. [OWNER] Decide & cut the v0.2.0 release: merge codex/cross-platform-mcp-hardening,
+   `git tag v0.2.0 && git push origin v0.2.0` (publish.yml then does PyPI + MCP Registry).
+   Breaking: drops py3.9, mcp becomes required — CHANGELOG documents both.
+2. [OWNER, standing] B-SEC: revoke the leaked PyPI API token (OIDC publish makes it
+   unnecessary). Re-raise every session until done — do not silently drop.
+3. [S] D1: write RESEARCH-PROMPTS.md from the calibrated /deep-research anchor list
+   (conch, terminal-bench, plotille, TTE, PyPI trusted publishing) — see NEXT-STEPS D1.
+4. [M-L] Harbor / TB-2.0 port of the Terminal-Bench adapter (classic-TB adapter exists;
+   the public leaderboard moved to a different agent interface). bench.yml scored runs
+   also need the owner to add an LLM API-key secret.
+5. [M] tui-ui reactive/declarative layer; [M] kitty graphics protocol next to sixel.
+6. [Human eyeball] effort_selector cadence in a real Windows Terminal (travel SMALL,
+   ~lambda x1..1.6; distances ultracode 4/max 14/xhigh 25/high 34/medium 45/low 53);
+   real-Mac interactive curses DECCKM/SS3 probe over SSH; real-WT sixel render
+   eyeball. (tmux launchers: DONE 2026-07-27 on real tmux 3.6b.)
+Discoverability (owner-gated, copy ready in docs/LAUNCH-COPY.md): C2 awesome-list PRs,
+then C4 Show HN / r/commandline + C5 skill-community posts (C1 proof reels are DONE).
 
-VERIFY WHAT YOU SHIP (all should exit 0):
-  python tests\run_all.py                # unified runner (readiness/degenerate/fx-contract/probes)
-  cd skills\cmd-art && python -m fx list && python -m fx gallery   # 30 effects
-  python skills\tui-ui\examples\effort_selector.py --once --stage ultracode --frame 1
-  python skills\drive-tui\scripts\tui.py start --cmd "python" --cols 80 --rows 24
+VERIFY WHAT YOU SHIP (all should exit 0; paths POSIX-style, swap \ on Windows).
+Heavy PTY spawners (run_all, verify_fx, probes) need user consent first — red line:
+  python tests/run_all.py                # unified runner (29 entries; consent first)
+  cd skills/cmd-art && python -m fx list && python -m fx gallery   # 30 effects
+  python skills/tui-ui/examples/effort_selector.py --once --stage ultracode --frame 1
+  python skills/drive-tui/scripts/tui.py start --cmd "python3 -i -q" --cols 80 --rows 24
     -> wait-regex --id <SID> ">>> " --timeout-ms 15000 -> send-line -> snapshot -> close
-  cd skills\tui-ui && python -m ui widgets && python self_test.py   # 17 widgets
-  python skills\tui-ui\ui\box_junction.py                          # box_junction _selftest
-  python tests\verify_fx.py && python tests\_readme_literal.py && python tests\probe_pty_fx.py
-Then open the visual result in a real Windows Terminal and show the user before calling
+    -> list   # zero leaked sessions (ONE session at a time)
+  cd skills/tui-ui && python -m ui widgets && python self_test.py   # 17 widgets
+  python skills/tui-ui/ui/box_junction.py                          # box_junction _selftest
+  Deterministic quick gates (safe anytime): python tests/test_fx_contract.py,
+    test_readiness.py, test_visual_change.py, test_drive_security.py,
+    test_vendor_sync.py, test_doc_counts.py, test_version_sync.py
+Then open the visual result in a real terminal and show the user before calling
 anything done.
 ```
 

@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-"""_sandbox_posix_backend.py — REAL-Linux verification of PosixPtyBackend.
+"""_sandbox_posix_backend.py — native POSIX verification of PosixPtyBackend.
 
-Runs on a POSIX host (Debian, over SSH) to test the code path that has NEVER
-been verified off Windows: smartcli_core.PosixPtyBackend driving real programs
+Runs on Linux or macOS to test smartcli_core.PosixPtyBackend driving real programs
 through a real pty.fork() pseudo-terminal, plus the full perceive stack
 (ScreenModel/build_snapshot) and the two recorded POSIX-only known issues:
 
@@ -15,6 +14,7 @@ failed, since they are documented). Prints a clear PASS/FAIL/KNOWN line each.
 from __future__ import annotations
 
 import os
+import platform
 import sys
 import time
 
@@ -64,7 +64,7 @@ def drain(be, model, deadline_s):
 
 def main() -> int:
     print("=" * 62)
-    print("PosixPtyBackend — REAL Linux verification")
+    print(f"PosixPtyBackend — native {platform.system()} verification")
     print("=" * 62)
 
     # 0) the host picks the POSIX backend automatically

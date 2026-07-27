@@ -25,6 +25,7 @@ htmlcov/
 # Leading slash anchors to repo root so docs/site/ (the showcase site) is safe.
 /site/
 docs/index.md
+docs/install.md
 docs/usage.md
 docs/skills-cmd-art.md
 docs/skills-drive-tui.md

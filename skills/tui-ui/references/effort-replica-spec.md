@@ -8,7 +8,7 @@
 >   is periwinkle border `#b1b9f9`, accent `#8c50f0`, cosine ripple `#3e1676→#8c50f0`.
 > - Main-rule glyph: this says `─` (U+2500); code renders `▔` (U+2594).
 >
-> **Authoritative source of truth:** `D:/Project/SmartCLI/knowledge/ground-truth/effort-selector.md`
+> **Authoritative source of truth:** `knowledge/ground-truth/effort-selector.md` (repo root)
 > ([[effort-selector]]) and `examples/effort_selector.py`. Retained only as a record of
 > the pre-measurement guess.
 

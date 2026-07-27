@@ -2,7 +2,7 @@
 
 # SmartCLI のインストール
 
-SmartCLI は、プラグイン可能な PTY + `pyte` コアの上に構築された 3 つの Agent Skill（`cmd-art`、`drive-tui`、`tui-ui`）です。導入方法は「フォルダをそのまま置くだけ」から通常の pip インストールまで 3 通りあります。ファイルをどのように入手したかに合わせて選んでください。
+SmartCLI は、プラグイン可能な PTY + `pyte` コアの上に構築された 3 つの Agent Skill（`cmd-art`、`drive-tui`、`tui-ui`）です。導入方法は「フォルダをそのまま置くだけ」から通常の pip インストールまで 4 通りあります。ファイルをどのように入手したかに合わせて選んでください。
 
 ## TL;DR — 設定不要、置くだけ
 
@@ -19,7 +19,7 @@ python skills/drive-tui/scripts/tui.py doctor
 
 このコマンドは、`smartcli_core` がどこから解決されたか、ランタイム依存がそろっているかを表示し、不足しているものがあれば正確なインストールコマンドも示します。
 
-## 3 つのシナリオ
+## 4 つのシナリオ
 
 ### 1. リポジトリ全体（推奨）
 
@@ -49,19 +49,25 @@ python <dropped-in>/drive-tui/scripts/tui.py doctor
 /plugin install smartcli@smartcli
 ```
 
-### 4. pip（共有コアをライブラリとして）
+### 4. pip（ライブラリ + TUI ドライバー + MCP サーバー）
 
-`smartcli_core` を通常の import 可能なライブラリとして使うには、次のようにします。
+Python 3.10+ では、インポート可能なコアと 2 つのドライバー入口がインストールされます。
 
 ```bash
-pip install smartcli-toolkit   # import stays: from smartcli_core import PtySession
+pip install smartcli-toolkit
+smartcli-tui doctor
+smartcli-mcp
 ```
+
+インポート名は引き続き `from smartcli_core import PtySession` です。
+`smartcli-toolkit` は MCP Registry が `uvx` で起動するための `smartcli-mcp` の別名です。
 
 ## 依存関係
 
 | パッケージ | 必要とする対象 | 自動？ |
 |---|---|---|
 | `pyte` | `drive-tui` コア（必須の依存） | `doctor` が報告；要求に応じてインストール |
+| `mcp` | インストール済みの stdio MCP サーバー | pip / requirements.txt がインストール |
 | `pywinpty` | **Windows** 上の `drive-tui` のみ | `doctor` が報告；要求に応じてインストール |
 | `pyfiglet`、`Pillow`、`wcwidth` | 任意の便利機能 — なくてもすべて適切にフォールバックします | 一切不要 |
 

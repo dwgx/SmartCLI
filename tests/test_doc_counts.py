@@ -46,17 +46,15 @@ import patterns as dt_patterns  # noqa: E402
 dt_patterns.load_all()
 N_RECIPES = len(dt_patterns.all_patterns())
 
-print(f"live counts: fx={N_FX} recipes={N_RECIPES}")
+# widgets: the same live registry `python -m ui widgets` prints from. This IS a
+# hard gate — the 15->17 drift (fuzzy_filter_list + preview_pane shipped in
+# v0.1.6, docs kept saying 15 across README, 3 localized READMEs, 5 site pages
+# and README-USAGE) survived precisely because this count was informational.
+from ui import registry as ui_registry  # noqa: E402
+ui_registry.load_all()
+N_WIDGETS = len(ui_registry.widget_names())
 
-# widgets: count the ui widgets CLI listing deterministically via the registry
-try:
-    from ui import widgets as _w  # noqa: F401
-    # the `python -m ui widgets` count is 15 (11 core + 4 ext); assert via files
-    core = list((ROOT / "skills" / "tui-ui" / "ui").glob("widgets*.py"))
-    ext = list((ROOT / "skills" / "tui-ui" / "ui" / "widgets_ext").glob("*.py"))
-    # not a hard registry read; treated as informational
-except Exception:
-    pass
+print(f"live counts: fx={N_FX} recipes={N_RECIPES} widgets={N_WIDGETS}")
 
 # --- docs that state an fx effect count --------------------------------------
 # Every "<N> effects" / "list all <N> effects" in shipping docs must equal N_FX.
@@ -65,12 +63,42 @@ DOCS = [
     ROOT / "README-USAGE.md",
     ROOT / "HANDOFF.md",
     ROOT / "NEXT-STEPS.md",
+    ROOT / "CLAUDE.md",
     ROOT / "docs" / "i18n" / "README.zh-Hans.md",
     ROOT / "docs" / "i18n" / "README.zh-Hant.md",
     ROOT / "docs" / "i18n" / "README.ja.md",
     ROOT / "docs" / "i18n" / "README.ko.md",
     ROOT / "skills" / "cmd-art" / "SKILL.md",
 ]
+
+# Docs that state a WIDGET count. Same drift class, wider blast radius: the site
+# pages are shipped HTML, so they are scanned too.
+WIDGET_DOCS = [
+    ROOT / "README.md",
+    ROOT / "README-USAGE.md",
+    ROOT / "CLAUDE.md",
+    ROOT / "skills" / "tui-ui" / "SKILL.md",
+    ROOT / "docs" / "i18n" / "README.zh-Hans.md",
+    ROOT / "docs" / "i18n" / "README.zh-Hant.md",
+    ROOT / "docs" / "i18n" / "README.ja.md",
+    ROOT / "docs" / "i18n" / "README.ko.md",
+    ROOT / "docs" / "MACOS-VERIFY.md",
+    ROOT / "docs" / "site" / "index.html",
+    ROOT / "docs" / "site" / "index.zh-Hans.html",
+    ROOT / "docs" / "site" / "index.zh-Hant.html",
+    ROOT / "docs" / "site" / "index.ja.html",
+    ROOT / "docs" / "site" / "index.ko.html",
+]
+
+# Agent-facing docs ship to other machines, so a hard-coded path from one dev box
+# is a dead pointer for every reader. Time-stamped archives are exempt: they
+# record what was true then and are explicitly frozen.
+PORTABLE_DOC_GLOBS = [
+    "README.md", "README-USAGE.md", "INSTALL.md", "CLAUDE.md", "CONTRIBUTING.md",
+    "SECURITY.md", "docs/i18n/*.md", "skills/*/SKILL.md", "skills/*/references/*.md",
+    "knowledge/*/*.md", "knowledge/INDEX.md",
+]
+BANNED_PATHS = ("D:/Project/SmartCLI", "D:\\Project\\SmartCLI")
 
 # Match "<N> effects" but NOT changelog-style historical lines. We scan every
 # doc; CHANGELOG is intentionally excluded (immutable release history).
@@ -116,6 +144,43 @@ def _scan(text):
     return bad
 
 
+# Widget claims are scanned over the WHOLE text, not line by line: the localized
+# feature paragraphs wrap mid-claim ("**17 个\n组件**"), which a per-line regex
+# silently misses — that is how the 15->17 drift survived in four translations.
+WIDGET_RES = [
+    re.compile(r"(\d+)\s*(?:reusable\s+)?widgets\b", re.IGNORECASE),   # 17 widgets
+    re.compile(r"list all (\d+) widgets", re.IGNORECASE),
+    re.compile(r"(\d+)\s*个\s*组件"),          # zh-Hans
+    re.compile(r"(\d+)\s*種\s*widget", re.IGNORECASE),  # zh-Hant
+    re.compile(r"(\d+)\s*種の\s*ウィジェット"),   # ja
+    re.compile(r"(\d+)\s*개\s*위젯"),           # ko
+    re.compile(r"Widget catalog \((\d+)\)", re.IGNORECASE),
+]
+
+
+def _scan_widgets(text):
+    bad = []
+    for rx in WIDGET_RES:
+        for m in rx.finditer(text):
+            if int(m.group(1)) == N_WIDGETS:
+                continue
+            line_no = text.count("\n", 0, m.start()) + 1
+            claim = " ".join(m.group(0).split())
+            if _is_meta(text.splitlines()[line_no - 1]):
+                continue
+            bad.append(f"line {line_no}: '{claim}' (should be {N_WIDGETS})")
+    return bad
+
+
+def _scan_banned_paths(text):
+    bad = []
+    for i, line in enumerate(text.splitlines(), 1):
+        for banned in BANNED_PATHS:
+            if banned in line:
+                bad.append(f"line {i}: hard-coded dev-box path '{banned}'")
+    return bad
+
+
 for doc in DOCS:
     if not doc.exists():
         continue
@@ -125,10 +190,32 @@ for doc in DOCS:
     check(not bad, f"{rel}: fx effect counts all == {N_FX}"
           + ("" if not bad else " -> " + "; ".join(bad)))
 
+for doc in WIDGET_DOCS:
+    if not doc.exists():
+        continue
+    text = doc.read_text(encoding="utf-8", errors="replace")
+    rel = doc.relative_to(ROOT)
+    bad = _scan_widgets(text)
+    check(not bad, f"{rel}: widget counts all == {N_WIDGETS}"
+          + ("" if not bad else " -> " + "; ".join(bad)))
+
+# --- portable docs must not hard-code one machine's absolute paths -----------
+portable = []
+for pattern in PORTABLE_DOC_GLOBS:
+    portable.extend(sorted(ROOT.glob(pattern)))
+for doc in portable:
+    text = doc.read_text(encoding="utf-8", errors="replace")
+    rel = doc.relative_to(ROOT)
+    bad = _scan_banned_paths(text)
+    check(not bad, f"{rel}: no hard-coded dev-box paths"
+          + ("" if not bad else " -> " + "; ".join(bad)))
+
 if FAILURES:
     print(f"\ntest_doc_counts FAIL -- {len(FAILURES)} doc(s) drifted from code:")
     for f in FAILURES:
         print("   -", f)
     sys.exit(1)
-print(f"\nPASS: all shipping docs agree with the code (fx={N_FX}, recipes={N_RECIPES})")
+print(f"\nPASS: all shipping docs agree with the code "
+      f"(fx={N_FX}, recipes={N_RECIPES}, widgets={N_WIDGETS}); "
+      f"{len(portable)} portable docs free of dev-box paths")
 sys.exit(0)

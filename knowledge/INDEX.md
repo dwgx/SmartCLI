@@ -46,8 +46,9 @@ Hub: [principles/README](principles/README.md). Start here for any creative rend
 
 ## Effects — the math of visual effects
 Hub: [effects/README](effects/README.md). Exact formulas for composed creative effects.
+Not sure where to start? → [[choosing-an-effect]]
 
-- 3D & projection: [[donut-torus]] · [[rotating-cube]] · [[starfield]] · [[perspective-projection]] · [[rotation-matrix]] · [[bresenham-line]]
+- 3D & projection: [[donut-torus]] · [[rotating-cube]] · [[starfield]] · [[perspective-projection]] · [[rotation-matrix]] · [[bresenham-line]] · [[sphere-lambert]] · [[solarsystem-orrery]]
 - Fields & fractals: [[plasma]] · [[tunnel]] · [[perlin-noise]] · [[mandelbrot]] · [[julia-set]]
 - Simulation: [[fire-lode]] · [[fire-doom-psx]] · [[game-of-life]] · [[matrix-rain]] · [[boids]]
 - Procedural / entity / particle: [[procedural-branching]] · [[decrypt-reveal]] · [[sprite-scroll]] · [[color-mask-sprites]] · [[particle-system]] · [[spectrum-bars]]
@@ -109,8 +110,8 @@ Every concept and works entry distills one of these research digests. They are t
 
 ## Integrity report
 
-- **Entries:** 92 concept files (across principles, effects, color-type, tui-patterns, agent-eng) + 3 ground-truth entries = **95 concept notes**, plus a **Works wing of 27 case studies** (12 visual art, 8 TUI frameworks, 7 banners/logos) = **122 total**.
-- **Sourced:** every concept note carries a **Source:** (URL or explicit *primary/synthesized*). All 27 works entries carry a **real source URL** from the digests — 27/27 sourced; several also cite the exact source file verified (e.g. `lol.rb`, `cbonsai.c`, `motion.py`, `color.go`, `particle.rs`). Digest-flagged uncertainties are marked *(verify)* inline: `neo` (README-level color math), `sl` (constants not re-fetched), `notcurses` `ncpile_rasterize` quantization, `chafa` cost function, and the galleries note.
+- **Entries:** 95 concept files (across principles, effects, color-type, tui-patterns, agent-eng) + 3 ground-truth entries = **98 concept notes**, plus a **Works wing of 27 case studies** (12 visual art, 8 TUI frameworks, 7 banners/logos) = **125 total** (**143 `.md` files** including the 8 READMEs/INDEX and the 10 `sources/` digests). *(Re-counted against disk 2026-07-27.)*
+- **Sourced:** every concept note carries a **Source:** (URL or explicit *primary/synthesized*). All 27 works entries carry a **real source URL** from the digests — 27/27 sourced; several also cite the exact source file verified (e.g. `lol.rb`, `cbonsai.c`, `motion.py`, `color.go`, `particle.rs`). The digest-level uncertainties that once flagged `neo` (README-level color math), `sl` (constants not re-fetched), `notcurses` `ncpile_rasterize` quantization and `chafa`'s cost function were **source-confirmed on 2026-07-08** — those four notes carry no inline *(verify)* today (re-grepped 2026-07-27). The one remaining *(verify)* is the galleries note in [works/README](works/README.md): the raw gallery survey was never distilled into entries.
 - **Dangling links:** none. The six formerly-dangling concept slugs — `procedural-branching`, `decrypt-reveal`, `sprite-scroll`, `color-mask-sprites`, `particle-system`, `spectrum-bars` — are now authored in `effects/` and resolve. All wiki-links resolve.
 - **Provenance:** all 10 `sources/` digests are reachable — the deep-dives and domain compilations from INDEX + their domain READMEs, the raw surveys from `works/README` and the deep-dives they feed. See the Sources / provenance tier above.
 - **Intentional multi-domain slug:** `tmux-capture-pane` exists in three domains (principles / tui-patterns / agent-eng), each a domain-specific angle on the same tool — kept distinct on purpose, now reciprocally cross-linked with `principles/` as the canonical flag reference. The alternate-screen cluster (`tmux-alternate-screen` / `alternate-screen-buffer` / `alternate-screen-detection`) is likewise reciprocally cross-linked.

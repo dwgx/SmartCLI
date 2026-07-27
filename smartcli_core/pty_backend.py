@@ -21,8 +21,8 @@ import abc
 import queue
 import sys
 import threading
-import time
-from typing import Optional, Sequence, Union
+from collections.abc import Sequence
+from typing import Any
 
 
 class PtyBackend(abc.ABC):
@@ -34,7 +34,7 @@ class PtyBackend(abc.ABC):
     """
 
     @abc.abstractmethod
-    def spawn(self, cmd: Union[str, Sequence[str]], cols: int, rows: int) -> None:
+    def spawn(self, cmd: str | Sequence[str], cols: int, rows: int) -> None:
         """Launch ``cmd`` in a PTY of size ``cols`` x ``rows``."""
 
     @abc.abstractmethod
@@ -67,12 +67,13 @@ class WinptyBackend(PtyBackend):
     """
 
     def __init__(self) -> None:
-        self._proc = None  # winpty.PtyProcess
-        self._queue: "queue.Queue[Optional[bytes]]" = queue.Queue()
-        self._reader: Optional[threading.Thread] = None
+        # pywinpty is an optional, platform-only import with no bundled stubs.
+        self._proc: Any | None = None  # winpty.PtyProcess
+        self._queue: queue.Queue[bytes | None] = queue.Queue()
+        self._reader: threading.Thread | None = None
         self._eof = False
 
-    def spawn(self, cmd: Union[str, Sequence[str]], cols: int, rows: int) -> None:
+    def spawn(self, cmd: str | Sequence[str], cols: int, rows: int) -> None:
         import winpty  # imported lazily so non-Windows hosts don't require it
 
         # Reset per-spawn state so a re-used backend (a second spawn on the same
@@ -92,6 +93,8 @@ class WinptyBackend(PtyBackend):
     def _read_loop(self) -> None:
         """Blocking-read the child until EOF, pushing bytes into the queue."""
         proc = self._proc
+        if proc is None:
+            return
         while True:
             try:
                 data = proc.read(65536)  # returns str; blocks if nothing ready
@@ -153,11 +156,11 @@ class PosixPtyBackend(PtyBackend):
     """
 
     def __init__(self) -> None:
-        self._pid: Optional[int] = None
-        self._fd: Optional[int] = None
+        self._pid: int | None = None
+        self._fd: int | None = None
         self._eof = False
 
-    def spawn(self, cmd: Union[str, Sequence[str]], cols: int, rows: int) -> None:
+    def spawn(self, cmd: str | Sequence[str], cols: int, rows: int) -> None:
         import fcntl
         import os
         import pty

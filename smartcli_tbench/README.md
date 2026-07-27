@@ -30,8 +30,9 @@ the agent requires a TB host.
 
 ## Running the benchmark
 
-Terminal-Bench needs **Docker + Linux** — it cannot run on the Windows dev box (no
-WSL). Use CI `ubuntu-latest` (see `.github/workflows/bench.yml`) or the Debian box.
+Terminal-Bench needs **Docker with Linux containers** — that means macOS or Linux
+with Docker installed, or Windows with WSL2. CI `ubuntu-latest`
+(see `.github/workflows/bench.yml`) is the reference path.
 
 ```bash
 uv tool install terminal-bench   # or: pip install terminal-bench
@@ -43,9 +44,12 @@ tb run --agent oracle --dataset-name terminal-bench-core --n-tasks 5
 # the scored run (needs an LLM API key + a decide_fn wired into SmartCliAgent):
 tb run \
   --agent-import-path "smartcli_tbench.agent:SmartCliAgent" \
-  --model anthropic/claude-3-7-latest \
+  --model anthropic/claude-sonnet-5 \
   --dataset-name terminal-bench-core --n-tasks 5
 ```
+
+Model ids follow whatever litellm / the provider currently accepts — check their
+live model list rather than copying an id from a doc.
 
 The `decide_fn` (the LLM call) is intentionally not bundled — pass `decide_fn=` to
 `SmartCliAgent` or override `_make_decider` to plug in your model client. The loop

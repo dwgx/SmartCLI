@@ -74,7 +74,6 @@ _XDR_SET = set(XDR)           # fast membership test for "is this cell washed?"
 MIO = XDR[-1]                 # brightest violet (bg of selected ultracode label)
 WHITE = (255, 255, 255)       # text color on ripple cells
 ZRN = MIO                     # unselected ultracode label color
-ZTA = (0xD0, 0xB4, 0xFF)      # #d0b4ff — xhigh shimmer bright char
 DIM = (0x8A, 0x8A, 0x99)
 
 # ripple wave params
@@ -184,21 +183,6 @@ def make_ripple(origin_col: int, travel: float, phase: float = 0.0):
         text_over=True,
         phase=phase,
     )
-
-
-def _stage_color(kind, selected, t):
-    """Per-stage color for the non-ripple stages."""
-    if kind == "warning":
-        return KIND_COLORS["warning"]
-    if kind == "success":
-        return KIND_COLORS["success"]
-    if kind == "permission":
-        return KIND_COLORS["permission"]
-    if kind == "autoAccept-shimmer":
-        return ZTA if selected else (0x9A, 0x8C, 0xD0)
-    if kind == "rainbow-animated":
-        return None  # painted per-glyph below
-    return THEME.fg
 
 
 # GROUND TRUTH rainbow ring for the "max" label (era per-char hue cycling).
@@ -533,4 +517,3 @@ def main(argv=None):
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

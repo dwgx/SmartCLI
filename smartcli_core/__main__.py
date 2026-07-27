@@ -48,7 +48,9 @@ def _section(title: str, rows: list[tuple[str, str]]) -> None:
 
 def main() -> int:
     try:
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
+        reconfigure = getattr(sys.stdout, "reconfigure", None)
+        if callable(reconfigure):
+            reconfigure(encoding="utf-8", errors="replace")
     except Exception:
         pass
 
@@ -91,6 +93,7 @@ def main() -> int:
         ("default backend", "ConPTY (pywinpty)" if is_win else "POSIX pty (stdlib)"),
         ("pyte", _ver("pyte")),
         ("pywinpty", _ver("winpty", "pywinpty") if is_win else "n/a (POSIX)"),
+        ("mcp", _ver("mcp")),
     ])
 
     _section("Optional extras", [
@@ -106,6 +109,9 @@ def main() -> int:
                      "crash on a legacy codepage. Set it before running.")
     if _ver("pyte") == "not installed":
         notes.append("pyte is REQUIRED and missing — `pip install smartcli-toolkit`.")
+    if _ver("mcp") == "not installed":
+        notes.append("mcp SDK missing — smartcli-mcp won't start; "
+                     "`pip install smartcli-toolkit` installs it.")
     if is_win and _ver("winpty", "pywinpty") == "not installed":
         notes.append("pywinpty missing on Windows — the ConPTY backend can't run.")
     if notes:

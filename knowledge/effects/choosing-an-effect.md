@@ -27,13 +27,13 @@ tune its params, or compose your own from the primitives it cites.
 | Orbits / planets / a system in motion | tilted orbits, perspective ellipses, painter's depth | [[solarsystem-orrery]] | `solarsystem` |
 | Stars / depth / flying through space | points on the z-axis, brighten as they near | [[starfield]], [[tunnel]] | `starfield`, `tunnel` |
 | Explosions / sparks / confetti / physics | particles: velocity + gravity + drag + trail + life fade | [[particle-system]] | `fireworks` |
-| A living / growing / organic pattern | cellular automaton or stochastic branching | [[game-of-life]], [[procedural-branching]] | `life`, `boids` |
+| A living / growing / organic pattern | cellular automaton or stochastic branching | [[game-of-life]], [[procedural-branching]] | `life`, `boids`, `cbonsai` |
 | Big text / a title / a banner | FIGlet glyphs, optionally gradient-colored | [[figlet-flf-spec]], [[ascii-luminance-ramp]] | `text3d`, `banner_scroll`, `gradient_text` |
 | A "decrypting / resolving" text reveal | per-cell countdown + glyph churn, lock at zero | [[decrypt-reveal]] | `decrypt` |
 | An image as ASCII/ANSI | half-block cells or a luminance ramp | [[image-to-ansi-halfblock]], [[ascii-luminance-ramp]] | `image2ascii` |
-| An audio-style bar meter | log-spaced bins + gravity smoothing + eighth-block sub-cell | [[spectrum-bars]] | (compose) |
-| A fractal / infinite-zoom math shape | escape-time iteration | [[mandelbrot]], [[julia-set]] | (compose) |
-| Smooth organic noise (clouds, terrain) | gradient noise: fade curve + trilinear lerp | [[perlin-noise]] | (compose) |
+| An audio-style bar meter | log-spaced bins + gravity smoothing + eighth-block sub-cell | [[spectrum-bars]] | `spectrum_bars` |
+| A fractal / infinite-zoom math shape | escape-time iteration | [[mandelbrot]], [[julia-set]] | `mandelbrot`, `julia` |
+| Smooth organic noise (clouds, terrain) | gradient noise: fade curve + trilinear lerp | [[perlin-noise]] | `perlin` (composed further in `flames`, `water`, `nebula`) |
 
 ## When nothing fits exactly
 

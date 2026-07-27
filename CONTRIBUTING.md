@@ -35,11 +35,19 @@ python tests/test_fx_contract.py       # every fx effect x sizes, exact frame co
 python tests/test_readiness.py          # readiness virtual-clock + blank-gate locks
 python tests/test_degenerate_inputs.py  # degenerate-input regression locks
 python tests/test_doc_counts.py         # docs match code (anti-drift)
+python tests/test_version_sync.py       # the ten version sites agree
+python tests/test_visual_change.py      # selection/cursor-aware wait locks
+python tests/test_drive_security.py     # drive-tui control-plane boundaries
 python tests/test_golden_frames.py      # tui-ui widget golden-frame snapshots
 ```
 
-CI runs a 3-OS matrix (Windows + Linux + macOS × Python 3.11/3.12). Please make
-sure `python tests/run_all.py` is green locally before opening a PR.
+That list is not exhaustive — `tests/run_all.py` is the source of truth for what
+gets gated.
+
+CI runs a 3-OS matrix (Windows + Linux + macOS × Python 3.10/3.14 — the support
+boundaries), plus bounded `drive-smoke` (real-PTY probes) and `package`
+(wheel/registry contract) jobs on Python 3.12. Please make sure
+`python tests/run_all.py` is green locally before opening a PR.
 
 ## The hard rules (non-negotiable)
 
@@ -67,10 +75,12 @@ faster.
    under a real mutation is worthless. Every test in this repo is
    mutation-verified genuine — keep it that way.
 
-5. **Docs must match the code.** `test_doc_counts.py` gates effect/recipe/widget
-   counts (including CJK phrasings in the localized READMEs). If you add an
-   effect or widget, update every doc that states a count, or the anti-drift gate
-   fails the PR.
+5. **Docs must match the code.** `test_doc_counts.py` gates the effect and widget
+   counts stated in shipping docs (including CJK phrasings in the localized
+   READMEs) and bans machine-specific absolute paths from portable docs;
+   `test_version_sync.py` gates the ten version sites. If you add an effect or
+   widget, update every doc that states a count, or the anti-drift gate fails the
+   PR. See `tests/test_doc_counts.py` for the exact coverage.
 
 ## Adding an effect / recipe / widget
 

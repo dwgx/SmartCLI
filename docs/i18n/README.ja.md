@@ -40,16 +40,26 @@ Linux コンテナ内で実際のプログラムを駆動してキャプチャ�
 > [`skills/drive-tui/references/LIMITATIONS.md`](../../skills/drive-tui/references/LIMITATIONS.md)
 > を参照してください。
 
-## スクリーンショット
+## ライブエフェクト
 
-`fx` エンジンで描画した `cmd-art` エフェクトの小さなギャラリーです。いずれも `python -m fx play <name>` で再現できます（[クイックスタート](#quickstart)を参照）。
+`cmd-art` の `fx` エンジンの実キャプチャです — 各 GIF は、プロジェクト自身の
+パイプラインでフレームごとにレンダリングした実際のエフェクトです（スクリーン
+レコーダーは不使用）。いずれも `python -m fx play <name>` で再現できます
+（[クイックスタート](#quickstart)を参照）。
+
+<p align="center">
+  <img src="../../showcase/fx-solarsystem.gif" alt="ASCII の太陽系オーラリー — 脈動する太陽を周回する惑星たち" width="620"><br>
+  <sub><b>solarsystem</b> — オーラリー: 脈動する太陽の周りを楕円軌道で回る惑星たち</sub>
+</p>
 
 | | | |
 |:---:|:---:|:---:|
-| ![donut](../../showcase/donut.png) | ![fire](../../showcase/fire.png) | ![plasma](../../showcase/plasma.png) |
-| **donut** | **fire** | **plasma** |
-| ![rain](../../showcase/rain.png) | ![starfield](../../showcase/starfield.png) | ![tunnel](../../showcase/tunnel.png) |
-| **rain** | **starfield** | **tunnel** |
+| ![donut](../../showcase/fx-donut.gif) | ![fire](../../showcase/fx-fire.gif) | ![rain](../../showcase/fx-rain.gif) |
+| **donut** — 古典の ASCII トーラス | **fire** — デモシーンの熱場 | **rain** — Matrix のデジタルレイン |
+
+> 🌐 **[ライブショーケースを探索する →](https://dwgx.github.io/SmartCLI/index.ja.html)** —
+> エフェクトエンジンで遊び、矢印キーでメニューを駆動し、ウィジェットを触ってみる。
+> すべてブラウザの中で動きます。
 
 ## Install
 
@@ -58,6 +68,8 @@ Linux コンテナ内で実際のプログラムを駆動してキャプチャ�
 ```bash
 pip install smartcli-toolkit
 ```
+
+Python 3.10 以降が必要です。共有ライブラリ、永続 TUI ドライバー、stdio MCP サーバーがインストールされます。
 
 > **配布名とインポート名の違い:** PyPI での配布名は `smartcli-toolkit` です
 > （`smartcli` / `smart-cli` という名前はすでに取得済み、あるいはブロックされていました）が、
@@ -72,16 +84,11 @@ cd SmartCLI
 python -m pip install -r requirements.txt
 ```
 
-`requirements.txt` は、必須の実行時依存 2 つだけを取得します。`pyte`（すべての環境）と
-`pywinpty`（Windows のみ — マーカーにより POSIX ではスキップされ、POSIX は標準ライブラリの `pty`
-バックエンドを使用します）です。チェックアウトからは `pip install .` で、同じインポート可能な
-`smartcli_core` パッケージがインストールされます。
-
-スコープに関する率直な注記: `pip install smartcli-toolkit` は、クリーンでインポート可能な `smartcli_core`
-パッケージとその必須依存をインストールします。3 つのスキルを**再配置することはありません** — これらは
-クイックスタートに示すとおり、それぞれのエントリポイント（`python -m fx`、`python -m ui`、
-`skills/drive-tui/scripts/tui.py`）を介してその場で実行します。これは設計上の意図です。
-[`pyproject.toml`](../../pyproject.toml) の冒頭の注記を参照してください。
+`requirements.txt` は `pyte`、MCP SDK、Windows 専用の `pywinpty` をインストールします
+（POSIX は標準ライブラリの `pty` を使用します）。`pip install .` は `smartcli_core` と
+`smartcli-tui`、`smartcli-mcp`、`smartcli-toolkit` の各コマンドをインストールします。
+ビジュアル用の `cmd-art` と `tui-ui` スキルは、チェックアウトから `python -m fx` と
+`python -m ui` で引き続き実行します。
 
 **オプションの追加パッケージ**（本物の FIGlet フォント、ラスター画像、正確なセル幅 — いずれも
 存在しない場合は標準ライブラリのフォールバックへ穏やかにデグレードします）:
@@ -104,6 +111,11 @@ set PYTHONIOENCODING=utf-8
 
 開発機（Windows 11、CPython 3.14.6）で検証済みの依存バージョン: `pyte` 0.8.2、
 `pywinpty` 3.0.5、`pyfiglet` 1.0.4、`Pillow` 12.2.0、`wcwidth` 0.8.1。
+
+**診断。** `python -m smartcli_core` は OS、Python、ターミナル、PTY バックエンド、
+依存パッケージのバージョンを表示します。`smartcli-tui doctor` は、コアがどこから
+ロードされたか、drive 系の依存がそろっているかを報告します。ターミナルに依存する
+バグを報告するときは、両方の出力を添えてください。
 
 ## Quickstart
 
@@ -131,11 +143,22 @@ python -m ui demo table --width 80 --height 12 --theme dashboard
 永続セッション CLI（状態はシェル呼び出しをまたいで保持されます）:
 
 ```bash
-python skills/drive-tui/scripts/tui.py start --cmd "python" --cols 80 --rows 24
-python skills/drive-tui/scripts/tui.py wait-regex --id <SID> ">>> " --timeout-ms 15000
-python skills/drive-tui/scripts/tui.py send-line --id <SID> "print(6*7)"
-python skills/drive-tui/scripts/tui.py snapshot --id <SID>
-python skills/drive-tui/scripts/tui.py close --id <SID>
+smartcli-tui start --cmd "python3 -i -q" --cols 80 --rows 24
+smartcli-tui wait-regex --id <SID> ">>> " --timeout-ms 15000
+smartcli-tui send-line --id <SID> "print(6*7)"
+smartcli-tui snapshot --id <SID>
+smartcli-tui close --id <SID>
+```
+
+Windows では子コマンドを `py -i -q` に置き換えてください。ソースから実行する場合は、
+`smartcli-tui` を `python skills/drive-tui/scripts/tui.py` に置き換えます。
+
+あるいは、任意の MCP クライアントから駆動することもできます — 同じ動詞が MCP
+ツールとして公開され、セッションごとのトークンは自動で付与されます:
+
+```bash
+pip install smartcli-toolkit
+smartcli-mcp     # stdio MCP server; smartcli-toolkit is an equivalent alias
 ```
 
 ### ライブラリとして
@@ -166,9 +189,9 @@ ocean、synthwave、viridis、pastel、matrix-green、rainbow）にわたって�
 フレームプロデューサであり、`play` はデフォルトで時間制限付きで、常にターミナルを元の状態へ復元します。
 
 **`tui-ui`**（`skills/tui-ui`）— tmux セーフな ANSI フレーム（SGR カラーラン + 改行のみ。
-カーソル移動なし、代替スクリーンなし）を出力する、Web ライクなターミナルレイアウトエンジン。**15 種の
-ウィジェット**（badge、banner、braille_chart、card、gradient_rule、kv、meter、panel、
-progress、radial_glow、rule、slider_track、table、tabs、tree）を、本物の**エンジン**の上に載せています。
+カーソル移動なし、代替スクリーンなし）を出力する、Web ライクなターミナルレイアウトエンジン。**17 種の
+ウィジェット**（badge、banner、braille_chart、card、fuzzy_filter_list、gradient_rule、kv、meter、panel、
+preview_pane、progress、radial_glow、rule、slider_track、table、tabs、tree）を、本物の**エンジン**の上に載せています。
 `field.py`（シェーダコンポジタ）、`raster.py`（サブセルの half/quad/braille ピクセル）、
 `box_junction.py`（辺の代数による罫線結合）、`color_model.py`（トゥルーカラー → 256 → 16 → mono
 への正直なデグレード）。CJK / 絵文字 / ZWJ に対して表示セル単位で正確なので、列がずれることはありません。
@@ -184,8 +207,8 @@ progress、wizard）から成るインポート可能なパターンライブラ
 セマンティックスナップショット + readiness 同期（`pty_backend / screen_model / snapshot / readiness /
 session`）。3 つのスキルすべての土台となる、再利用可能でインポート可能な基盤です。
 
-**ナレッジグラフ**（`knowledge/`）— 正確な描画式、ANSI シーケンス、実測した定数からなる 122 ノートの
-wiki リンクグラフ。各ノートは出典と相互リンクを持ちます。
+**ナレッジグラフ**（`knowledge/`）— 正確な描画式、ANSI シーケンス、実測した定数からなる
+wiki リンクグラフ（140+ の `.md` ファイル）。各ノートは出典と相互リンクを持ちます。
 [`knowledge/INDEX.md`](../../knowledge/INDEX.md) を参照してください。
 
 ## プロジェクト構成
@@ -198,8 +221,8 @@ SmartCLI/
   skills/tui-ui/           terminal UI layout engine and widgets (17 widgets)
   tools/screenshot/        pyte -> PNG smoke-test harness
   tools/agentcli/          agent-CLI control validation harness
-  knowledge/               122-note knowledge graph (see knowledge/INDEX.md)
-  showcase/                rendered effect PNGs (see Screenshots)
+  knowledge/               wiki-link knowledge graph, 140+ .md files (see knowledge/INDEX.md)
+  showcase/                rendered effect PNGs + demo GIFs (shown above)
   tests/                   direct script-style regressions
   research/                archived first-pass research notes
 ```
@@ -208,7 +231,7 @@ SmartCLI/
 
 - **[`README-USAGE.md`](../../README-USAGE.md)** — 使い方の完全なチートシート。すべてのスキル、
   スクリーンショットと AGENTCLI のハーネス、リグレッションコマンドを網羅しています。
-- **[`knowledge/INDEX.md`](../../knowledge/INDEX.md)** — 122 ノートのナレッジグラフ。
+- **[`knowledge/INDEX.md`](../../knowledge/INDEX.md)** — ナレッジグラフ（140+ の `.md` ファイル）。
 - **[`AGENTCLI-VALIDATION.md`](../../AGENTCLI-VALIDATION.md)** — agent-CLI 制御のテストマトリクス。
 - **[`CHANGELOG.md`](../../CHANGELOG.md)** — リリース履歴。
 

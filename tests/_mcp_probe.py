@@ -13,6 +13,8 @@ closes the session in a finally block. Real ConPTY — SLOW; run serially.
 from __future__ import annotations
 
 import os
+import shlex
+import subprocess
 import sys
 import tempfile
 import time
@@ -25,7 +27,8 @@ REG_DIR = Path(tempfile.mkdtemp(prefix="mcp_probe_"))
 os.environ["SMARTCLI_TUI_DIR"] = str(REG_DIR)
 os.environ["PYTHONIOENCODING"] = "utf-8"
 
-sys.path.insert(0, str(REPO_ROOT / "skills" / "drive-tui" / "scripts"))
+if not os.environ.get("SMARTCLI_TEST_INSTALLED"):
+    sys.path.insert(0, str(REPO_ROOT / "skills" / "drive-tui" / "scripts"))
 
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
@@ -33,7 +36,10 @@ except Exception:
     pass
 
 try:
-    import mcp_server as M  # noqa: E402
+    if os.environ.get("SMARTCLI_TEST_INSTALLED"):
+        from smartcli_drive import mcp_server as M  # noqa: E402
+    else:
+        import mcp_server as M  # type: ignore[no-redef]  # noqa: E402
 except SystemExit:
     # mcp_server raises SystemExit(2) when the `mcp` package is absent. That's a
     # missing optional dependency, not a failure — skip cleanly so run_all
@@ -43,9 +49,14 @@ except SystemExit:
         REG_DIR.rmdir()
     except OSError:
         pass
-    raise SystemExit(0)
+    raise SystemExit(0) from None
 
 _FAILURES = 0
+
+
+def python_repl_command() -> str:
+    argv = [sys.executable, "-i", "-q"]
+    return subprocess.list2cmdline(argv) if os.name == "nt" else shlex.join(argv)
 
 
 def check(cond: bool, label: str, detail: str = "") -> bool:
@@ -77,7 +88,13 @@ def main() -> int:
     sid = ""
     try:
         # --- start ---
-        r = start(cmd="python", cols=80, rows=24)
+        r = start(
+            cmd=python_repl_command(),
+            cols=80,
+            rows=24,
+            cwd=str(REG_DIR),
+            env={"SMARTCLI_MCP_PROBE": "present"},
+        )
         sid = r.get("sid", "")
         if not check(r.get("ok") and bool(sid), "start returns a sid", detail=str(r)):
             return 1
@@ -96,13 +113,25 @@ def main() -> int:
         r = wait_regex(sid=sid, pattern="42", timeout_ms=15000)
         check(r.get("ok") and r.get("matched"), "wait_regex sees the computed 42")
 
-        r = snapshot(sid=sid)
+        r = snapshot(sid=sid, as_json=True)
         check(r.get("ok") and "42" in r.get("text", ""),
               "snapshot text contains 42 (token auto-attached, no leak)",
               detail=repr(r.get("text", "")[-50:]))
+        check(isinstance(r.get("json"), dict),
+              "snapshot JSON is structured, not a nested JSON string")
+        check(isinstance(r.get("hash"), int) and isinstance(r.get("visual_hash"), int),
+              "snapshot exposes text and visual baselines")
+
+        check(send_line(
+            sid=sid,
+            text="import os; print('MCPENV', os.getenv('SMARTCLI_MCP_PROBE'))",
+        ).get("ok"), "send_line for MCP env probe ok")
+        r = wait_regex(sid=sid, pattern="MCPENV present", timeout_ms=15000)
+        check(r.get("ok") and r.get("matched"), "MCP start forwards cwd/env")
 
         # --- close ---
         check(close(sid=sid).get("ok"), "close ok")
+        check(close(sid=sid).get("ok"), "close is idempotent")
         sid = ""
 
         # --- no leaked sessions in the isolated dir ---

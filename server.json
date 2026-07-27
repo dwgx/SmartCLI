@@ -7,12 +7,14 @@
     "url": "https://github.com/dwgx/SmartCLI",
     "source": "github"
   },
-  "version": "0.1.8",
+  "version": "0.2.0",
   "packages": [
     {
       "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
       "identifier": "smartcli-toolkit",
-      "version": "0.1.8",
+      "version": "0.2.0",
+      "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"
       }

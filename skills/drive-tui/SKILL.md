@@ -9,7 +9,7 @@ description: >-
   spinners, password fields, curses UIs), or when a piped command hangs or
   prints nothing.
 allowed-tools: Bash, Read
-version: 0.1.8
+version: 0.2.0
 ---
 
 # drive-tui
@@ -45,7 +45,13 @@ All commands below are shown from the repo root. Use the exact form:
 A detached daemon owns one live program; each command connects over a localhost-only socket, so state survives across separate shell calls. This is the real perceive→decide→act loop.
 
 1. Start (prints a session id — capture it):
-   `python skills/drive-tui/scripts/tui.py start --cmd "python" --cols 100 --rows 30`
+   `python skills/drive-tui/scripts/tui.py start --cmd "python3 -i -q" --cols 100 --rows 30`
+   (On Windows use `--cmd "py -i -q"`.) Optional: `--id NAME` picks your own session
+   id (1-64 chars, `[A-Za-z0-9][A-Za-z0-9_.-]*`); `--cwd DIR` sets the program's
+   working directory; repeatable `--env KEY=VALUE` adds environment variables
+   (KEY must be a valid identifier and may not start with `SMARTCLI_TUI_`).
+   `run` (mode B) accepts `--cwd`/`--env` too. Size caps: 1000 cols, 500 rows,
+   100000 cells.
 2. Wait for the first prompt, then snapshot is printed automatically:
    `python skills/drive-tui/scripts/tui.py wait-regex --id <SID> ">>> " --timeout-ms 15000`
 3. Act, then wait, then it re-snapshots:
@@ -59,11 +65,16 @@ A detached daemon owns one live program; each command connects over a localhost-
    `python skills/drive-tui/scripts/tui.py list`
    `python skills/drive-tui/scripts/tui.py close --id <SID>`   (always close when done)
 
-Subcommands: `start`, `snapshot`, `send-text`, `send-line`, `keys`, `wait`, `wait-regex`, `wait-change`, `wait-any`, `alive`, `close`, `list`. The `wait*` verbs print liveness + reason/index to stderr and the snapshot to stdout. `wait-change` blocks until the screen changes from a baseline (the "did my action land?" primitive); `wait-any` races several `--pattern` regexes (pexpect `expect([...])` style) and reports WHICH matched first (index on stderr) — order patterns most-specific-first, since the earliest in the list wins a same-poll tie.
+Subcommands: `start`, `snapshot`, `send-text`, `send-line`, `keys`, `wait`, `wait-regex`, `wait-change`, `wait-visual-change`, `wait-any`, `alive`, `close`, `list`. The `wait*` verbs print liveness + reason/index to stderr and the snapshot to stdout. `wait-change` blocks until the screen text changes from a baseline (the "did my action land?" primitive); `wait-visual-change` is the same but also counts attribute/cursor-only changes (see *Choosing the right wait*); `wait-any` races several `--pattern` regexes (pexpect `expect([...])` style) and reports WHICH matched first (index on stderr) — order patterns most-specific-first, since the earliest in the list wins a same-poll tie.
+
+Baseline workflow for the change waits: `snapshot` prints `# hash=<H> visual_hash=<V>` on stderr — record it BEFORE acting, then use `wait-change --baseline-hash <H>` or `wait-visual-change --baseline-hash <V>` after. The two hashes are separate primitives: never feed a `hash` to `wait-visual-change` or a `visual_hash` to `wait-change`. (Omit `--baseline-hash` to baseline on the screen at call time.)
+
+`snapshot`, every `wait*` verb, `start`, `close`, and `list` accept `--json` for machine-readable output (`alive` reports via its exit code instead).
 
 ### B. One-shot script (batch, non-interactive)
 When you already know the whole sequence, run it in a single process against a fresh program. No session to manage. Write a JSON list of steps to a file and run:
-`python skills/drive-tui/scripts/tui.py run --cmd "python" --steps steps.json --cols 100 --rows 30`
+`python skills/drive-tui/scripts/tui.py run --cmd "python3 -i -q" --steps steps.json --cols 100 --rows 30`
+(On Windows use `--cmd "py -i -q"`.)
 
 Step objects (executed in order; each `wait_*`/`snapshot` prints a snapshot):
 - `{"action":"send_text","text":"..."}` — type literally, no Enter.
@@ -71,6 +82,9 @@ Step objects (executed in order; each `wait_*`/`snapshot` prints a snapshot):
 - `{"action":"send_keys","keys":["Down","Down","Enter"]}` — key tokens.
 - `{"action":"wait_ready","marker":"regex"}` — wait for marker OR stability (marker optional).
 - `{"action":"wait_regex","pattern":"regex","timeout_ms":10000}` — wait strictly for the regex.
+- `{"action":"wait_any","patterns":["regexA","regexB"],"timeout_ms":10000}` — race several regexes; reports which matched (index).
+- `{"action":"wait_change","timeout_ms":10000}` — wait for any text change (optional `"baseline_hash"`; defaults to the screen at step time).
+- `{"action":"wait_visual_change","timeout_ms":10000}` — as above, but attribute/cursor-only changes count too (optional `"baseline_hash"`).
 - `{"action":"snapshot"}` — print the current screen.
 
 ### C. MCP server (drive from any MCP client)
@@ -78,12 +92,15 @@ Step objects (executed in order; each `wait_*`/`snapshot` prints a snapshot):
 client (Claude Desktop, an agent framework) can drive TUIs without shelling out.
 It reuses the CLI's client layer, so the **per-session capability token is
 attached automatically** and no verb is exposed unauthenticated. Install the
-extra and run it (stdio transport):
-`pip install "smartcli-toolkit[mcp]"`
-`python skills/drive-tui/scripts/mcp_server.py`
+package and run it (stdio transport):
+`pip install smartcli-toolkit`
+`smartcli-mcp`
 Tools: `start`, `list_sessions`, `snapshot`, `send_text`, `send_line`,
-`send_keys`, `wait_regex`, `wait_ready`, `alive`, `resize`, `close` — a 1:1 map
-of the daemon verbs. The same perceive → decide → act loop applies.
+`send_keys`, `wait_regex`, `wait_change`, `wait_visual_change`, `wait_any`,
+`wait_ready`, `alive`, `resize`, `close` — a 1:1 map of the daemon verbs. The
+same perceive → decide → act loop applies. Note: `resize` is currently exposed
+only through MCP — the CLI has no resize subcommand, so pick the final size with
+`--cols`/`--rows` at `start` time.
 
 ## Silent / background operation — driving without disturbing the user
 
@@ -124,7 +141,7 @@ Never open a visible terminal window to "let the user watch" — that is the int
 ## Deciding: classify the screen
 - Prompt (`>>> `, `$ `, `Password:`, `Continue? [y/N]`) → send the answer with `send-line`, or a single key with `keys`.
 - Menu (a `*`/`selected` row, list of options) → move with `keys Up`/`keys Down`, choose with `keys Enter`. Do not type the option text.
-- Spinner / progress / still loading → do not act; call `wait` again (it caps at `max_wait_ms` and returns the last screen).
+- Spinner / progress / still loading → do not act; call `wait` again (it caps at `--timeout-ms` and returns the last screen).
 - Error (`errors=N` in header, red text, "Traceback"/"failed") → stop and read; do not keep sending input.
 - Finished result → capture the snapshot; act or close.
 
@@ -137,7 +154,8 @@ Combos: `C-c` / `^C` (Ctrl+C), `M-x` (Alt+x). Anything else is sent literally.
 
 ## Choosing the right wait — do NOT sleep
 - Know the exact text that means "ready" (a prompt, a banner) → `wait-regex <pattern>`. **Prefer this.** It watches strictly for the regex and will NOT return early.
-- Don't know the marker (screen just needs to settle after a keystroke) → `wait` (marker optional): returns on stability or a marker, capped by timeout.
+- Don't know the marker (screen just needs to settle after a keystroke) → `wait` (marker optional): returns on stability or a marker, capped by timeout. Form: `wait --id <SID> [--marker REGEX] [--timeout-ms N]`.
+- Sent a navigation key and the menu only moves its highlight bar (attributes change, text stays identical) → `wait-visual-change`: it also counts attribute- and cursor-only changes, which `wait`/`wait-change` deliberately ignore. For output streams, still prefer `wait-change` — text-only hashing is immune to blink/cosmetic attribute churn.
 - **Startup gotcha:** a program can sit quiet for seconds before its banner appears (Python's REPL banner arrives ~3s after spawn on Windows ConPTY). Plain `wait`/`wait_ready` may declare `STABLE` on the still-blank screen during that gap. So for the FIRST prompt after `start`, use `wait-regex` with a generous `--timeout-ms` (e.g. 15000), not bare `wait`.
 - Regex tips: match against the whole screen text. Anchoring with `$` needs multiline semantics — prefer a loose marker like `">>> "` over `">>> $"`. Confirm the result with a follow-up `snapshot`.
 
@@ -153,6 +171,8 @@ Combos: `C-c` / `^C` (Ctrl+C), `M-x` (Alt+x). Anything else is sent literally.
 - Always re-snapshot after acting; the snapshot before your keystroke is stale.
 - Arrow/nav keys are **adaptive**: `send_keys` reads the live screen's cursor-key mode and emits SS3 (`ESC O A`) when the program has enabled DECCKM (application cursor keys — most full-screen/curses TUIs), else CSI (`ESC [ A`). This is auto — you just send `keys Up`. (Verified on real Linux ncurses; before this, CSI-only arrows silently did nothing in DECCKM apps.) If a rare app still ignores arrows, re-snapshot and fall back to its letter/number shortcuts.
 - The daemon binds `127.0.0.1` only — local process control, no network exposure.
+- Session cap: `start` refuses beyond 8 concurrent sessions by default (`SMARTCLI_MAX_SESSIONS`, 1-128). Stale registry files count against the quota — if you hit the limit, `list` and `close` dead sessions first.
+- The session registry is per-user, never a shared fixed path: `%TEMP%\smartcli_tui` (Windows); `$XDG_RUNTIME_DIR/smartcli_tui` when set, else `~/Library/Caches/SmartCLI/sessions` (macOS) or `~/.cache/smartcli/sessions` (Linux). `SMARTCLI_TUI_DIR` overrides it; `list` reads exactly this directory.
 - Paths above are relative to this skill's folder; run the script by its path from the repo root.
 - Deeper API details: read `references/core_api.md` only when you need field-level specifics.
 
@@ -173,7 +193,7 @@ The point: the skill should get *more* capable each time it's pushed against a n
 
 ## Knowledge base — look before you build
 Before scripting a new interaction or pattern, consult the SmartCLI knowledge graph at
-`D:/Project/SmartCLI/knowledge/INDEX.md`. Its `tui-patterns/` domain is a 1:1 conceptual
+`knowledge/INDEX.md` (repo root). Its `tui-patterns/` domain is a 1:1 conceptual
 map of the 8 recipes below — [[list-menu-navigation]], [[fuzzy-search-filter]],
 [[pager-navigation]], [[confirm-yes-no-dialog]], [[progress-spinner-waiting]],
 [[form-field-input]], [[repl-session]], [[wizard-installer-flow]] — plus the sourced
