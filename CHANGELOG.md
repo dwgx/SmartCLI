@@ -5,7 +5,12 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.0] - 2026-07-19
+## [0.2.0] - 2026-07-27
+
+Security hardening of the drive-tui control plane, an installable MCP surface,
+and — from a differential-testing campaign against real terminals — **twelve
+screen-emulation bugs fixed**, including one that made every full-screen TUI
+unreadable. See HANDOFF §10 for the full arc.
 
 ### Added
 - Installable `smartcli-tui`, `smartcli-mcp`, and registry-compatible
@@ -15,6 +20,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   machine-readable start/list/close output, and structured MCP snapshots.
 - `visual_hash` + `wait_visual_change` across core, daemon, CLI, one-shot steps,
   and MCP for attribute-only selection and cursor movement.
+- **Alternate screen buffer support** (modes 1049/1047/47) with
+  `ScreenModel.screen.alt_screen`. pyte implements none of these, so until now a
+  full-screen program (vim, less, htop) painted its alternate screen on top of
+  the main one and never restored it — an agent read a merged, impossible screen.
+- **SGR sub-parameter tolerance** (ITU-T T.416 `:` syntax, e.g. `ESC[4:3m`,
+  `ESC[38:2::R:G:Bm`), which pyte's parser aborted on, drawing the remainder of
+  the sequence onto the grid as literal text. Neovim, kitty and delta emit it.
+- Differential test suite against real terminals: `_diff_tmux_pyte.py` (35
+  curated cases vs tmux), `_diff_two_refs.py` (tmux AND GNU screen; ground truth
+  only where both agree), `_diff_fuzz_tmux.py` (generative VT fuzz),
+  `_tmux_launcher_probe.py`, plus deterministic locks in
+  `test_terminal_fidelity.py`.
+- `test_perf_contract.py` — the first performance test in the suite — and
+  `test_readiness_properties.py` (Hypothesis invariants for the wait primitives).
+- `test_version_sync.py`, a ten-site version anti-drift gate; widget-count and
+  dev-box-path gates in `test_doc_counts.py`.
 - Cross-platform package/MCP smoke jobs and Python 3.10/3.14 CI boundaries.
 - OIDC MCP Registry publishing after a successful PyPI tag release.
 
@@ -26,6 +47,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the daemon capability token.
 - Detached session count is bounded (8 by default, configurable up to 128),
   stale close actually removes its registry entry, and MCP close is idempotent.
+- An out-of-range `resize` no longer kills the daemon and its live session
+  (`SystemExit` escaped the per-connection guard).
+- **Screen-emulation fidelity**, each divergence measured against real tmux and,
+  where it could arbitrate, GNU screen: IL/DL no longer home the cursor column;
+  IL with count > 1 no longer leaves buffer holes that make a later DL delete the
+  wrong row; half-overwriting a wide glyph blanks it instead of dropping the
+  incoming character; DCH removes both cells of a wide glyph; NEL returns to
+  column 0; a cursor outside a DECSTBM region is neither dragged into it nor
+  clamped by it; a two-column glyph with one column left wraps whole; an
+  overwritten wide base leaves no orphaned stub; and a zero-width joiner or
+  variation selector no longer truncates the rest of the write (`"MENU ♀️
+  Settings  Quit"` used to be perceived as `"MENU ♀"`).
+- `visual_hash` is incremental — 16.6 ms → 0.008 ms per idle poll on a 300x100
+  screen, where it previously consumed 55% of the 30 ms polling budget.
+- `fx-popup.sh` refuses cleanly when no tmux client is attached instead of
+  leaking tmux's `no current client` with a non-zero exit.
 - Real-session probes use the running Python interpreter with platform-correct
   quoting instead of assuming a `python` command exists on PATH (not true on
   current macOS installations).
