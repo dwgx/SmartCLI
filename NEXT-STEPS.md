@@ -135,6 +135,19 @@ non-negotiable and overrides any shortcut that looks faster.
   probe green.
 - **Effort:** M
 
+### ~~A0-DIFF2 / A0-PERF (partial)~~ [DONE 2026-07-27]
+- **Result:** generative differential fuzz (`tests/_diff_fuzz_tmux.py`) shipped
+  and found **7 emulation bugs** hand-written cases missed (IL/DL column homing,
+  IL count>1 buffer holes, wide-glyph half-overwrite, DCH on wide, NEL column,
+  DECSTBM cursor clamping, orphaned wide stub) — all fixed, all cross-checked
+  against GNU screen, 10/10 seeds x 40 payloads now clean. Performance contract
+  (`tests/test_perf_contract.py`) shipped: `visual_hash` made incremental,
+  16.566 ms → 0.008 ms idle on 300x100. See HANDOFF §10e.
+- **Still open from those tasks:** a SECOND reference emulator in the差分 harness
+  (kitty/Alacritty via brew — `screen` is used ad-hoc today but is not wired into
+  the probe), alt-screen / DECCKM / mouse-mode / OSC / bracketed-paste cases, and
+  property-based tests (Hypothesis) over `readiness.py`'s timing invariants.
+
 ### A0-CLI-RESIZE. Expose resize as a CLI subcommand  [S]
 - **Goal:** the daemon + MCP support resize but the CLI has no verb — close the
   asymmetry (documented in SKILL.md as MCP-only for now).

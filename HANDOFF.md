@@ -718,6 +718,57 @@ exit 1, violating its own documented clean-exit contract. Now guarded.
 `tests/_tmux_launcher_probe.py` locks all five states, 18/18, zero residue; it
 SKIPs itself where tmux is absent, so it is safe to register everywhere.
 
+### 10e. Generative differential fuzz + the performance contract (2026-07-27)
+
+Hand-written differential cases only find bugs someone thought to look for.
+**`tests/_diff_fuzz_tmux.py`** removes the author from the loop: it generates
+random-but-structured VT streams, feeds each to a real tmux pane AND to
+`ScreenModel`, and diffs the grids. It found **seven more emulation bugs** that
+every existing test missed — each minimized to a 2-3 sequence repro and each
+checked against a SECOND emulator (GNU screen) before the core was touched:
+
+1. **IL/DL homed the cursor column** (pyte calls `carriage_return`); real
+   terminals keep it. A TUI repainting a list by inserting a line and writing at
+   the current column landed its text in the wrong column.
+2. **IL with count > 1 left rows MISSING** from pyte's sparse buffer instead of
+   present-and-blank, so a later DL renumbered around the holes and deleted the
+   wrong row (`ESC[3L Q ESC[1M` left `Q` on screen).
+3. **Half-overwriting a wide glyph** kept the glyph AND dropped the incoming
+   character — the write silently vanished. Affects CJK, not just emoji.
+4. **DCH on a wide glyph** removed one cell, leaving its stub as a stray blank
+   that shifted every following column.
+5. **NEL (`ESC E`) did not return to column 0** — pyte routes it to `linefeed`,
+   which only carriage-returns under LNM. Fixed with a `_ByteStream` that
+   dispatches `ESC E` separately, since plain LF must keep its column.
+6. **A cursor OUTSIDE a DECSTBM region** was dragged into it by `index()` and
+   clamped by `cursor_up()`, so anything painted below a scroll region (a status
+   bar under a pager) landed on the wrong rows.
+7. **An overwritten wide base left an orphaned stub** one cell right, so every
+   following column rendered one place off. This one needed a VS16 cluster plus a
+   DECSTBM change plus two ICH rounds to surface — every mechanism agreed in
+   isolation; the fault was purely in their accumulation.
+
+Plus: a two-column glyph with one column left now wraps whole instead of being
+squeezed into the last cell.
+
+**Where the reference emulators DISAGREE** (IL/DL from outside a region; ZWJ
+cluster width) the probe documents the divergence instead of picking a side —
+with no ground truth there is nothing to match. That judgement call matters:
+two of the first three "divergences" were the harness, not the code (tty `ONLCR`,
+capture-pane's literal TAB, NFC vs NFD). **Suspect the rig first.**
+
+Convergence: **10/10 seeds x 40 payloads clean**, curated probe 26/26.
+
+**Performance contract (`tests/test_perf_contract.py`) — the suite had NO perf
+test at all.** `visual_hash` cost **16.6 ms on a 300x100 screen**, i.e. 55% of
+the default 30 ms `wait_visual_change` polling budget, rehashing rows that had
+not changed. It is now incremental (per-row CRCs, recomputing only pyte's dirty
+rows): **16.566 ms → 0.008 ms** idle, 0.225 ms with one row changed. A first
+attempt was *slower* (22 ms) because the cache key cost more to build than the
+hash it saved — measuring caught that. The test asserts equivalence against a
+separate from-scratch computation (80 chunked adversarial payloads) as well as
+timing ceilings set ~20x above measured values; both mutation-verified.
+
 - **Process notes:** commits follow Conventional Commits on the branch (core → tests →
   drive-tui → packaging → ci → docs → reconcile). `B-SEC` (leaked PyPI token) was
   re-raised to the owner per NEXT-STEPS' standing order — still owner-gated.
