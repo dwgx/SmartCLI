@@ -18,11 +18,32 @@ lazygit proof reel is live — it is (`showcase/drive-lazygit.gif`).
 
 ## Positioning sentence (the one-liner everything hangs on)
 
-> SmartCLI drives interactive terminal programs the way a person watching the
-> screen would: it keeps a live `pyte` cell-grid model of what the terminal
-> actually renders — cursor, reverse-video selection, alt-screen — so an agent
-> can drive full-screen curses TUIs like htop, k9s, or lazygit, not just
-> line-oriented REPLs, and it runs on Windows (ConPTY) as well as POSIX.
+**Lead with the problem, not the architecture.** Earlier drafts of this file
+opened with "three agent skills over one pluggable PTY + pyte core", which asks
+the reader to learn three concepts before they know what the thing does. The
+problem sentence lands in one read:
+
+> AI agents can't use interactive terminal programs. Give an agent `vim`, `htop`
+> or `lazygit` and it's blind: it can pipe bytes, but it can't see which menu row
+> is highlighted or know whether its keystroke landed. SmartCLI keeps a live cell
+> grid of what the terminal actually renders — cursor, reverse-video selection,
+> alternate screen — so an agent drives full-screen curses TUIs the way a person
+> watching the screen would. Runs on Windows (ConPTY) as well as POSIX.
+
+Proof to lead with (all reproducible by the reader, which is the point):
+- `python examples/drive_vim.py` drives the **real vim binary** — opens a file,
+  appends a line, saves — then verifies the **filesystem**, not the screen. No
+  `sleep()` anywhere; every wait is a screen-state predicate.
+- We don't assert that the screen model is right, we **measure** it: identical
+  bytes to a real tmux pane and to our model, grids diffed cell by cell. Three
+  suites (35 curated cases; a three-way check that only trusts a behaviour when
+  **tmux *and* GNU screen agree**; a generative VT fuzz). That found and fixed
+  **12 emulation bugs**.
+- The most telling one: `pyte` implements **no alternate screen buffer**, so
+  before 0.2.0 driving vim didn't just look wrong — **the file was never saved**,
+  because a driver that can't see the alt screen mistimes the `:wq`. The agent
+  believed it had edited a file that was untouched on disk. Run the demo against
+  `smartcli-toolkit==0.1.8` to watch it happen.
 
 Rebuttal-proofing (say these when probed):
 - **vs pexpect:** pexpect regex-matches the byte stream and can't tell which row
@@ -33,20 +54,52 @@ Rebuttal-proofing (say these when probed):
   an in-process library that runs natively on Windows too, and adapts arrow keys
   to the app's live DECCKM cursor-key mode (SS3 vs CSI) — a correctness edge the
   POSIX-first crowd skips.
+- **"isn't this just pyte?"** pyte is the cell-grid emulator we build on, and it
+  has real gaps for this use case — no alt-screen, no SGR sub-parameters, several
+  cursor/insert-delete divergences from a real terminal. Finding and fixing those
+  (with tmux and GNU screen as referees) is a substantial part of what SmartCLI
+  is. The differential suites are in `tests/_diff_*.py` if someone wants to check.
+- **"why not screenshots + a vision model?"** Cost and determinism. A structured
+  cell grid is exact, diffable, hashable for change detection, and free; it also
+  feeds the rendering side of the project. Vision is none of those.
+- **honest limits, say them first:** real tmux is now verified (3.6b) but the
+  interactive DECCKM probe still wants a real-host run; two behaviours are
+  recorded as genuinely undefined because tmux and GNU screen disagree; the
+  project is young (July 2026) and the API can still move before 1.0.
+
+## Channel intelligence (checked against the live repos 2026-07-27)
+
+Scouted before writing anything, because a rejected PR costs more than a skipped
+channel. What was actually found:
+
+| Channel | Stars | Verdict |
+|---|---|---|
+| **punkpeye/awesome-mcp-servers** | 91k | **PR OPENED** — [#11022](https://github.com/punkpeye/awesome-mcp-servers/pull/11022). Best fit: SmartCLI *is* an MCP server. Its CONTRIBUTING explicitly invites automated agents (`🤖🤖🤖` in the title fast-tracks review), so the PR was filed transparently as agent-prepared, owner-reviewed. |
+| **rothgar/awesome-tuis** | 20k | **SKIPPED — category mismatch.** Every section lists TUI *applications*, and Libraries/Python is TUI-building frameworks (Rich, Textual, urwid). SmartCLI *drives other people's* TUIs — different verb. Forcing it in invites a close plus a bad first impression with the maintainer. |
+| **hesreallyhim/awesome-claude-code** | 51k | **OWNER-ONLY, by their rules.** CONTRIBUTING: recommendations must use the web issue form, "it is **not** possible to submit using the `gh` CLI", and "recommendations must be created by human beings" — submitting otherwise "risks being restricted from interacting with this repository". Also states the honest ordering: *get users first, then submit*. Do this yourself, later. |
+| **agarrharr/awesome-cli-apps** | 20k | Plausible but weak fit (it lists end-user CLI apps). Low priority. |
+
+**The lesson worth keeping:** fit beats reach. A 91k-star list that matches the
+category is worth more than three 20k lists that don't, and the mismatched ones
+carry real downside.
 
 ## PHASE 1 · C2 — awesome-list PR text (durable, low-risk; open these anytime)
 
 For each: fork, add one line in the right category, follow the list's format, link
 the site. Suggested entry line (adjust bullet style per list):
 
+Each entry leads with the capability, not the architecture:
+
 - **awesome-cli-apps** (Shell/CLI tools):
-  `[SmartCLI](https://github.com/dwgx/SmartCLI) - Drive interactive TUIs, design terminal effects, and render cell-accurate UIs — three agent skills over one pluggable PTY + pyte core.`
+  `[SmartCLI](https://github.com/dwgx/SmartCLI) - Drive and perceive interactive terminal programs (vim, htop, lazygit) through a PTY with a live cell-grid screen model; also a terminal-effects engine and cell-accurate widgets.`
 - **awesome-tuis** (libraries / tooling):
-  `[SmartCLI](https://github.com/dwgx/SmartCLI) - pyte-backed toolkit to drive and perceive interactive TUIs (and render effects/widgets); Windows ConPTY + POSIX.`
+  `[SmartCLI](https://github.com/dwgx/SmartCLI) - Drive and perceive other programs' TUIs: pyte cell-grid model with screen-state waits, verified against real tmux; Windows ConPTY + POSIX.`
 - **awesome-claude-code / agent-skill lists** (skills):
-  `[SmartCLI](https://github.com/dwgx/SmartCLI) - Three agent skills: drive interactive terminal programs, design terminal visual effects, and render tmux-safe UI frames.`
+  `[SmartCLI](https://github.com/dwgx/SmartCLI) - Lets an agent drive full-screen terminal programs (vim, htop, lazygit) by reading the actual screen; ships as an MCP server and three agent skills.`
 - **awesome-python** (Terminal / CLI):
-  `[SmartCLI](https://github.com/dwgx/SmartCLI) - Drive interactive terminal programs through a PTY + pyte screen model; also a terminal-effects engine and cell-accurate widgets.`
+  `[SmartCLI](https://github.com/dwgx/SmartCLI) - Drive interactive terminal programs through a PTY + pyte screen model, with waits that react to the rendered screen instead of sleeping.`
+- **awesome-mcp-servers** (the highest-fit list — it is literally an MCP server):
+  `[SmartCLI](https://github.com/dwgx/SmartCLI) - Drive interactive terminal programs (vim, htop, lazygit) from any MCP client: start a session, send keys, wait on screen state, read the rendered cell grid.`
 
 PR title: `Add SmartCLI` · PR body: one sentence (the positioning line) + the
 GIF/site link + "MIT, on PyPI". Check each list's CONTRIBUTING before opening.
@@ -55,17 +108,50 @@ GIF/site link + "MIT, on PyPI". Check each list's CONTRIBUTING before opening.
 
 ## PHASE 2 · C4 — Show HN
 
-**Title** (no hype words):
-> Show HN: SmartCLI – give AI agents a pyte screen model to drive interactive TUIs
+**Title** (≤80 chars, no hype words, leads with the capability):
+> Show HN: SmartCLI – let an AI agent drive vim, htop and lazygit by reading the screen
 
-**First comment (author, post immediately after):**
-> I kept hitting the same wall: agents can drive line-based REPLs fine, but the moment you point one at a full-screen curses app — htop, k9s, lazygit, an ncurses installer — it goes blind. pexpect regex-matches the byte stream and has no idea which menu row is highlighted, and it has no Windows PTY at all.
+Alternates if that reads long:
+> Show HN: SmartCLI – agents that drive full-screen TUIs by reading the cell grid
+> Show HN: I gave AI agents eyes and hands for interactive terminal programs
+
+**First comment — post it within a minute of submitting.** HN readers judge a
+Show HN by the author's first comment more than by the README.
+
+> Agents handle line-based REPLs fine, but point one at a full-screen curses app — vim, htop, k9s, lazygit, an ncurses installer — and it goes blind. pexpect regex-matches the byte stream, so it cannot tell you which menu row is highlighted, and it has no Windows PTY. The usual fallback is `sleep 2 && hope`.
 >
-> SmartCLI keeps a live `pyte` cell grid of what the terminal actually renders, so the agent perceives the real screen (cursor position, reverse-video selection, alt-screen) and drives with a perceive → decide → act → wait → confirm loop instead of blind sleeps. Backend is pluggable: ConPTY/pywinpty on Windows, POSIX pty on Linux. It ships as three agent skills over that one core: drive (this), render terminal effects, and cell-accurate UI widgets.
+> SmartCLI keeps a live cell grid of what the terminal actually renders, so an agent can ask "which row is reverse-video selected", "where is the cursor", "is this the alternate screen" — and every wait is a predicate on screen state rather than a sleep. Pluggable backend: ConPTY/pywinpty on Windows, POSIX pty elsewhere.
 >
-> The GIF is it driving lazygit on Debian 13 end to end — navigating panels, opening a commit's diff, highlighting a branch, all by reading the screen grid. Honest scope: verified on Debian 13, Windows/ConPTY and macOS (CI runs the suite plus real-PTY smoke on all three); real tmux is still unverified. Waits are explicit primitives rather than sleeps — including `wait-visual-change`, which catches a highlight bar moving when the text is byte-identical. Remaining edges live in LIMITATIONS.md rather than hand-waved. It's early; I'd genuinely like to hear where it breaks on your TUIs.
+> The part I'd actually like feedback on is how the screen model is verified, because I didn't trust myself to assert it. Identical bytes go to a real tmux pane and to the model, and the two cell grids are diffed cell by cell: 35 curated cases, a three-way check that only accepts a behaviour when tmux *and* GNU screen agree, plus a generative fuzz over random VT sequences. That found 12 emulation bugs I would never have thought to look for.
 >
-> Repo: github.com/dwgx/SmartCLI · `pip install smartcli-toolkit` · live effects + interactive playground: dwgx.github.io/SmartCLI
+> The worst one is a good illustration of why this matters. `pyte`, the emulator underneath, implements no alternate screen buffer at all — so driving vim didn't merely look wrong, the file was **never saved**: a driver that cannot see the alt screen mistimes the `:wq`. The agent believed it had edited a file that was untouched on disk. `examples/drive_vim.py` drives the real vim binary and then checks the filesystem, not the screen; run it against `smartcli-toolkit==0.1.8` and you can watch it fail.
+>
+> Honest scope: young project (July 2026), API can still move before 1.0. CI is a 3-OS matrix; real tmux 3.6b is verified, but the interactive DECCKM/SS3-arrow probe still wants a real-host run, and two behaviours are recorded as genuinely undefined because tmux and GNU screen disagree with each other. Those are in LIMITATIONS.md rather than hand-waved. It also ships a terminal-effects engine and a cell-accurate widget layer, but driving is the part I think is interesting.
+>
+> Repo: github.com/dwgx/SmartCLI (MIT) · `pip install smartcli-toolkit` · also an MCP server, so it plugs into Claude Code / Cursor / VS Code directly.
+
+**If it gets traction, the follow-up comments to have ready** (see the
+rebuttal-proofing block at the top of this file for "vs pexpect", "isn't this just
+pyte", "why not screenshots + vision"):
+
+- *"Does it work with <my TUI>?"* — Give them the two-line recipe rather than a
+  yes: `smartcli-tui start --cmd "<their app>"` then `snapshot`. Ask them to paste
+  the snapshot if it looks wrong; a real failing case from a stranger's app is the
+  most valuable thing that can come out of a launch.
+- *"How is this different from tmux send-keys + capture-pane?"* — That is a
+  reasonable baseline and worth conceding: it works, and it is what the
+  Terminal-Bench adapter builds on. The differences are that it needs tmux (no
+  Windows), it gives you text with no attribute/selection information, and it has
+  no readiness primitives — you are back to sleeping.
+- *"Why not just use ht / pilotty / termwright?"* — POSIX-only, and mostly
+  socket-daemon shaped. SmartCLI is an in-process library that also runs on
+  Windows, and it adapts arrow keys to the app's live DECCKM mode (SS3 vs CSI),
+  which is the kind of thing that silently breaks curses navigation.
+- **If someone reports a bug, fix it the same day and say so in the thread.** That
+  single behaviour converts more skeptics than any amount of copy.
+
+**Timing:** submit Tue–Thu, 08:00–10:00 US Eastern. Be at a keyboard for the
+following three hours — an unanswered first question is what kills a Show HN.
 
 ## PHASE 2 · C4 — Reddit r/commandline (visual angle)
 
