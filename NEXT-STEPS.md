@@ -108,6 +108,24 @@ non-negotiable and overrides any shortcut that looks faster.
   pip refuses the install on a 3.9 interpreter (Requires-Python metadata).
 - **Effort:** S
 
+### ~~A0-DIST. Map the distribution channels and file what is fileable~~ [DONE 2026-07-27]
+- **Result:** `docs/DISTRIBUTION-CHANNELS.md` is the reusable map (105-agent research pass,
+  23 sources, 25 claims verified 3 votes each → 15 confirmed / **10 refuted**, plus
+  first-hand checks that override the research where they disagreed). Filed the one PR that
+  is both a category fit and rule-compliant: awesome-mcp-servers #11022 (91k★), now blocked
+  on A0-GLAMA. Also done: PyPI keywords/classifiers (mcp, agent, pexpect, `Typing :: Typed`),
+  8 GitHub topics, registry `description` rewritten to name vim/htop/lazygit.
+- **Bugs this exposed** (the real value): Docker image defaulted to `fx gallery` so any MCP
+  directory validating it would have scored the server broken; MCP `serverInfo` reported the
+  SDK's version instead of ours; and two genuine CI failures in the new drive-smoke job
+  (stale registry path on macOS/Linux, an 80-column wrap breaking a Windows assertion).
+- **Ruled out by rule, do not retry:** awesome-python (auto-reject <100★ / <1 month —
+  ineligible until ~Oct 2026), awesome-cli-apps (>20★, >3 months, and "AI-generated PRs are
+  not welcome"), awesome-tuis (category mismatch), Anthropic Connectors (remote-only).
+- **Unmapped, the biggest known gap:** Smithery, MCP.so, mcpservers.org, PulseMCP, and the
+  Cursor/Continue marketplaces produced no surviving claims. Smithery and MCP.so are *said*
+  to auto-crawl; if true they would be the cheapest channels available.
+
 ### A0-HARBOR. Port the Terminal-Bench adapter to TB-2.0 / Harbor  [M-L]
 - **Goal:** the classic-TB adapter (`smartcli_tbench/`) targets an interface the
   public leaderboard no longer uses; port to Harbor's tool/env-mediated agent API.
@@ -381,15 +399,16 @@ POSIX backend — that is exactly the class of false-green the standing method f
   — publish.yml auto-uploads via OIDC, no stored token. (twine no longer needed; the old
   `--disable-progress-bar` note was only because twine's rich bar crashes on gbk.)
 
-### B-SEC. Revoke the leaked PyPI API token  [S] (needs human; owner previously declined)
-- **Goal:** revoke the plaintext PyPI token that appeared in a prior session's chat.
-- **Why it matters:** live credential exposure. Owner chose NOT to revoke last time —
-  re-surface it, do not silently drop it. *(Re-raised 2026-07-27: OIDC publishing is
-  verified working, so keeping the token has zero remaining utility — please revoke.)*
-- **First step (human):** on PyPI, delete that API token; rely on the OIDC publish flow
-  (B-PyPI) instead.
-- **Verify:** old token 401s; a fresh OIDC publish still works.
-- **Effort:** S
+### ~~B-SEC. Revoke the leaked PyPI API token~~  [CLOSED 2026-07-27 — owner decision]
+- **Status:** raised again on 2026-07-27 with the argument that OIDC publishing is now
+  verified working (all three publish jobs green on the v0.2.0 tag), so the token has no
+  remaining utility. **The owner decided not to revoke it.** That is their call to make;
+  the decision is recorded here and this item is closed. **Do not keep re-raising it** —
+  the standing "re-surface every session" instruction from earlier sessions is superseded.
+- **If it ever matters again:** delete the token in PyPI account settings; the release
+  path does not depend on it (publish.yml uses Trusted Publishing / OIDC, no stored
+  secret). Residual risk is unauthorised uploads to the existing project if the token
+  string is still recoverable from the old chat log.
 
 ### B-Skillhu. Retry external skill-publish CLIs  [S] (needs working external CLIs)
 - **Goal:** publish/refresh on LobeHub / agentskillhub if their CLIs get fixed.
