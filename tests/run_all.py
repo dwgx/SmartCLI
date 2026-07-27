@@ -164,6 +164,9 @@ def build_suite():
     suite.append(Test("test_version_sync (ten version sites agree)",
                       [PY, str(TESTS / "test_version_sync.py")], ROOT, 60,
                       optional=True))
+    suite.append(Test("test_perf_contract (wait-primitive cost ceilings)",
+                      [PY, str(TESTS / "test_perf_contract.py")], ROOT, 120,
+                      optional=True))
     suite.append(Test("test_terminal_fidelity (real-terminal divergence locks)",
                       [PY, str(TESTS / "test_terminal_fidelity.py")], ROOT, 60,
                       optional=True))
