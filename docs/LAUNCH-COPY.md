@@ -67,6 +67,10 @@ Rebuttal-proofing (say these when probed):
   recorded as genuinely undefined because tmux and GNU screen disagree; the
   project is young (July 2026) and the API can still move before 1.0.
 
+> **Channel rules, acceptance gates and the automation prohibitions now live in
+> [`DISTRIBUTION-CHANNELS.md`](DISTRIBUTION-CHANNELS.md)** — that is the reusable
+> map (verified 2026-07-27, incl. 10 refuted claims). This file is the *copy*.
+
 ## Channel intelligence (checked against the live repos 2026-07-27)
 
 Scouted before writing anything, because a rejected PR costs more than a skipped

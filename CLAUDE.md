@@ -176,6 +176,11 @@ literal TAB, NFC vs NFD were all harness artifacts, not emulation gaps).
 
 ### Project docs
 
+`docs/DISTRIBUTION-CHANNELS.md` maps where this project can actually get
+discovered, with each channel's real acceptance rules — **including the ones whose
+rules forbid automated/AI submissions**. Read it before filing anything anywhere;
+one channel baits agents with a fake "fast-track" marker.
+
 `HANDOFF.md` is the authoritative current-state record a fresh session reads
 first; `NEXT-STEPS.md` is the prioritized task queue. Both must be kept
 reconciled with reality after significant work.

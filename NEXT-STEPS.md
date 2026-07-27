@@ -70,6 +70,22 @@ non-negotiable and overrides any shortcut that looks faster.
 
 ## A0. NEW since v0.2.0 (added 2026-07-27)
 
+### A0-GLAMA. List on Glama to unblock the 91k-star awesome-mcp-servers PR  [S] (OWNER)
+- **Goal:** submit SmartCLI at <https://glama.ai/mcp/servers> ("Add Server"), then
+  add the returned score badge to PR
+  [#11022](https://github.com/punkpeye/awesome-mcp-servers/pull/11022).
+- **Why:** the `glama-check` bot labelled that PR `missing-glama`; a Glama listing
+  is a stated precondition. Note the dependency direction — the claim that a
+  merged PR syncs *to* Glama was refuted 0-3. Verified we are NOT on Glama today:
+  `curl -s https://glama.ai/api/mcp/v1/servers/dwgx/SmartCLI` → `not_found`.
+- **Readiness:** already verified — the server passes the introspection check Glama
+  runs (`initialize` → serverInfo 0.2.0, `tools/list` → 14 tools).
+- **Why owner-only:** the Add Server flow is behind a sign-in; an agent should not
+  authenticate to a third-party service as you.
+- **Verify:** the two `curl` calls in docs/DISTRIBUTION-CHANNELS.md §3 return the
+  server instead of `not_found`.
+- **Effort:** S (~5 min)
+
 ### ~~A0-REL. Release v0.2.0~~  [DONE 2026-07-27]
 - **Result:** merged to `main`, tagged `v0.2.0`, pushed. publish.yml green on all
   three jobs (build / PyPI OIDC / MCP Registry OIDC). Verified by installing
