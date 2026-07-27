@@ -186,18 +186,11 @@ def known_undefined(payload: bytes) -> str | None:
     return None
 
 
-# KNOWN UNFIXED (deliberately NOT filtered — it must keep failing until fixed).
-# Seed 8 payload #9 still diverges: a VS16 emoji cluster, then repeated ICH, then
-# two scroll-region changes leaves one stray blank where the reference emulators
-# (which agree with each other here, so this IS our bug) show the glyph. Every
-# individual mechanism — ICH over a wide char, VS16 width, DECSTBM changes — was
-# minimized and verified to agree in isolation, so the fault is in their
-# accumulation and needs its own investigation. Repro:
-#   python tests/_diff_fuzz_tmux.py --count 40 --seed 8
-KNOWN_UNFIXED = (
-    "seed 8 payload #9: VS16 + repeated ICH + two DECSTBM changes leaves a "
-    "stray blank (both tmux and GNU screen show the glyph)"
-)
+# KNOWN UNFIXED: none. The last one (seed 8 payload #9 -- a VS16 cluster, then
+# repeated ICH, then two DECSTBM changes, leaving a stray blank) was fixed by
+# _Screen._clear_orphan_stub and is locked by tests/test_terminal_fidelity.py.
+# As of 2026-07-27: 10/10 seeds x 40 payloads diverge nowhere.
+KNOWN_UNFIXED = ()
 
 
 def pyte_grid(payload: bytes) -> list[str]:

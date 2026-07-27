@@ -219,6 +219,32 @@ class _Screen(pyte.Screen):
                 line[x + 1] = blank
             self.dirty.add(self.cursor.y)
 
+    def _clear_orphan_stub(self) -> None:
+        """Blank a stub cell whose wide base was just overwritten.
+
+        Drawing a two-column glyph over the BASE of an existing one leaves the
+        old glyph's stub stranded one cell further right: it still reads as the
+        empty-string continuation of a character that no longer exists, so every
+        column after it renders one place off. Real terminals blank it.
+
+        Concretely: with ``│││♀️♀️♀️`` on screen, writing ``中文中文`` from column
+        0 put ``文``'s stub on the first emoji's base and left that emoji's own
+        stub behind, so we rendered ``中文中文││ ▄`` where tmux 3.6b and GNU
+        screen (which agree here) render ``中文中文││▄▄``. Found by
+        ``tests/_diff_fuzz_tmux.py`` — it took a VS16 cluster plus a DECSTBM
+        change plus two ICH rounds to expose, which is exactly the kind of
+        accumulation hand-written cases never reach.
+        """
+        x = self.cursor.x
+        if 0 < x < self.columns:
+            line = self.buffer[self.cursor.y]
+            if line[x].data == "" and line[x - 1].data not in ("", None):
+                prev = line[x - 1].data
+                if not (wcwidth_cached(prev[0]) == 2
+                        or (len(prev) > 1 and "️" in prev)):
+                    line[x] = self.cursor.attrs._replace(data=" ")
+                    self.dirty.add(self.cursor.y)
+
     def draw(self, data: str) -> None:
         from wcwidth import wcwidth  # pyte's own width dependency
 
@@ -266,6 +292,7 @@ class _Screen(pyte.Screen):
             # A write that lands on half of a wide glyph must destroy all of it.
             self._clear_split_wide()
             super().draw(char)
+            self._clear_orphan_stub()
         if pending:
             super().draw("".join(pending))
 

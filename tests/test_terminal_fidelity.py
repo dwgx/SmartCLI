@@ -225,6 +225,19 @@ check(m.display[0].rstrip().endswith("\U0001F600"),
       "a wide glyph that exactly fits does not wrap",
       detail=repr(m.display[0].rstrip()[-4:]))
 
+print("\n--- an overwritten wide base leaves no orphaned stub ---")
+# Drawing a two-column glyph over the BASE of an existing one used to leave the
+# old glyph's stub stranded, so every column after it rendered one place off.
+# This exact accumulation (VS16 cluster + DECSTBM change + two ICH rounds) was
+# the last divergence the generative fuzz found; tmux 3.6b and GNU screen agree.
+m = ScreenModel(cols=40, rows=10)
+m.feed("♀️".encode() * 3 + b"\r\x1b[3@" + "│".encode() * 3
+       + b"\x1b[5;7r" + "中文".encode() * 2 + b"\x1b[3@"
+       + "│".encode() * 2 + "▄".encode() * 2)
+check(m.display[0].rstrip() == "中文中文││▄▄",
+      "overwriting a wide base leaves no stray blank",
+      detail=repr(m.display[0].rstrip()))
+
 if FAILURES:
     print(f"\ntest_terminal_fidelity FAIL -- {len(FAILURES)} check(s):")
     for f in FAILURES:
