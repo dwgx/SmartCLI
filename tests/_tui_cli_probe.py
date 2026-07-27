@@ -240,23 +240,40 @@ def test_child_environment() -> None:
         return
     try:
         run_cli("wait-regex", "--id", sid, ">>> ", "--timeout-ms", "15000")
+        # Have the child DECIDE the facts and print short tokens, rather than
+        # printing the full cwd for the test to match. A real temp path is long
+        # enough to wrap an 80-column screen — on Windows it did, splitting
+        # "child-workdir" across two rows so both the regex and the substring
+        # check failed on a working feature. Verdict tokens cannot wrap.
         code = (
-            "import os; print('PROBE', os.getcwd(), "
-            "os.getenv('SMARTCLI_PROBE_VALUE'), os.getenv('SMARTCLI_TUI_TOKEN'))"
+            "import os; "
+            "print('PROBE', "
+            "'CWD_OK' if os.path.basename(os.getcwd()) == 'child-workdir' else 'CWD_BAD', "
+            "'ENV_OK' if os.getenv('SMARTCLI_PROBE_VALUE') == 'present' else 'ENV_BAD', "
+            "'NOTOKEN' if os.getenv('SMARTCLI_TUI_TOKEN') is None else 'TOKEN_LEAKED')"
         )
         run_cli("send-line", "--id", sid, code)
         cp = run_cli(
             "wait-regex",
             "--id",
             sid,
-            r"PROBE .* present None",
+            r"CWD_OK ENV_OK NOTOKEN",
             "--timeout-ms",
             "15000",
         )
-        check(cp.returncode == 0 and f"{workdir.name} present None" in cp.stdout,
-              "target receives cwd and requested env", detail=repr(cp.stdout[-120:]))
-        check("present None" in cp.stdout,
-              "target does not inherit SMARTCLI_TUI_TOKEN", detail=repr(cp.stdout[-120:]))
+        out = cp.stdout + cp.stderr
+        # Assert on the RESULT line only. The typed command is echoed by the
+        # REPL, so every literal in the source (including the failure tokens)
+        # also appears on screen — searching the whole capture for a failure
+        # token always matches the echo, which is a self-inflicted false
+        # negative. The verdict line is the one starting with "PROBE ".
+        verdict = next((ln for ln in out.splitlines() if "PROBE " in ln
+                        and "print(" not in ln), "")
+        check(cp.returncode == 0 and "CWD_OK" in verdict and "ENV_OK" in verdict,
+              "target receives cwd and requested env", detail=repr(verdict or out[-160:]))
+        check("NOTOKEN" in verdict and "TOKEN_LEAKED" not in verdict,
+              "target does not inherit SMARTCLI_TUI_TOKEN",
+              detail=repr(verdict or out[-160:]))
     finally:
         close_session(sid)
         if sid in _STARTED:

@@ -37,8 +37,23 @@ def _python_repl_command() -> str:
 
 
 def _reg_dir() -> Path:
-    return Path(os.environ.get("SMARTCLI_TUI_DIR")
-                or (Path(tempfile.gettempdir()) / "smartcli_tui"))
+    """Ask tui.py where its registry is instead of re-deriving it.
+
+    This used to duplicate the resolution logic as
+    `$SMARTCLI_TUI_DIR or /tmp/smartcli_tui`. v0.2.0 moved the real registry to
+    a per-user location ($XDG_RUNTIME_DIR, macOS Caches, ~/.cache), the copy did
+    not follow, and the test started reading a path that never existed —
+    FileNotFoundError on the CI drive-smoke job for both Linux and macOS. Import
+    the value so the two cannot diverge again.
+    """
+    sys.path.insert(0, str(TUI.parent))
+    try:
+        import tui as _tui  # the module under test
+        return Path(_tui.REG_DIR)
+    except Exception:
+        # Last resort only; keeps the probe usable if the import surface moves.
+        return Path(os.environ.get("SMARTCLI_TUI_DIR")
+                    or (Path(tempfile.gettempdir()) / "smartcli_tui"))
 
 
 def _read_reg(sid: str) -> dict:
