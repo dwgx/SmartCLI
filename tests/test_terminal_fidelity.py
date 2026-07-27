@@ -238,6 +238,52 @@ check(m.display[0].rstrip() == "中文中文││▄▄",
       "overwriting a wide base leaves no stray blank",
       detail=repr(m.display[0].rstrip()))
 
+print("\n--- alternate screen buffer (what every full-screen TUI uses) ---")
+# pyte implements no alt-screen mode at all, so ESC[?1049h just set an unknown
+# bit: vim/less/htop painted their alternate screen ON TOP of the main one and
+# never restored it, leaving an agent reading a merged, impossible screen.
+m = ScreenModel(cols=30, rows=6)
+m.feed(b"main\r\n\x1b[?1049hALT")
+visible = [line.rstrip() for line in m.display if line.strip()]
+check(visible == ["ALT"], "entering the alt buffer hides the main screen",
+      detail=repr(visible))
+check(m.screen.alt_screen is True, "alt_screen reports True while active")
+
+m = ScreenModel(cols=30, rows=6)
+m.feed(b"main1\r\nmain2\r\n\x1b[?1049hALT\x1b[?1049l")
+visible = [line.rstrip() for line in m.display if line.strip()]
+check(visible == ["main1", "main2"], "leaving the alt buffer restores the main screen",
+      detail=repr(visible))
+check(m.screen.alt_screen is False, "alt_screen reports False after exit")
+
+# 1049 saves and restores the cursor; the legacy 47/1047 modes do not.
+m = ScreenModel(cols=30, rows=6)
+m.feed(b"\x1b[3;5Hm\x1b[?1049hA\x1b[?1049lX")
+check(m.display[2].rstrip() == "    mX", "1049 restores the saved cursor",
+      detail=repr(m.display[2].rstrip()))
+
+# The cursor is NOT homed on entry — xterm and tmux both leave it in place.
+m = ScreenModel(cols=30, rows=6)
+m.feed(b"main\r\n\x1b[?47hALT")
+check(m.display[1].rstrip() == "ALT", "legacy mode 47 switches without homing",
+      detail=repr([line.rstrip() for line in m.display[:2]]))
+
+print("\n--- SGR sub-parameters must not spill onto the screen ---")
+# pyte's parser does not know ':' (ITU-T T.416), so it aborted the sequence and
+# drew the remainder as text: ESC[4:3mU put the literal "3mU" on the grid.
+# Neovim, kitty and delta all emit this routinely.
+for label, payload in (("curly underline 4:3", b"\x1b[4:3mU\x1b[0m"),
+                       ("underline colour 58:2", b"\x1b[58:2::255:0:0mU\x1b[0m"),
+                       ("truecolor 38:2::", b"\x1b[38:2::255:0:128mU\x1b[0m")):
+    m = ScreenModel(cols=20, rows=3)
+    m.feed(payload)
+    check(m.display[0].rstrip() == "U", f"{label}: no escape debris on screen",
+          detail=repr(m.display[0].rstrip()))
+# A literal colon in ordinary text must survive untouched.
+m = ScreenModel(cols=20, rows=3)
+m.feed(b"a:b:c")
+check(m.display[0].rstrip() == "a:b:c", "literal colons in text are unaffected")
+
 if FAILURES:
     print(f"\ntest_terminal_fidelity FAIL -- {len(FAILURES)} check(s):")
     for f in FAILURES:

@@ -207,6 +207,13 @@ CASES: list[tuple[str, bytes]] = [
     ("CR overwrite", b"50%\r100%"),
     ("VS16 emoji width", "a♀️b".encode()),
     ("combining accent", "éabc".encode()),
+
+    # The alternate screen buffer and SGR sub-parameters (both added 2026-07-27).
+    ("alt screen enter", b"main\r\n\x1b[?1049hALT"),
+    ("alt screen round-trip", b"main1\r\nmain2\r\n\x1b[?1049hALT\x1b[?1049l"),
+    ("SGR colon subparams", b"\x1b[4:3munder\x1b[0m"),
+    ("DECCKM application cursor", b"\x1b[?1hprompt"),
+    ("bracketed paste mode", b"\x1b[?2004hpasted"),
 ]
 
 

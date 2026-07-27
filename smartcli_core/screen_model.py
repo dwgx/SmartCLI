@@ -22,15 +22,30 @@ from wcwidth import wcwidth as wcwidth_cached  # pyte's own width dependency
 
 
 class _ByteStream(pyte.ByteStream):
-    """``pyte.ByteStream`` that dispatches NEL (``ESC E``) to ``next_line``.
-
-    pyte maps ``ESC E`` to ``linefeed``, which only carriage-returns when LNM is
-    set — but NEL is defined to always index AND return to column 0. Plain LF
-    shares ``linefeed`` and must keep its column, so the two cannot be fixed in
-    one method; the dispatch itself has to differ.
-    """
+    """``pyte.ByteStream`` with NEL dispatch and SGR sub-parameter tolerance."""
 
     escape = {**pyte.Stream.escape, "E": "next_line"}
+
+    # SGR sub-parameters use ':' as the separator (ITU-T T.416): `ESC[4:3m` is a
+    # curly underline, `ESC[38:2::R:G:Bm` a truecolor foreground. pyte's parser
+    # does not know ':' at all, so it aborted the sequence and DREW THE REST AS
+    # TEXT — `ESC[4:3mU` put the literal "3mU" on screen. Modern programs emit
+    # this routinely (Neovim, kitty, delta), so an agent driving them read
+    # escape-sequence debris as content. Measured against tmux 3.6b, which
+    # renders just the styled character.
+    #
+    # We normalise ':' to ';' before the parser sees it, which keeps the sequence
+    # a valid SGR of the same intent: the attribute may degrade (a curly
+    # underline becomes a plain one) but no debris reaches the grid and the
+    # cursor advances correctly. Only CSI ... m is rewritten, so nothing else
+    # that could legitimately contain ':' (OSC strings, DCS payloads) is touched.
+    _SGR_COLON = __import__("re").compile(rb"\x1b\[([\d;:]*:[\d;:]*)m")
+
+    def feed(self, data: bytes) -> None:
+        if b":" in data:
+            data = self._SGR_COLON.sub(
+                lambda m: b"\x1b[" + m.group(1).replace(b":", b";") + b"m", data)
+        super().feed(data)
 
 
 class _Screen(pyte.Screen):
@@ -100,6 +115,67 @@ class _Screen(pyte.Screen):
                 self.dirty.add(self.cursor.y)
             return
         super().index()
+
+    # xterm private modes that switch to the ALTERNATE screen buffer. pyte
+    # implements none of them, so `ESC[?1049h` merely set an unknown mode bit and
+    # a full-screen program (vim, less, htop — every TUI drive-tui exists to
+    # drive) painted its alternate screen ON TOP of the main one. On exit the
+    # main screen was never restored, so an agent read a merged, impossible
+    # screen. Measured against tmux 3.6b, which follows xterm: 1049 saves the
+    # cursor and clears the alternate buffer on entry and restores both on exit;
+    # 1047/47 switch buffers without the cursor save.
+    _ALT_MODES = (1049, 1047, 47)
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._alt_active = False
+        self._saved_main: dict | None = None
+        self._saved_cursor: tuple[int, int] | None = None
+
+    @property
+    def alt_screen(self) -> bool:
+        """True while the alternate screen buffer is active."""
+        return self._alt_active
+
+    def _enter_alt(self, save_cursor: bool) -> None:
+        if self._alt_active:
+            return
+        self._saved_main = dict(self.buffer)
+        self._saved_cursor = (self.cursor.y, self.cursor.x) if save_cursor else None
+        self.buffer.clear()
+        self._alt_active = True
+        # NOTE: the cursor is deliberately NOT homed. xterm clears the alternate
+        # buffer but leaves the cursor where it was, and tmux 3.6b agrees:
+        # `main\r\n` then ESC[?1049h then ALT puts ALT on row 1, not row 0.
+        self.dirty.update(range(self.lines))
+
+    def _leave_alt(self) -> None:
+        if not self._alt_active:
+            return
+        self.buffer.clear()
+        if self._saved_main is not None:
+            self.buffer.update(self._saved_main)
+        self._saved_main = None
+        self._alt_active = False
+        if self._saved_cursor is not None:
+            y, x = self._saved_cursor
+            self.cursor.y, self.cursor.x = y, x
+            self._saved_cursor = None
+        self.dirty.update(range(self.lines))
+
+    def set_mode(self, *modes: int, **kwargs) -> None:
+        if kwargs.get("private"):
+            for mode in modes:
+                if mode in self._ALT_MODES:
+                    self._enter_alt(save_cursor=(mode == 1049))
+        super().set_mode(*modes, **kwargs)
+
+    def reset_mode(self, *modes: int, **kwargs) -> None:
+        if kwargs.get("private"):
+            for mode in modes:
+                if mode in self._ALT_MODES:
+                    self._leave_alt()
+        super().reset_mode(*modes, **kwargs)
 
     def cursor_up(self, count: int | None = None) -> None:
         """CUU — a cursor already OUTSIDE the region is not clamped into it.

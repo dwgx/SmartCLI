@@ -231,6 +231,25 @@ CASES: list[tuple[str, bytes, int, int]] = [
 
     # 25. Combining accent — one cell or two?
     ("combining accent", "éabc\r\nabcde\r\n".encode(), 40, 8),
+
+    # 26-29. The alternate screen buffer -- what vim/less/htop use, i.e. the whole
+    #        reason drive-tui exists. pyte implements none of these modes, so a
+    #        full-screen program used to paint on top of the main screen and never
+    #        restore it.
+    ("alt screen enter", b"main\r\n\x1b[?1049hALT", 40, 8),
+    ("alt screen round-trip", b"main1\r\nmain2\r\n\x1b[?1049hALT\x1b[?1049l", 40, 8),
+    ("alt screen cursor restore", b"\x1b[3;5Hm\x1b[?1049hA\x1b[?1049lX", 40, 8),
+    ("alt screen legacy mode 47", b"main\r\n\x1b[?47hALT", 40, 8),
+
+    # 30-31. SGR sub-parameters (ITU-T T.416): pyte's parser does not know ":"
+    #        and used to draw the rest of the sequence as literal text.
+    ("SGR colon subparams", b"\x1b[4:3munder\x1b[0m", 40, 8),
+    ("SGR colon truecolor", b"\x1b[38:2::255:0:128mpink\x1b[0m", 40, 8),
+
+    # 32-34. Modes drive-tui sets or observes on real programs.
+    ("DECCKM application cursor", b"\x1b[?1hprompt", 40, 8),
+    ("bracketed paste mode", b"\x1b[?2004hpasted", 40, 8),
+    ("OSC title then text", b"\x1b]0;Title\x07body", 40, 8),
 ]
 
 
