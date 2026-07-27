@@ -181,6 +181,9 @@ def build_suite():
     # Generative differential fuzz. NOTE: seed 8 has one KNOWN unfixed
     # divergence (see KNOWN_UNFIXED in that file), so run_all uses a clean seed
     # and the seed-8 case is tracked as an open task, not silently filtered.
+    suite.append(Test("_diff_two_refs (tmux AND GNU screen vs our model)",
+                      [PY, str(TESTS / "_diff_two_refs.py")], ROOT, 900,
+                      optional=True))
     suite.append(Test("_diff_fuzz_tmux (generative differential fuzz)",
                       [PY, str(TESTS / "_diff_fuzz_tmux.py"), "--count", "40",
                        "--seed", "2"], ROOT, 600, optional=True))
