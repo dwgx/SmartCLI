@@ -64,6 +64,29 @@ EOF
     exit 0
 fi
 
+# `display-popup` needs an ATTACHED client to draw into: run from a detached
+# session (a script, CI, or `tmux send-keys` into a session nobody is viewing)
+# tmux fails with "no current client" and a non-zero exit. Detect that up front
+# and point at the direct command instead of surfacing a cryptic tmux error.
+# Verified against real tmux 3.6b — this is why the popup path went unverified
+# for so long: it cannot work in a detached session at all.
+if [ -z "${TMUX:-}" ]; then
+    echo "fx-popup: not inside a tmux session. Start one first:  tmux new -s fx" >&2
+    echo "          (or run:  python -m fx play <effect>  -- no tmux needed)" >&2
+    exit 4
+fi
+if ! tmux display-message -p '#{client_tty}' >/dev/null 2>&1 \
+        || [ -z "$(tmux display-message -p '#{client_tty}' 2>/dev/null)" ]; then
+    cat >&2 <<'EOF'
+fx-popup: this tmux session has no attached client, so a popup cannot be drawn
+          ("no current client"). Attach to the session and retry, or run the
+          effect directly -- the fx play loop owns its own alt-screen:
+
+              python -m fx play <effect> --seconds 8
+EOF
+    exit 4
+fi
+
 # --------------------------------------------------------------------------
 # Parse optional popup sizing flags, then the effect + its args.
 # --------------------------------------------------------------------------

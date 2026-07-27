@@ -167,6 +167,14 @@ def build_suite():
     suite.append(Test("test_zwj_text_loss (zero-width joiner truncation lock)",
                       [PY, str(TESTS / "test_zwj_text_loss.py")], ROOT, 60,
                       optional=True))
+    # Real-tmux probes: SKIP themselves when tmux is absent, so they are safe to
+    # register unconditionally. They spawn one tmux server at a time.
+    suite.append(Test("_tmux_launcher_probe (cmd-art tmux launchers, real tmux)",
+                      [PY, str(TESTS / "_tmux_launcher_probe.py")], ROOT, 240,
+                      optional=True))
+    suite.append(Test("_diff_tmux_pyte (screen model vs real tmux)",
+                      [PY, str(TESTS / "_diff_tmux_pyte.py")], ROOT, 300,
+                      optional=True))
     suite.append(Test("test_wait_any (pexpect-style multi-marker wait)",
                       [PY, str(TESTS / "test_wait_any.py")], ROOT, 60,
                       optional=True))
