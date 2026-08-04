@@ -88,7 +88,13 @@ classifiers = [
 # on Windows. POSIX uses the stdlib `pty` backend.
 dependencies = [
     "pyte>=0.8.1",
-    "mcp>=1.0",
+    # Pinned below 2.0: the MCP Python SDK 2.0 removed `mcp.server.fastmcp`
+    # (and the rest of the v1 FastMCP surface this server imports), so an
+    # unbounded `mcp>=1.0` resolves to 2.x and the server exits with
+    # "the 'mcp' package is required" even though mcp is installed.
+    # Upstream keeps v1.x maintained on its own branch; revisit when the
+    # server is ported to the 2.x API.
+    "mcp>=1.0,<2",
     "pywinpty>=2.0; platform_system == 'Windows'",
 ]
 
