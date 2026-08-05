@@ -34,8 +34,46 @@ from __future__ import annotations
 
 import re
 import sys
-import tomllib
 from pathlib import Path
+
+# tomllib is stdlib only from 3.11, and this project's floor is 3.10 — the very
+# fact this gate asserts. Fall back to tomli, then to a narrow regex reader, so
+# the gate itself runs on the oldest supported interpreter. (First version of
+# this file imported tomllib unconditionally and failed on every py3.10 CI leg.)
+try:
+    import tomllib  # type: ignore[import-not-found]
+except ModuleNotFoundError:  # pragma: no cover - depends on interpreter
+    try:
+        import tomli as tomllib  # type: ignore[no-redef]
+    except ModuleNotFoundError:
+        tomllib = None  # type: ignore[assignment]
+
+
+def _load_pyproject(text: str) -> dict:
+    """Parse just what this gate needs, without requiring a TOML library."""
+    if tomllib is not None:
+        return tomllib.loads(text)
+    # Minimal reader: [project].dependencies / requires-python and the two tool
+    # targets. Deliberately narrow — it exists so the gate still runs on 3.10
+    # without adding a test-time dependency.
+    out: dict = {"project": {}, "tool": {"mypy": {}, "ruff": {}}}
+    deps = re.search(r"^dependencies\s*=\s*\[(.*?)^\]", text, re.S | re.M)
+    names: list[str] = []
+    if deps:
+        for line in deps.group(1).splitlines():
+            # Strip comments FIRST: pyproject explains the mcp cap in a comment
+            # that itself contains a quoted string, and a naive findall over the
+            # whole block picked it up as a dependency.
+            code = line.split("#", 1)[0]
+            names.extend(re.findall(r'"([^"]+)"', code))
+    out["project"]["dependencies"] = names
+    rp = re.search(r'^requires-python\s*=\s*"([^"]+)"', text, re.M)
+    out["project"]["requires-python"] = rp.group(1) if rp else ""
+    mv = re.search(r'^python_version\s*=\s*"([^"]+)"', text, re.M)
+    out["tool"]["mypy"]["python_version"] = mv.group(1) if mv else ""
+    tv = re.search(r'^target-version\s*=\s*"([^"]+)"', text, re.M)
+    out["tool"]["ruff"]["target-version"] = tv.group(1) if tv else ""
+    return out
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -56,7 +94,8 @@ def norm(spec: str) -> str:
 
 
 # --------------------------------------------------------------------------
-project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+_PYPROJECT = _load_pyproject((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+project = _PYPROJECT["project"]
 pyproject_deps = [norm(d) for d in project["dependencies"]]
 requires_python = project["requires-python"].strip()
 
@@ -97,7 +136,7 @@ for rel in ("packaging/conda-forge/recipe/meta.yaml",):
           detail=f"found 3.{', 3.'.join(bad)}")
 
 # mypy/ruff target the same floor as the package.
-tool = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["tool"]
+tool = _PYPROJECT["tool"]
 mypy_v = str(tool.get("mypy", {}).get("python_version", ""))
 check(mypy_v == f"3.{floor_minor}",
       f"[tool.mypy] python_version == 3.{floor_minor}", detail=f"got {mypy_v!r}")
