@@ -914,6 +914,73 @@ service or posting as the owner. Given that this ecosystem is actively penalisin
 bot submissions, an agent acting under the owner's identity there is a real risk
 to the account and the project's name, not a convenience.
 
+### 10h. Harbor adapter, dependency-drift gate, and three self-inflicted bugs (2026-08-05)
+
+**Harbor adapter — the leaderboard path is now real.** The public Terminal-Bench
+leaderboard moved to Harbor (`laude-institute/harbor`, 3.9k★, pushed 2026-08-05;
+terminal-bench itself last moved 2026-07-11), so the classic-TB adapter in
+`agent.py` cannot produce a comparable score. `smartcli_tbench/harbor_agent.py`
+targets Harbor. The interface difference was read from Harbor's source, not docs:
+
+    classic TB:  perform_task(instruction, session: TmuxSession) → capture_pane()
+    Harbor:      async run(instruction, environment: BaseEnvironment, context)
+                 → await environment.exec(command) → ExecResult
+
+**Harbor gives a one-shot command runner — no tmux handle, no `capture_pane`** — so
+`driver.py`'s whole approach is unavailable there. That is also the opening: the
+adapter's `setup()` pip-installs smartcli-toolkit *inside* the environment and the
+loop drives its persistent-session CLI over `exec`, supplying the PTY and
+screen-state waits Harbor lacks natively. Selectable without forking Harbor via
+`AgentConfig.import_path` (verified that field exists):
+
+    agent:
+      import_path: "smartcli_tbench.harbor_agent:SmartCliHarborAgent"
+
+Validated against the **real** base class, not a stand-in: Harbor was installed
+into a venv and the class confirmed to be a genuine `BaseAgent` subclass with zero
+unimplemented abstract methods, instantiable, `version()` → 0.2.0, and
+`run`/`setup` signatures matching the caller. `tests/test_harbor_agent.py` (22
+checks, no Harbor/Docker/PTY needed) drives the loop against a fake environment
+shaped from the real `exec()` signature, and locks the two things a benchmark
+harness must not get wrong: the session closes **even when `decide_fn` raises**,
+and a missing `decide_fn` is reported rather than silently scoring zero.
+**Still needed for an actual leaderboard number (owner only):** a `decide_fn`
+(a model client — deliberately not bundled) and an LLM API-key secret for
+`bench.yml`.
+
+**Dependency-drift gate.** `tests/test_dependency_sync.py` asserts that one
+dependency fact has one value: `requirements.txt` must equal pyproject's runtime
+`dependencies` exactly, `requires-python` must agree wherever restated (including
+the mypy and ruff targets), and packaging drafts must not leave unbounded a
+dependency pyproject caps. It exists because the same fault fired twice in a day —
+`mcp` capped in `pyproject.toml` but left open in `requirements.txt`, **which is
+what the Docker image installs, and that image is what MCP directories run to
+validate the server**. It caught a live drift on its first run (conda-forge recipe
+still had a bare `mcp >=1.0`, i.e. an uninstallable package for anyone submitting
+that draft).
+
+**Three bugs I introduced and fixed in the same session.** Recorded because each
+is a recurring shape, not a one-off:
+
+1. **A gate that violated the constraint it checks.** The dependency gate imported
+   `tomllib`, stdlib only from 3.11 — while this project's floor is 3.10, the very
+   fact it asserts. It failed on every py3.10 CI leg. `test_version_sync.py` reads
+   pyproject with regexes for exactly this reason; I did not follow the precedent.
+   **Lesson: a gate must run on the floor it enforces.**
+2. **A bug only reachable on the fallback path.** The regex fallback added in (1)
+   was greedy past the dependencies array and collected a quoted string out of a
+   *comment* as a dependency. It surfaced only because I forced the no-tomllib path
+   instead of trusting the primary one. **Lesson: exercise the degraded path, or it
+   is untested code.**
+3. **A timing-dependent assertion.** The zero-leak check ran `list` immediately
+   after `close`, but the daemon unlinks its registry entry afterwards in its own
+   `finally` — a race, not a leak. It passed locally and failed on the slower macOS
+   runner. `_mcp_probe.py` already polled for this reason. **Lesson: assertions
+   that pass on the fast machine that wrote them are the classic CI flake.**
+
+Suite is now **39 entries** in `build_suite()`; deterministic gates 19/19 green,
+CI green on all three OSes.
+
 ## CONTINUATION PROMPT (paste to next AI)
 
 ```
@@ -1005,10 +1072,11 @@ plus bounded drive-smoke (real-PTY probes) and package (wheel/registry contract)
 9 workflows. cc-decompiled/ stays gitignored/excluded.
 
 OPEN OBJECTIVES (the §6 A-grade list #1–#7 is DONE through v0.1.8; what actually remains):
-1. [DONE 2026-08-03] Glama listing + score badge — the owner completed this; PR #11022
-   is now labelled `has-glama` and is MERGEABLE, waiting only on maintainer throughput.
-   No action left. (Kept here as the record of how that dependency worked: Glama listing
-   is the precondition for the awesome-mcp-servers entry, not the other way round.)
+1. [OWNER, the only thing blocking a leaderboard number] Supply a `decide_fn` (a model
+   client) for the Harbor adapter and add an LLM API-key secret for bench.yml. The
+   adapter itself is DONE and validated against Harbor's real base class (§10h); it
+   deliberately ships no model client, because this project supplies perception and the
+   drive loop, not inference. Without those two, scored runs cannot happen.
 2. [OWNER] Show HN. Copy is ready in docs/LAUNCH-COPY.md, rewritten around the
    reproducible examples/drive_vim.py evidence. Tue-Thu 08:00-10:00 US Eastern; be at a
    keyboard for three hours after — an unanswered first question kills a Show HN.
@@ -1016,9 +1084,8 @@ OPEN OBJECTIVES (the §6 A-grade list #1–#7 is DONE through v0.1.8; what actua
    revoke it. Decision recorded; stop re-raising it.
 3. [S] D1: write RESEARCH-PROMPTS.md from the calibrated /deep-research anchor list
    (conch, terminal-bench, plotille, TTE, PyPI trusted publishing) — see NEXT-STEPS D1.
-4. [M-L] Harbor / TB-2.0 port of the Terminal-Bench adapter (classic-TB adapter exists;
-   the public leaderboard moved to a different agent interface). bench.yml scored runs
-   also need the owner to add an LLM API-key secret.
+4. [DONE 2026-08-05] Harbor adapter — see §10h. `smartcli_tbench/harbor_agent.py`,
+   selectable via `import_path`, validated against the real Harbor BaseAgent.
 5. [M] tui-ui reactive/declarative layer; [M] kitty graphics protocol next to sixel.
 6. [Human eyeball] effort_selector cadence in a real Windows Terminal (travel SMALL,
    ~lambda x1..1.6; distances ultracode 4/max 14/xhigh 25/high 34/medium 45/low 53);
@@ -1033,7 +1100,7 @@ then C4 Show HN / r/commandline + C5 skill-community posts (C1 proof reels are D
 
 VERIFY WHAT YOU SHIP (all should exit 0; paths POSIX-style, swap \ on Windows).
 Heavy PTY spawners (run_all, verify_fx, probes) need user consent first — red line:
-  python tests/run_all.py                # unified runner (37 entries; consent first)
+  python tests/run_all.py                # unified runner (39 entries; consent first)
   cd skills/cmd-art && python -m fx list && python -m fx gallery   # 30 effects
   python skills/tui-ui/examples/effort_selector.py --once --stage ultracode --frame 1
   python skills/drive-tui/scripts/tui.py start --cmd "python3 -i -q" --cols 80 --rows 24

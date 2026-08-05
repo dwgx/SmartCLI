@@ -152,9 +152,12 @@ pass/fail. Tests are standalone scripts, not pytest. Two tiers:
 
 - **Deterministic gates** (pure/in-memory, no PTY): `test_fx_contract`,
   `test_readiness`, `test_wait_any`, `test_visual_change`,
-  `test_drive_security`, `test_terminal_fidelity`, `test_sixel`, `test_doc_counts`
-  (anti-drift: doc counts must match code), `test_version_sync` (ten version
-  sites), `test_vendor_sync`, `_sandbox_fuzz_core`. The authoritative list is
+  `test_drive_security`, `test_terminal_fidelity`, `test_perf_contract`,
+  `test_sixel`, `test_doc_counts` (anti-drift: doc counts must match code),
+  `test_version_sync` (ten version sites), `test_dependency_sync` (one dependency
+  fact, one value — `requirements.txt` is what the Docker image installs, so it
+  must not drift from pyproject), `test_harbor_agent`, `test_vendor_sync`,
+  `_sandbox_fuzz_core`. The authoritative list is
   `build_suite()` in run_all.py. These run in CI on a 3-OS matrix
   (Windows/Ubuntu/macOS × py3.10/3.14).
 - **Real-process probes** — spawn real ConPTY/pty/tmux; slow, serial-only, one
