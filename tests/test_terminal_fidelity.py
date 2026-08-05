@@ -268,6 +268,44 @@ m.feed(b"main\r\n\x1b[?47hALT")
 check(m.display[1].rstrip() == "ALT", "legacy mode 47 switches without homing",
       detail=repr([line.rstrip() for line in m.display[:2]]))
 
+# Resizing WHILE on the alternate screen must clip the saved primary screen the
+# same way as the live one. pyte.Screen.resize only touches self.buffer, which is
+# the ALTERNATE buffer at that moment, so the saved primary screen was left at
+# the old shape: the user drags the window while vim/less/htop is up (or
+# drive-tui's own resize action fires) and the wrong rows come back on exit.
+# The expected values are derived by resizing a screen that never entered the
+# alternate buffer, so they cannot encode a defect in the clipping code itself.
+def _alt_resize(payload: bytes, cols: int, rows: int,
+                new_cols: int, new_rows: int, via_alt: bool) -> ScreenModel:
+    mm = ScreenModel(cols=cols, rows=rows)
+    mm.feed(payload)
+    if via_alt:
+        mm.feed(b"\x1b[?1049h")
+    mm.resize(cols=new_cols, rows=new_rows)
+    if via_alt:
+        mm.feed(b"\x1b[?1049l")
+    return mm
+
+
+_ROWS_PAYLOAD = b"AAA\r\nBBB\r\nCCC\r\nDDD"
+_direct = _alt_resize(_ROWS_PAYLOAD, 6, 4, 6, 2, via_alt=False)
+_viaalt = _alt_resize(_ROWS_PAYLOAD, 6, 4, 6, 2, via_alt=True)
+check([r.rstrip() for r in _viaalt.display] == [r.rstrip() for r in _direct.display],
+      "resize on the alt screen drops saved rows from the top, as pyte does",
+      detail=f"direct={[r.rstrip() for r in _direct.display]} "
+             f"via_alt={[r.rstrip() for r in _viaalt.display]}")
+
+_COLS_PAYLOAD = b"AAAAAAAA\r\nBBBBBBBB\r\nCCCCCCCC"
+_direct = _alt_resize(_COLS_PAYLOAD, 8, 3, 3, 3, via_alt=False)
+_viaalt = _alt_resize(_COLS_PAYLOAD, 8, 3, 3, 3, via_alt=True)
+_over_direct = [y for y in range(_direct.screen.lines)
+                if any(x >= 3 for x in _direct.screen.buffer[y])]
+_over_viaalt = [y for y in range(_viaalt.screen.lines)
+                if any(x >= 3 for x in _viaalt.screen.buffer[y])]
+check(_over_viaalt == _over_direct == [],
+      "resize on the alt screen leaves no over-wide cells in the saved screen",
+      detail=f"direct={_over_direct} via_alt={_over_viaalt}")
+
 print("\n--- SGR sub-parameters must not spill onto the screen ---")
 # pyte's parser does not know ':' (ITU-T T.416), so it aborted the sequence and
 # drew the remainder as text: ESC[4:3mU put the literal "3mU" on the grid.

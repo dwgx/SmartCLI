@@ -163,6 +163,48 @@ class _Screen(pyte.Screen):
             self._saved_cursor = None
         self.dirty.update(range(self.lines))
 
+    def resize(self, lines: int | None = None,
+               columns: int | None = None) -> None:
+        """Resize, clipping the SAVED primary screen the same way as the live one.
+
+        ``pyte.Screen.resize`` only touches ``self.buffer``, which during
+        alternate-screen mode is the alternate buffer — the saved primary screen
+        is invisible to it. So a terminal resized while a full-screen program was
+        running (the user drags the window while ``vim``/``less``/``htop`` is up,
+        or ``drive-tui``'s own ``resize`` action fires) restored a primary screen
+        of the old shape on exit: the wrong ROWS, because pyte drops rows from
+        the top while an untouched save keeps its original numbering, plus
+        over-wide cells that `display` hides but a later grow-back would reveal.
+
+        Found by re-auditing this class against the same defect in the upstream
+        patch for pyte issue #90, where the offscreen buffer had the same hole.
+        """
+        old_lines, old_columns = self.lines, self.columns
+        new_lines = old_lines if lines is None else lines
+        new_columns = old_columns if columns is None else columns
+        super().resize(lines, columns)
+
+        saved = self._saved_main
+        if saved is None:
+            return
+        if new_lines < old_lines:
+            # Match pyte: shrinking drops rows from the TOP, so the surviving
+            # rows shift up and renumber. Reading low-to-high is safe because
+            # the source index always leads the destination.
+            drop = old_lines - new_lines
+            for y in range(new_lines):
+                row = saved.pop(y + drop, None)
+                if row is not None:
+                    saved[y] = row
+                else:
+                    saved.pop(y, None)
+            for y in range(new_lines, old_lines):
+                saved.pop(y, None)
+        if new_columns < old_columns:
+            for line in saved.values():
+                for x in range(new_columns, old_columns):
+                    line.pop(x, None)
+
     def set_mode(self, *modes: int, **kwargs) -> None:
         if kwargs.get("private"):
             for mode in modes:
