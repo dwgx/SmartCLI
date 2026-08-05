@@ -70,11 +70,16 @@ non-negotiable and overrides any shortcut that looks faster.
 
 ## A0. NEW since v0.2.0 (added 2026-07-27)
 
-### A0-GLAMA. List on Glama to unblock the 91k-star awesome-mcp-servers PR  [S] (OWNER)
+### ~~A0-GLAMA. List on Glama to unblock the 91k-star awesome-mcp-servers PR~~  [DONE 2026-08-03 — owner]
 - **Goal:** submit SmartCLI at <https://glama.ai/mcp/servers> ("Add Server"), then
   add the returned score badge to PR
   [#11022](https://github.com/punkpeye/awesome-mcp-servers/pull/11022).
-- **Why:** the `glama-check` bot labelled that PR `missing-glama`; a Glama listing
+- **Result:** owner listed and claimed the server (`glama.ai/mcp/servers/dwgx/SmartCLI`,
+  id `rqnmoia3ut`) and added the score badge; PR #11022 flipped to `has-glama` and is
+  MERGEABLE. Maintainer `punkpeye` had given the two-step instruction personally on
+  2026-07-29. Verified 2026-08-03: Glama's API returns the server (it returned
+  `not_found` on 2026-07-27).
+- **Why it was needed:** the `glama-check` bot labelled that PR `missing-glama`; a Glama listing
   is a stated precondition. Note the dependency direction — the claim that a
   merged PR syncs *to* Glama was refuted 0-3. Verified we are NOT on Glama today:
   `curl -s https://glama.ai/api/mcp/v1/servers/dwgx/SmartCLI` → `not_found`.
@@ -113,7 +118,7 @@ non-negotiable and overrides any shortcut that looks faster.
   23 sources, 25 claims verified 3 votes each → 15 confirmed / **10 refuted**, plus
   first-hand checks that override the research where they disagreed). Filed the one PR that
   is both a category fit and rule-compliant: awesome-mcp-servers #11022 (91k★), now blocked
-  on A0-GLAMA. Also done: PyPI keywords/classifiers (mcp, agent, pexpect, `Typing :: Typed`),
+  on A0-GLAMA (since cleared — see that task). Also done: PyPI keywords/classifiers (mcp, agent, pexpect, `Typing :: Typed`),
   8 GitHub topics, registry `description` rewritten to name vim/htop/lazygit.
 - **Bugs this exposed** (the real value): Docker image defaulted to `fx gallery` so any MCP
   directory validating it would have scored the server broken; MCP `serverInfo` reported the

@@ -25,8 +25,8 @@ several widely repeated claims about these channels turned out to be false.
 | Channel | Accepts 0-traction? | Mechanism | Automation allowed? | Status for SmartCLI |
 |---|---|---|---|---|
 | **Official MCP Registry** | **Yes** — no stars/downloads/review in the publish path | `mcp-publisher` CLI + `mcp-name:` marker in the PyPI README | Yes (OIDC in CI) | ✅ **Done** — `io.github.dwgx/smartcli`, automated in `publish.yml` |
-| **Glama** | Unclear (its own criteria did **not** survive verification) | Web UI "Add Server" → sign-in | Needs a human sign-in | ❌ **Not listed** (verified via API) — **blocking item, see §3** |
-| **punkpeye/awesome-mcp-servers** (91k★) | Yes in stated policy; merges 0-2★ repos | Fork + one-line README PR | ⚠️ **Honeypot — see §2** | 🟡 PR [#11022](https://github.com/punkpeye/awesome-mcp-servers/pull/11022) open, blocked on Glama |
+| **Glama** | Unclear (its own criteria did **not** survive verification) | Web UI "Add Server" → sign-in | Needs a human sign-in | ✅ **Listed 2026-08-03** — id `rqnmoia3ut`, MIT detected, badge in the PR |
+| **punkpeye/awesome-mcp-servers** (91k★) | Yes in stated policy; merges 0-2★ repos | Fork + one-line README PR | ⚠️ **Honeypot — see §2** | 🟡 PR [#11022](https://github.com/punkpeye/awesome-mcp-servers/pull/11022) — requirements met, `has-glama`, MERGEABLE; awaiting maintainer |
 | **Cline MCP Marketplace** | Yes ("Can I submit without many stars?" → "Absolutely!") | GitHub **Issue** (not PR), template `mcp-server-submission.yml` | Not forbidden, but needs a human PNG upload + personal attestation | ⬜ Owner-only. ~1,879 open issues; realistic odds low |
 | **Docker MCP Catalog** | Yes on stated gates (MIT explicitly OK) | Manual PR + Dockerfile/image (+ often `tools.json`) | Human reviewer; Docker even documents a `\| claude` authoring path | ⬜ Real effort, ~10% observed merge rate |
 | **Anthropic Connectors Directory** | N/A | Remote-hosted servers only | Authenticated human account | ❌ **Structurally closed** to a local stdio server |
@@ -86,9 +86,17 @@ is: build something awesome → **get users** → then submit."*
 
 ---
 
-## 3. The blocking item: Glama (owner-only, ~5 minutes)
+## 3. Glama — RESOLVED 2026-08-03 (kept as the worked example)
 
-This is the highest-value action available, because it unblocks the 91k-star list.
+**Status: done.** The owner listed and claimed SmartCLI on Glama; PR #11022's label went
+`missing-glama` → `has-glama` and the PR is `MERGEABLE`, waiting only on maintainer
+throughput. Verified against Glama's API on 2026-08-03 (it returned `not_found` on
+2026-07-27). One gotcha for next time: `tools: []` on the public API is normal for
+local-only servers — the already-listed `tui-mcp` and `forge` show the same — so it is
+not a sign that evaluation failed.
+
+The rest of this section is retained because it documents the dependency direction and
+the readiness check, which apply to any future MCP directory.
 
 **Why it is required.** The `glama-check` bot commented on PR #11022 and labelled
 it `missing-glama`:
@@ -156,8 +164,7 @@ where it reads as a bogus version claim. Locked by an assertion in
 
 ## 5. Owner-only checklist, in priority order
 
-1. **Glama** — <https://glama.ai/mcp/servers> → "Add Server". Then add the score
-   badge to PR #11022. *Unblocks a 91k-star listing. ~5 min.*
+1. ~~**Glama**~~ — **DONE 2026-08-03.** Listed, claimed, badge in the PR. No action left.
 2. **Show HN** — copy is ready in [`LAUNCH-COPY.md`](LAUNCH-COPY.md), rewritten
    around the reproducible `examples/drive_vim.py` evidence. Tue–Thu 08:00–10:00
    US Eastern, and **be at a keyboard for three hours afterwards** — an

@@ -871,10 +871,16 @@ which is already done and automated.
 - **Done & automated:** official MCP Registry (`io.github.dwgx/smartcli`, OIDC on
   tag push); PyPI keywords/classifiers; GitHub topics; registry `description`
   rewritten to name vim/htop/lazygit (98/100 chars, schema-validated).
-- **In flight:** [awesome-mcp-servers PR #11022](https://github.com/punkpeye/awesome-mcp-servers/pull/11022)
-  (91k★), **blocked on a Glama listing** — the `glama-check` bot labelled it
-  `missing-glama`. Note the dependency direction: the widely repeated claim that
-  a merged PR syncs *to* Glama was refuted 0-3. Glama first, then the badge.
+- **In flight (unblocked 2026-08-03):** [awesome-mcp-servers PR #11022](https://github.com/punkpeye/awesome-mcp-servers/pull/11022)
+  (91k★) — **all listing requirements now met**, `MERGEABLE`, waiting on maintainer
+  throughput only. The owner completed the Glama step: SmartCLI is listed and claimed
+  (`glama.ai/mcp/servers/dwgx/SmartCLI`, id `rqnmoia3ut`, MIT detected) and the score
+  badge is in the entry, so the PR label flipped `missing-glama` → **`has-glama`**.
+  Maintainer `punkpeye` gave the two-step instruction personally on 2026-07-29, not just
+  the bot. Note the dependency direction for future reference: the widely repeated claim
+  that a merged PR syncs *to* Glama was refuted 0-3 — Glama first, then the badge.
+  (`tools: []` on Glama's public API is normal for local-only servers — the already-listed
+  `tui-mcp` and `forge` show the same; it does not mean evaluation failed.)
 - **⚠️ Do not delete the `dwgx/awesome-mcp-servers` fork** while that PR is open —
   the PR branch lives there.
 - **A trap I walked into, documented so nobody repeats it:** that repo's
@@ -894,11 +900,9 @@ which is already done and automated.
   Directory (remote-hosted servers only; structurally closed to local stdio).
 
 **Owner-only, in priority order** (also in NEXT-STEPS as A0-GLAMA etc.):
-1. **Glama** — <https://glama.ai/mcp/servers> → Add Server, then add the score
-   badge to PR #11022. Unblocks the 91k★ listing; ~5 min. Readiness already
-   verified: the introspection check Glama runs passes (`initialize` → serverInfo
-   0.2.0, `tools/list` → 14 tools). Completion test: the two `curl` calls in
-   `docs/DISTRIBUTION-CHANNELS.md` §3 return the server instead of `not_found`.
+1. ~~**Glama**~~ — **DONE 2026-08-03 by the owner.** Listed, claimed, badge added;
+   PR #11022 label is now `has-glama` and the PR is `MERGEABLE`. Nothing further to do
+   there but wait for the maintainer.
 2. **Show HN** — copy ready in `docs/LAUNCH-COPY.md`, rewritten around the
    reproducible `examples/drive_vim.py` evidence. Tue–Thu 08:00–10:00 US Eastern,
    and be at a keyboard for three hours after.
@@ -1001,13 +1005,10 @@ plus bounded drive-smoke (real-PTY probes) and package (wheel/registry contract)
 9 workflows. cc-decompiled/ stays gitignored/excluded.
 
 OPEN OBJECTIVES (the §6 A-grade list #1–#7 is DONE through v0.1.8; what actually remains):
-1. [OWNER, ~5 min, HIGHEST LEVERAGE] List on Glama (https://glama.ai/mcp/servers →
-   "Add Server"), then add the returned score badge to awesome-mcp-servers PR #11022.
-   That PR (91k-star list) is labelled `missing-glama` and is blocked on exactly this.
-   Readiness verified: the introspection check Glama runs passes. Completion test: the
-   two curl calls in docs/DISTRIBUTION-CHANNELS.md §3 stop returning `not_found`.
-   Do NOT do this from an agent — it needs a sign-in as the owner, in an ecosystem that
-   is actively penalising bot submissions.
+1. [DONE 2026-08-03] Glama listing + score badge — the owner completed this; PR #11022
+   is now labelled `has-glama` and is MERGEABLE, waiting only on maintainer throughput.
+   No action left. (Kept here as the record of how that dependency worked: Glama listing
+   is the precondition for the awesome-mcp-servers entry, not the other way round.)
 2. [OWNER] Show HN. Copy is ready in docs/LAUNCH-COPY.md, rewritten around the
    reproducible examples/drive_vim.py evidence. Tue-Thu 08:00-10:00 US Eastern; be at a
    keyboard for three hours after — an unanswered first question kills a Show HN.
