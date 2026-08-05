@@ -22,7 +22,13 @@ pyte>=0.8.1
 # Official Python MCP SDK used by smartcli-mcp / smartcli-toolkit. This is a
 # required distribution dependency because MCP Registry clients launch the
 # installed package directly via uvx.
-mcp>=1.0
+# Capped below 2.0 for the same reason as pyproject.toml: the SDK 2.0 removed
+# `mcp.server.fastmcp`, so an unbounded resolve picks 2.x and the server exits
+# with "the 'mcp' package is required" even though mcp is installed. This file
+# is what the Docker image installs (Dockerfile: pip install -r
+# requirements.txt), and that image is what MCP directories run to validate the
+# server — so the cap has to be in BOTH files or the image ships broken.
+mcp>=1.0,<2
 
 # pywinpty — ConPTY wrapper used by smartcli_core WinptyBackend. Imported lazily
 # (`import winpty`) only inside the Windows spawn path, so it is Windows-only:
