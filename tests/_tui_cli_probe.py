@@ -342,11 +342,24 @@ def test_wait_visual_change() -> None:
 
 def test_no_leaks() -> None:
     print("\n--- TEST 6: no leaked sessions ---")
-    cp = run_cli("list")
-    listed = [ln for ln in cp.stdout.splitlines() if ln.strip()]
-    check(cp.returncode == 0, "list exit 0", detail=f"rc={cp.returncode}")
+    # POLL rather than assert instantly. `close` returns as soon as the daemon
+    # acknowledges shutdown; the daemon unlinks its registry file afterwards, in
+    # its own finally block. A `list` issued immediately can still see that entry
+    # — a race, not a leak. It passed locally and failed on the slower macOS CI
+    # runner, which is the classic shape of this mistake. _mcp_probe.py already
+    # polls here for the same reason.
+    listed: list[str] = []
+    cp = None
+    for _ in range(40):  # up to ~8s
+        cp = run_cli("list")
+        listed = [ln for ln in cp.stdout.splitlines() if ln.strip()]
+        if not listed:
+            break
+        time.sleep(0.2)
+    check(cp is not None and cp.returncode == 0, "list exit 0",
+          detail=f"rc={cp.returncode if cp else 'n/a'}")
     check(len(listed) == 0, "list shows ZERO sessions (no leaked daemons)",
-          detail=f"{len(listed)} listed: {listed}")
+          detail=f"{len(listed)} listed after polling: {listed}")
 
 
 def main() -> int:
