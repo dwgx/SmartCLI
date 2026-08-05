@@ -74,6 +74,7 @@ DETERMINISTIC_TESTS = [
     "test_visual_change.py",
     "test_drive_security.py",
     "test_version_sync.py",
+    "test_dependency_sync.py",
     "test_terminal_fidelity.py",
     "test_perf_contract.py",
     "test_readiness_properties.py",

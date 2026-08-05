@@ -39,7 +39,9 @@ requirements:
   run:
     - python >=3.10
     - pyte >=0.8.1
-    - mcp >=1.0
+    # Capped below 2.0 to match pyproject.toml: SDK 2.0 removed
+    # mcp.server.fastmcp, which this server imports.
+    - mcp >=1.0,<2
     # pywinpty is Windows-only and gated by an environment marker in the wheel;
     # conda-forge noarch builds target all platforms, so it is intentionally not
     # a hard run dep here (the POSIX stdlib pty backend needs no extra package).

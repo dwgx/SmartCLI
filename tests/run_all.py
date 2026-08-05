@@ -161,6 +161,9 @@ def build_suite():
     suite.append(Test("test_drive_security (control-plane boundaries)",
                       [PY, str(TESTS / "test_drive_security.py")], ROOT, 60,
                       optional=True))
+    suite.append(Test("test_dependency_sync (one dependency fact, one value)",
+                      [PY, str(TESTS / "test_dependency_sync.py")], ROOT, 60,
+                      optional=True))
     suite.append(Test("test_version_sync (ten version sites agree)",
                       [PY, str(TESTS / "test_version_sync.py")], ROOT, 60,
                       optional=True))
