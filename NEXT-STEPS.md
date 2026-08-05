@@ -131,7 +131,38 @@ non-negotiable and overrides any shortcut that looks faster.
   Cursor/Continue marketplaces produced no surviving claims. Smithery and MCP.so are *said*
   to auto-crawl; if true they would be the cheapest channels available.
 
-### A0-HARBOR. Port the Terminal-Bench adapter to TB-2.0 / Harbor  [M-L]
+### ~~A0-HARBOR. Port the Terminal-Bench adapter to Harbor~~  [DONE 2026-08-05]
+- **Result:** `smartcli_tbench/harbor_agent.py` — a real `harbor.agents.base.BaseAgent`
+  subclass, selectable via `import_path` without forking Harbor. Verified against the
+  actual Harbor base class (installed it): genuine subclass, zero unimplemented abstract
+  methods, instantiates, `run`/`setup` signatures match the caller.
+- **The interface difference, read from source not docs:** Harbor gives
+  `async exec(command) -> ExecResult` — a one-shot runner, no tmux handle, no
+  `capture_pane`. `driver.py`'s approach does not apply. So `setup()` pip-installs
+  smartcli-toolkit *inside* the environment and the loop drives its persistent-session
+  CLI over `exec`, which is how the agent gets a PTY and screen-state waits that Harbor
+  does not provide natively.
+- **Locked by** `tests/test_harbor_agent.py` (22 checks, no Harbor/Docker/PTY needed):
+  drives the loop against a fake environment shaped from the real `exec()` signature,
+  and asserts the two things a benchmark harness must not get wrong — the session closes
+  even when `decide_fn` raises, and a missing `decide_fn` is reported rather than
+  silently scoring zero.
+- **Still needed for an actual leaderboard number (owner):** a `decide_fn` (a model
+  client — deliberately not bundled) and an LLM API-key secret for `bench.yml`.
+
+### ~~A0-DEPDRIFT. Gate the dependency declarations against each other~~ [DONE 2026-08-05]
+- **Result:** `tests/test_dependency_sync.py`. `requirements.txt` must equal pyproject's
+  runtime `dependencies` exactly, `requires-python` must agree wherever restated
+  (including the mypy/ruff targets), and packaging drafts must not leave a dependency
+  unbounded that pyproject caps. Mutation-verified with three breakages, one of which
+  replays the real bug exactly.
+- **Why:** the same fault fired twice in a day — `mcp` capped in pyproject but not in
+  `requirements.txt` (which is what the **Docker image** installs, and that image is what
+  MCP directories run to validate the server), and the same facts drifted in the
+  conda-forge recipe. The gate found a live drift on its first run: the conda recipe still
+  had a bare `mcp >=1.0`, which would have shipped an uninstallable package.
+
+### ~~A0-HARBOR-orig~~. A0-HARBOR. Port the Terminal-Bench adapter to TB-2.0 / Harbor  [M-L]
 - **Goal:** the classic-TB adapter (`smartcli_tbench/`) targets an interface the
   public leaderboard no longer uses; port to Harbor's tool/env-mediated agent API.
 - **First step:** read HANDOFF §9h (adapter design + caveat) and the Harbor agent
