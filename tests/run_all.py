@@ -204,6 +204,9 @@ def build_suite():
     suite.append(Test("test_sixel (sixel wire-format lock)",
                       [PY, str(TESTS / "test_sixel.py")], ROOT, 60,
                       optional=True))
+    suite.append(Test("test_harbor_agent (Harbor BaseAgent adapter, no Docker)",
+                      [PY, str(TESTS / "test_harbor_agent.py")], ROOT, 60,
+                      optional=True))
     suite.append(Test("test_tbench_adapter (driver+loop, no Docker)",
                       [PY, str(TESTS / "test_tbench_adapter.py")], ROOT, 60,
                       optional=True))

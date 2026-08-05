@@ -78,6 +78,9 @@ jobs:
       - name: terminal-bench adapter driver+loop (deterministic)
         run: python tests/test_tbench_adapter.py
 
+      - name: harbor agent adapter (deterministic, no Docker)
+        run: python tests/test_harbor_agent.py
+
       - name: degenerate-input regression locks
         run: python tests/test_degenerate_inputs.py
 
