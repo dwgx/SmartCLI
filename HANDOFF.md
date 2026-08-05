@@ -375,9 +375,9 @@ only as `<video>` posters / `showcase/` stills.
 `_drive_probe1..5` were print-only (a human had to eyeball them) — they now **assert**
 and return non-zero on failure (0d3b3b4), so `run_all.py` actually gates on them.
 `_tui_cli_probe.py` (drive-tui CLI end-to-end + token auth) is now in the `run_all.py`
-suite (added 2026-07-14). run_all's suite has since grown to 37 entries (count them
-via `build_suite()`, don't trust this number); the deterministic subset is what the
-CI matrix runs.
+suite (added 2026-07-14). run_all's suite has grown since — count it with
+`build_suite()`, never from this line (it was stale twice); the deterministic
+subset is what the CI matrix runs.
 
 ### 8e. i18n + anti-drift accuracy pass (2026-07-14)
 - **The 4 localized READMEs (zh-Hans/zh-Hant/ja/ko) said a stale 18 (should be 19) and
@@ -498,8 +498,8 @@ verify + independent adversarial review + full-suite green).**
   bug was invisible to me and to the passing test.**
 
 ### 9e. Standing state after this session *(2026-07-15 snapshot — superseded by §10)*
-- **Regression: `python tests\run_all.py` = 27/27** at the time (the suite has since
-  grown to 37 entries — count via `build_suite()`).
+- **Regression: `python tests\run_all.py` = 27/27** at the time (the suite has grown
+  a lot since — count via `build_suite()`).
 - **git clean, synced with origin** was true then. *No longer:* the v0.2.0 work sits
   developed on branch `codex/cross-platform-mcp-hardening`, since merged to `main` and
   tagged `v0.2.0` — see §10.
@@ -978,8 +978,10 @@ is a recurring shape, not a one-off:
    runner. `_mcp_probe.py` already polled for this reason. **Lesson: assertions
    that pass on the fast machine that wrote them are the classic CI flake.**
 
-Suite is now **39 entries** in `build_suite()`; deterministic gates 19/19 green,
-CI green on all three OSes.
+Suite is now **43 entries** in `build_suite()`; deterministic gates green, CI green
+on all three OSes. (Registration is unconditional — the tmux probes SKIP
+themselves rather than deregistering — so this count does not vary by host. Count
+it with `build_suite()`, never from memory: this line said 39 for a day.)
 
 ## CONTINUATION PROMPT (paste to next AI)
 
@@ -1100,7 +1102,7 @@ then C4 Show HN / r/commandline + C5 skill-community posts (C1 proof reels are D
 
 VERIFY WHAT YOU SHIP (all should exit 0; paths POSIX-style, swap \ on Windows).
 Heavy PTY spawners (run_all, verify_fx, probes) need user consent first — red line:
-  python tests/run_all.py                # unified runner (39 entries; consent first)
+  python tests/run_all.py                # unified runner (43 entries; consent first)
   cd skills/cmd-art && python -m fx list && python -m fx gallery   # 30 effects
   python skills/tui-ui/examples/effort_selector.py --once --stage ultracode --frame 1
   python skills/drive-tui/scripts/tui.py start --cmd "python3 -i -q" --cols 80 --rows 24
