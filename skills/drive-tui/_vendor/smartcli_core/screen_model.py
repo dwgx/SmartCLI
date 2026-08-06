@@ -143,6 +143,14 @@ class _Screen(pyte.Screen):
     #: the references by ignoring it — would make us silently drop a documented
     #: sequence. Kept deliberately separate from _ALT_MODES so it can never affect
     #: buffer switching, and locked by a test that names the divergence.
+    #:
+    #: Note for whoever sees the behaviour change: once ``_PYTE_HAS_ALT`` is true
+    #: this class hands 1048 to the base class, whose pending implementation uses
+    #: a single dedicated slot rather than a stack — so repeated ``1048h`` will
+    #: OVERWRITE rather than nest. Both are defensible (xterm says "as DECSC",
+    #: and DECSC is a stack; a single slot cannot strand savepoints), neither
+    #: reference emulator implements 1048 at all, so there is no ground truth to
+    #: prefer one. Recorded here so the drift is not mistaken for a regression.
     _CURSOR_ONLY_MODE = 1048
 
     def __init__(self, *args, **kwargs) -> None:
