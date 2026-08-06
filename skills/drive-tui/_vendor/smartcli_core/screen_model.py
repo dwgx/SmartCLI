@@ -441,6 +441,30 @@ class _Screen(pyte.Screen):
         self.cursor.x = col  # real terminals keep the column; pyte homes it
 
     def delete_lines(self, count: int | None = None) -> None:
+        """DL — deleting must BLANK the rows it vacates, not leave them behind.
+
+        ``insert_lines`` above already routes through :meth:`_shift_lines` to keep
+        every row present in pyte's sparse buffer. DL had the mirror-image hole and
+        did not: pyte copies ``buffer[y] = buffer.pop(y + count)`` only ``if
+        y + count in self.buffer``, so when the source row was never written the
+        DESTINATION keeps its old contents instead of going blank.
+
+        Two visible consequences, both measured against tmux 3.6b AND GNU screen
+        4.00.03, which agree on all of them: ``Q`` + CR + ``ESC[1M`` left ``Q`` on
+        screen where both references clear it, and ``A/B/C`` + ``ESC[2M`` deleted
+        only ONE row, leaving ``['C', 'B']`` where both give ``['C']``.
+
+        The earlier IL-side fix masked this: the repro recorded for it happened to
+        materialise the rows first, so it passed while the minimal case stayed
+        broken. Found by triaging which of this project's fixes are genuinely
+        absent upstream.
+        """
+        top, bottom = self.margins or (0, self.lines - 1)
+        if top <= self.cursor.y <= bottom:
+            self._shift_lines(self.cursor.y, bottom,
+                              min(count or 1, bottom - self.cursor.y + 1),
+                              down=False)
+            return
         col = self.cursor.x
         super().delete_lines(count)
         self.cursor.x = col

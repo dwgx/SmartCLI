@@ -537,6 +537,31 @@ check(_m.display[0].rstrip() == "bc",
       "DCH on a narrow glyph deletes exactly one cell",
       detail=f"row0={_m.display[0].rstrip()!r}")
 
+
+# --- DL must blank the rows it vacates, not leave them behind -----------------
+# pyte copies `buffer[y] = buffer.pop(y + count)` only `if y + count in
+# self.buffer`, so when the source row was never written the DESTINATION keeps its
+# old contents. insert_lines already routed through _shift_lines to keep every row
+# present; DL had the mirror-image hole and did not.
+#
+# Every expectation below was measured against tmux 3.6b AND GNU screen 4.00.03,
+# which agree on all five. The earlier IL-side fix masked this: its recorded repro
+# happened to materialise the rows first, so it passed while the minimal case
+# stayed broken — which is why the minimal case leads the list.
+for _label, _payload, _want in (
+        ("minimal Q CR DL(1)",      b"Q\r\x1b[1M",                  []),
+        ("DL(1) with a row below",  b"A\r\nB\x1b[1;1H\x1b[1M",      ["B"]),
+        ("IL(3) then Q then DL(1)", b"\x1b[3LQ\x1b[1M",             []),
+        ("DL(2) over three rows",   b"A\r\nB\r\nC\x1b[1;1H\x1b[2M", ["C"]),
+        ("DL past the bottom",      b"A\r\nB\x1b[1;1H\x1b[9M",      [])):
+    _m = ScreenModel(cols=8, rows=4)
+    _m.feed(_payload)
+    _got = [line.rstrip() for line in _m.display]
+    while _got and _got[-1] == "":
+        _got.pop()
+    check(_got == _want, f"DL blanks what it vacates ({_label})",
+          detail=f"got={_got} want={_want}")
+
 if FAILURES:
     print(f"\ntest_terminal_fidelity FAIL -- {len(FAILURES)} check(s):")
     for f in FAILURES:
