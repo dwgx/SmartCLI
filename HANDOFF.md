@@ -1,12 +1,29 @@
 # SmartCLI — Handoff (承上启下)
 
-*Written 2026-07-08, last updated **2026-07-27**. This is the single document a fresh AI reads first to pick up SmartCLI without re-deriving anything. It records the **current release state**, what the project IS, what already WORKS (with the exact commands to see it), the brain (`knowledge/`), the hard-won rules that must never be re-lost, the environment, and the open tasks framed so you can start in one move. Baked-in truths (re-verified against code 2026-07-27): there are **THREE** skills, the live `fx` registry has **30** effects, `tui-ui` has **17** widgets, drive-tui has **8** recipes, and `knowledge/` has **143** `.md` files. **Read §10 (2026-07-27, v0.2.0 on branch) first for the most recent work — control-plane security hardening, visual_hash + wait_visual_change, the wheel gaining smartcli_drive + three console scripts, MCP Registry OIDC auto-publish, and a full-repo doc-accuracy review; then §9 (v0.1.3→v0.1.8) and §8/§7 for history.***
+*Written 2026-07-08, last updated **2026-08-06**. This is the single document a fresh AI reads first to pick up SmartCLI without re-deriving anything. It records the **current release state**, what the project IS, what already WORKS (with the exact commands to see it), the brain (`knowledge/`), the hard-won rules that must never be re-lost, the environment, and the open tasks framed so you can start in one move. Baked-in truths (re-verified against code 2026-07-27): there are **THREE** skills, the live `fx` registry has **30** effects, `tui-ui` has **17** widgets, drive-tui has **8** recipes, and `knowledge/` has **143** `.md` files. **Read §10 (2026-07-27, v0.2.0 on branch) first for the most recent work — control-plane security hardening, visual_hash + wait_visual_change, the wheel gaining smartcli_drive + three console scripts, MCP Registry OIDC auto-publish, and a full-repo doc-accuracy review; then §9 (v0.1.3→v0.1.8) and §8/§7 for history.***
 
 ---
 
-## 0. Release & current state (v0.1.8) — READ THIS FIRST
+## 0. Release & current state — READ THIS FIRST
 
-SmartCLI is **published and public**; latest release **v0.2.0** (2026-07-27, live on PyPI + GitHub + MCP Registry). v0.2.0 shipped from branch `codex/cross-platform-mcp-hardening`, merged to `main` and tagged; `publish.yml` published to PyPI and re-published `server.json` to the MCP Registry via OIDC — all three jobs green, verified by installing `smartcli-toolkit==0.2.0` from PyPI in a clean venv. This section is the authoritative current-state record; anything older in this doc that contradicts it is stale. See §10 for the whole 0.2.0 arc: drive-tui control-plane security hardening, `visual_hash` + `wait_visual_change` (closes old known-#3), the wheel now shipping `smartcli_drive` + three console scripts, `mcp` as a required dependency, Python floor 3.10, CI drive-smoke/package jobs, and **twelve screen-emulation bugs** found by differential testing against real terminals — including the alternate screen buffer, which pyte does not implement at all, so every full-screen TUI was previously unreadable. **BREAKING in 0.2.0:** Python 3.9 dropped; the MCP SDK is a required dependency. v0.1.8 added `wait_any`, **Sixel graphics output**, and a **Terminal-Bench agent adapter** (§9h). v0.1.7 shipped `spectrum_bars` + `cbonsai` (catalog 30) and the **MCP Registry** listing (`io.github.dwgx/smartcli`, active — §9g).
+> **2026-08-06 — v0.2.1 is PREPARED ON `main` BUT NOT TAGGED.** All ten version
+> sites read 0.2.1, the CHANGELOG entry is written, the vendored core is re-synced,
+> and PR #8 is merged (28 commits, all 28 CI checks green on three OSes). The wheel
+> was built and installed into a clean venv: version 0.2.1, `Requires-Python
+> >=3.10`, `smartcli_core/py.typed` + `smartcli_drive/{tui,mcp_server}.py` present,
+> `twine check` PASSED, `smartcli-tui doctor` works, and the fixes are live from the
+> installed artifact (CUD below a scroll region → row 9; DCH on `中x` → `"x"`;
+> `alt_screen` True after `ESC[?1049h`). **The remaining step is the owner's:
+> `git tag v0.2.1 && git push origin v0.2.1`**, which triggers publish.yml
+> (PyPI OIDC → MCP Registry OIDC). It is left undone deliberately — a published
+> version number can never be reused, even if yanked.
+>
+> **Why it matters that this ships:** the pyte capability detection
+> (`_PYTE_HAS_ALT`, `_PYTE_DCH_HANDLES_WIDE`) existed only on a branch, so every
+> 0.2.0 install from PyPI is still exposed to a `pip install -U pyte` blanking the
+> primary screen on every full-screen program exit. See §10j.
+
+SmartCLI is **published and public**; latest RELEASED version **v0.2.0** (2026-07-27, live on PyPI + GitHub + MCP Registry). v0.2.0 shipped from branch `codex/cross-platform-mcp-hardening`, merged to `main` and tagged; `publish.yml` published to PyPI and re-published `server.json` to the MCP Registry via OIDC — all three jobs green, verified by installing `smartcli-toolkit==0.2.0` from PyPI in a clean venv. This section is the authoritative current-state record; anything older in this doc that contradicts it is stale. See §10 for the whole 0.2.0 arc: drive-tui control-plane security hardening, `visual_hash` + `wait_visual_change` (closes old known-#3), the wheel now shipping `smartcli_drive` + three console scripts, `mcp` as a required dependency, Python floor 3.10, CI drive-smoke/package jobs, and **twelve screen-emulation bugs** found by differential testing against real terminals — including the alternate screen buffer, which pyte does not implement at all, so every full-screen TUI was previously unreadable. **BREAKING in 0.2.0:** Python 3.9 dropped; the MCP SDK is a required dependency. v0.1.8 added `wait_any`, **Sixel graphics output**, and a **Terminal-Bench agent adapter** (§9h). v0.1.7 shipped `spectrum_bars` + `cbonsai` (catalog 30) and the **MCP Registry** listing (`io.github.dwgx/smartcli`, active — §9g).
 
 **Where it lives:**
 - **PyPI:** `pip install smartcli-toolkit` → https://pypi.org/project/smartcli-toolkit/ . The dist name is **`smartcli-toolkit`**; the **import package stays `smartcli_core`** (`from smartcli_core import PtySession`). Latest on PyPI = **0.2.0** (the JSON index can lag a few minutes after a release — the `Publish to PyPI` workflow going green is the source of truth, not the index).
@@ -1152,6 +1169,92 @@ buffer). One batch of locks was appended *after* the module's `sys.exit(0)` and
 never ran at all; mutation testing reporting 0/4 caught is the only reason that
 was noticed instead of shipping as a green-looking no-op.
 
+### 10j. The blocking gate was measuring a state that did not exist (2026-08-06)
+
+**PR #8 sat `UNSTABLE` on a red `lint` job while the tree was clean.** The gate
+installs only `ruff` and `mypy` — not `pyte`. With pyte absent,
+`ignore_missing_imports` degrades `pyte.Screen` to `Any`, so the
+`type: ignore[misc]` on the `alt_screen` property became *unused* under
+`warn_unused_ignores` and failed the build. Nothing was wrong with the code.
+
+The same masking hid **two real errors present since v0.2.0 that CI had never
+seen**: `feed`'s bytes-vs-str override (`[override]`) and the
+`write_process_input` assignment (`[method-assign]`). Both are deliberate — the
+first is pyte's *own* Liskov violation, and pyte carries the identical ignore
+upstream, so matching it keeps the override honest to the class it inherits from;
+the second is pyte's documented device-query hook, which is a method rather than a
+callback attribute, so there is no non-assigning way to install it. Annotated at
+the call sites, never silenced globally.
+
+Verified in both directions (with pyte → clean, 7 files; without → the false
+`unused-ignore` reproduced) and mutation-verified that the gate still bites:
+returning `str` from a `bool` property and passing `bytes` to `cursor_down` are
+both caught. **One mutation was NOT caught, and that was correct** — widening the
+`alt_screen` return to `int` is legal, because `bool` subclasses `int`. A silent
+mutation is not automatically a hole in the gate; sometimes it is a bad mutation,
+and telling the two apart is the whole skill.
+
+**`alt_screen` reached the code in round three but no document, and one surface
+was still lying.** `grep -rln alt_screen --include='*.md' .` matched only
+CHANGELOG and HANDOFF — not a single SKILL.md, README, or reference. Worse, the
+**MCP `snapshot` tool was dropping the field entirely**: it rebuilds its reply as
+a hand-written allowlist, and `alt_screen` was not on it. The daemon had always
+sent it and the CLI had always printed it, so MCP clients — the surface this
+project promotes hardest, 14 tools, live on the registry — were the only ones that
+could not tell whether a full-screen program owned the screen. That is precisely
+the blindness §10f exists to remove, surviving on the one surface nobody
+re-checked. Verified through the real FastMCP tool registry, not by reading the
+diff: real `less` → `alt_screen` True, `q` → False.
+
+**The regression lock for it took three attempts, and each failure is a recorded
+lesson re-earned.**
+
+1. *An echo is not output.* The first version had the REPL write the escape
+   itself. `python3 -i -q` on a PTY does not execute queued lines promptly, so
+   `sys.stdout.write('\x1b[?1049h')` was only ECHOED — and the wait pattern then
+   matched the echo of the probe's own payload. A PASS proving nothing (§10g).
+2. *A missing key and a genuine False are identical to `.get()`.* Asserting
+   `alt_screen is False` on a REPL cannot catch a dropped field. Mutation testing
+   proved the split: reverting the fix fails 4 checks, while hardcoding
+   `alt_screen=False` fails **only** the real-full-screen-program check. That is
+   the entire reason the probe drives `less`.
+3. *TERM must be set, not inherited.* The lock passed here and failed on all three
+   runners. CI has no `TERM`, and without one `less` prints `WARNING: terminal is
+   not fully functional / Press RETURN to continue` and **never enters the
+   alternate screen** — the feature under test simply does not happen. Reproduced
+   locally with `env -u TERM` rather than guessed, then fixed by passing TERM
+   explicitly through the MCP `start` tool's own `env`. This is the third time the
+   rig has suppressed the very feature it was aimed at (`less -X`, GNU screen's
+   `altscreen` default, now a missing TERM). The wait marker was wrong twice too: a
+   bare `"1"` matches the digits in the warning screen, and `"200"` is the last
+   line of a 200-line fixture that a 24-row first page never shows.
+
+**Also shipped:** `tui.py resize` closes the daemon/CLI asymmetry (A0-CLI-RESIZE)
+— validation stays in the daemon, which converts `_validate_size`'s `SystemExit`
+into an error *reply* so a bad size cannot tear down a live session; a rejected
+`99999x99999` exits 1 and leaves the session alive. `RESEARCH-PROMPTS.md` closes
+D1, recording for each anchor what a good answer would actually CHANGE, and
+pricing the tempting answers honestly (one more effect must clear
+`test_fx_contract`, move `verify_fx` 38/38 → 39/39, and update every count site
+`test_doc_counts` gates). NEXT-STEPS was two rounds stale — it still called v0.1.8
+the latest release — and now carries A0-PYTE-UPSTREAM with the four things that
+must **not** be filed upstream.
+
+**`test_doc_counts` caught me writing a number it had every right to distrust.**
+The D1 result note quoted TTE's upstream catalog size as a bare digit; the gate
+read it as an fx effect count and demanded 30. It was right to. An anti-drift gate
+that only fires on genuine drift would be useless — this one fires on *ambiguity*,
+which is the earlier and cheaper place to catch it.
+
+**A method note on the workflow itself, since it cost real tokens.** Two
+multi-agent rounds lost 6 of 7 agents to `claude-opus-5[1m]` failing to resolve on
+the subagent side — *despite* `model: 'opus'` written explicitly on every call, the
+exact mitigation the project's CLAUDE.md prescribes. The rule is necessary but not
+sufficient: from a `[1m]` session, use `sonnet` for subagents or smoke-test one
+before fanning out. The one surviving agent's work was recoverable from
+`<transcriptDir>/journal.jsonl`, which is the only reason the round was not a total
+loss — read the journal before re-deriving anything.
+
 ---
 
 ## CONTINUATION PROMPT (paste to next AI)
@@ -1224,7 +1327,13 @@ is QUOTA-EXHAUSTED / DEAD — do live research with built-in WebSearch / WebFetc
 Pace multi-agent fan-outs to API health: an 8-wide fan-out died to 529 storms on
 2026-07-27; batches of 2 completed fine.
 
-RELEASE STATE: latest RELEASED = **v0.2.0** (2026-07-27; PyPI + GitHub tags v0.1.0…v0.2.0
+RELEASE STATE: **v0.2.1 is PREPARED ON `main` BUT NOT TAGGED** (2026-08-06) — ten version
+sites at 0.2.1, CHANGELOG written, vendored core synced, PR #8 merged with all 28 CI checks
+green, wheel built + installed in a clean venv and the fixes confirmed live from the
+artifact. The ONLY remaining step is the owner's: `git tag v0.2.1 && git push origin
+v0.2.1`, which fires publish.yml (PyPI OIDC → MCP Registry OIDC). Do not tag on your own
+initiative; a published version number can never be reused. Until it ships, PyPI users are
+still exposed to the pyte-upgrade timebomb (§10j). Previous RELEASED = **v0.2.0** (2026-07-27; PyPI + GitHub tags v0.1.0…v0.2.0
 + a GitHub Release). It merged the codex/cross-platform-mcp-hardening branch — see HANDOFF
 §10 for the whole arc — and was BREAKING: dropped Python 3.9, made the MCP SDK a required
 dependency. All three publish.yml jobs went green (build → PyPI OIDC → MCP Registry OIDC),

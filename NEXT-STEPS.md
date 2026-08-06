@@ -24,6 +24,13 @@ non-negotiable and overrides any shortcut that looks faster.
 
 ## Verified ground-truth snapshot (checked against disk 2026-08-06)
 
+- **v0.2.1 is PREPARED ON `main` BUT NOT TAGGED (2026-08-06).** Ten version sites read
+  0.2.1, CHANGELOG entry written, vendored core synced, PR #8 merged (28 checks green),
+  wheel built and verified from a clean-venv install. The remaining step is the OWNER's:
+  `git tag v0.2.1 && git push origin v0.2.1` → publish.yml does PyPI + MCP Registry via
+  OIDC. Left undone deliberately: a published version number can never be reused. Until
+  it ships, every PyPI 0.2.0 install is still exposed to the pyte-upgrade timebomb that
+  the capability detection fixes (HANDOFF §10j).
 - Release: latest RELEASED = **v0.2.0** on PyPI as dist `smartcli-toolkit` (import
   stays `smartcli_core`). Repo github.com/dwgx/SmartCLI, tags v0.1.0…v0.2.0 with
   GitHub Releases (`git tag | tail -3` → v0.1.8, v0.2.0; `git log --oneline -1
