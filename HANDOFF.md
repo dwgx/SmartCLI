@@ -983,6 +983,101 @@ on all three OSes. (Registration is unconditional — the tmux probes SKIP
 themselves rather than deregistering — so this count does not vary by host. Count
 it with `build_suite()`, never from memory: this line said 39 for a day.)
 
+### 10i. The alternate screen goes upstream, and two dependency timebombs (2026-08-06)
+
+**pyte issue #90, open since 2017 with a `help-wanted` label from the maintainer
+himself and zero competing PRs, is now [selectel/pyte#212](https://github.com/selectel/pyte/pull/212).**
+pyte implements no alternate screen buffer at all, which is why `_Screen` has one:
+without it `vim`/`less`/`htop` paint over the primary screen and never restore it,
+so an agent reads a merged, impossible screen with nothing reporting a problem.
+The PR is three commits, `MERGEABLE`, and its history is worth reading as method
+rather than as code — two rounds of review found ten defects in my own patch.
+
+**Behaviour was measured, not derived.** Sixteen alt-screen cases diffed against a
+real tmux pane, then a three-way against tmux AND GNU screen. That settled one
+point the xterm documentation actively misleads on: the "without clearing" wording
+for 47/1047 describes the clearing action, not buffer lifetime. Taken literally it
+implies alternate-screen contents survive a round trip. **They do not, in either
+emulator.** I implemented the literal reading first and the differential test
+rejected it.
+
+**Two dependency timebombs, same shape, both defused with capability detection.**
+Once #212 ships in a release, `pyte>=0.8.1` (open range, in both
+`requirements.txt` and `pyproject.toml`) means every install picks it up — and
+subclass plus base class both switching restores a BLANK primary screen on every
+full-screen program exit. Measured: `['', '', '']`. The second is `delete_characters`,
+which widens DCH over a wide glyph; against a pyte that does the same, `中x` + CR +
+DCH went from `"x"` to `""`, silently eating a character. Neither is a code change
+you would notice — they arrive as `pip install --upgrade`.
+
+Fixed by asking the installed pyte what it can do (`_PYTE_HAS_ALT` via `hasattr`,
+`_PYTE_DCH_HANDLES_WIDE` via a one-shot behavioural probe) rather than pinning
+`pyte<0.8.3`. A cap would keep users off the upstream fix forever and need revising
+every release. **Both are verified in BOTH directions** — under stock 0.8.2 and
+under a patched checkout — because a one-sided test cannot distinguish "correct"
+from "the branch that happens to run here". Mutation testing needed both ends too:
+hardcoding the DCH probe False is only observable under a pyte that widens DCH,
+hardcoding it True only under one that does not.
+
+**`tests/run_all.py` is 43/43 on macOS — the first full green here.** It was 39/43,
+and the four failures had nothing to do with the code: `tests/_menu_app.py` and its
+four siblings opened with `import sys, msvcrt`, so on POSIX they died before
+drawing anything and three drive probes saw a traceback instead of a menu.
+`examples/drive_vim.py` could not import `smartcli_core` from a checkout. That
+noise floor was the real cost — with four known failures, a genuine regression was
+indistinguishable from the platform gap. `tests/_kbd.py` now provides a
+cross-platform `getwch()` (raw mode entered once, not per keystroke, or an
+`ESC [ A` gets split across three separate raw-mode entries). `_diff_fuzz_tmux`
+gained `rerun=True` for a load-dependent flake: its seed is FIXED, so a real
+divergence fails twice while a slow tmux capture fails once.
+
+**Also this session:** `tests/_diff_two_refs.py` was driving GNU screen without
+`altscreen on`, which **defaults off** — so both alt-screen cases had been
+comparing against a reference with the feature disabled and were reported as
+reference-vs-reference disagreements for a rig reason. The probe went 35 → 37
+arbitrated cases. Mode 1048 is now supported with its weaker evidence level stated
+in the code (xterm defines it; neither reference emulator implements it). And
+`alt_screen` reached the surfaces an agent actually reads — `ScreenModel`,
+`Snapshot`, the `to_text()` header, the JSON hints, and every drive-tui reply —
+having previously been available only by reaching through to the pyte object.
+
+**Seven other pyte defects were triaged for upstreaming, and the premise did not
+survive.** The claim was "all seven are implemented and verified in `_Screen`, so
+upstreaming is a porting job". Two are wrong. Defect 7 (orphaned wide stub) is
+**not a pyte defect**: its locked repro passes on untouched master and on 0.8.2,
+and the orphan it "fixes" is manufactured by SmartCLI's own `draw()` override —
+the test that locks it would pass without the fix. Defect 2's root cause is
+misattributed to `insert_lines` (which pops unconditionally; holes render as
+`default_char`, correctly) when it lives in `delete_lines`, and SmartCLI's own fix
+does not cover the minimal case `b"Q\r\x1b[1M"`. **Six are confirmed live on
+master and port mechanically**: IL/DL homing the cursor column, half-overwriting a
+wide glyph, DCH on a wide glyph, NEL not returning to column 0, and DECSTBM
+region-escape in both `index()` and `cursor_up()`. Three more were found that are
+not in the seven: last-column wide-glyph wrap, ICH/ECH straddling a wide glyph
+(no reference measurement — do not upstream), and SGR colon sub-parameters drawn
+as literal text. Do NOT upstream IL/DL from outside a scroll region (tmux performs
+it, GNU screen discards it — no ground truth) or ZWJ cluster width (master already
+picked tmux's side via `grapheme_clusters`).
+
+**Method notes worth more than any of the fixes.** Three separate times a
+differential failure turned out to be the RIG: `less -X` disables the alternate
+screen (the feature under test), GNU screen's `altscreen` defaults off, and a
+`git stash push` with nothing staged meant a control experiment ran the same code
+twice. Suspecting the rig first is not a slogan here; it has a measured hit rate.
+The mutation harness itself was non-deterministic — Python validates a `.pyc`
+against **(mtime in whole seconds, size)**, and two mutations of one line produce
+identical-size files, so same-second writes ran the previous mutation's bytecode.
+The published "11/11 caught" was measured on that harness; it was re-established
+at 11/11 after fixing it, but it had to be re-established rather than assumed.
+And twice a test was written with its expected value copied from my own broken
+output, so it locked the bug in — both now derive expectations from a path that
+cannot contain the defect (resizing a screen that never entered the alternate
+buffer). One batch of locks was appended *after* the module's `sys.exit(0)` and
+never ran at all; mutation testing reporting 0/4 caught is the only reason that
+was noticed instead of shipping as a green-looking no-op.
+
+---
+
 ## CONTINUATION PROMPT (paste to next AI)
 
 ```
@@ -1073,6 +1168,23 @@ py3.10/3.14) deterministic gates incl. anti-drift test_doc_counts + test_version
 plus bounded drive-smoke (real-PTY probes) and package (wheel/registry contract) jobs;
 9 workflows. cc-decompiled/ stays gitignored/excluded.
 
+UPSTREAM WORK IN FLIGHT (2026-08-06, see §10i):
+- selectel/pyte#212 implements the alternate screen buffer, closing a 9-year-old
+  help-wanted issue. Three commits, MERGEABLE, unreviewed. That upstream's most
+  recent merge was ~11 months before now, so do NOT make anything depend on it.
+- SmartCLI now detects pyte's capabilities at import (_PYTE_HAS_ALT,
+  _PYTE_DCH_HANDLES_WIDE) instead of pinning a version, because BOTH the
+  alternate screen and DCH-over-wide-glyph would double-apply once upstream ships
+  them — a dependency upgrade, not a code change, restoring a blank primary
+  screen or eating a character. Verify any screen-model change under BOTH stock
+  pyte and a patched checkout; a one-sided run cannot tell correct from
+  happens-to-run-here.
+- Six MORE pyte defects are confirmed live on master and port mechanically
+  (IL/DL cursor column, half-overwrite of a wide glyph, DCH on a wide glyph, NEL,
+  DECSTBM escape in index() and cursor_up()). Two of the original seven did NOT
+  survive triage — read §10i before filing anything, and do not upstream IL/DL
+  from outside a scroll region or ZWJ cluster width.
+
 OPEN OBJECTIVES (the §6 A-grade list #1–#7 is DONE through v0.1.8; what actually remains):
 1. [OWNER, the only thing blocking a leaderboard number] Supply a `decide_fn` (a model
    client) for the Harbor adapter and add an LLM API-key secret for bench.yml. The
@@ -1103,6 +1215,9 @@ then C4 Show HN / r/commandline + C5 skill-community posts (C1 proof reels are D
 VERIFY WHAT YOU SHIP (all should exit 0; paths POSIX-style, swap \ on Windows).
 Heavy PTY spawners (run_all, verify_fx, probes) need user consent first — red line:
   python tests/run_all.py                # unified runner (43 entries; consent first)
+    # 43/43 on macOS as of 2026-08-06. If you see 39/43 you are on an older
+    # checkout: the four platform-gap failures (msvcrt fixtures, drive_vim
+    # import) were fixed — see HANDOFF 10i.
   cd skills/cmd-art && python -m fx list && python -m fx gallery   # 30 effects
   python skills/tui-ui/examples/effort_selector.py --once --stage ultracode --frame 1
   python skills/drive-tui/scripts/tui.py start --cmd "python3 -i -q" --cols 80 --rows 24
