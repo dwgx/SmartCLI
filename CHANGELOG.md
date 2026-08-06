@@ -73,6 +73,35 @@ more measured emulation fixes.
   separate raw-mode entries.
 - `RESEARCH-PROMPTS.md` — the calibrated research anchors, each recording what a
   good answer would actually change in the backlog.
+- CLI coverage for `resize` in `tests/_tui_cli_probe.py`, including the check that
+  a *rejected* size leaves the session alive. `_validate_size` raises `SystemExit`,
+  a `BaseException` that would otherwise pass straight through the daemon's
+  per-connection `except Exception` and tear the session down; nothing had pinned
+  that from the CLI side.
+
+### Fixed after an adversarial self-review
+The release was reviewed by independent agents before tagging. Five real defects
+came back, all introduced by this release's own work, and all fixed here:
+- **The lint-gate fix would have re-broken the gate from the other direction.** The
+  `type: ignore[misc]` on `super().alternate_screen` is correct only while pyte
+  *lacks* the attribute; the day pyte ships it, `warn_unused_ignores` fails on an
+  ignore that has become unused. Reproduced by injecting the attribute. Replaced
+  with `getattr(super(), "alternate_screen", False)`, which needs no ignore in
+  either state — a version-dependent ignore would have needed revising on the very
+  release that makes the capability check unnecessary.
+- **`resize` was invisible in `tui.py --help`**: the subparser metavar is a
+  hand-maintained string and the new verb was never added to it.
+- **A rejected resize printed `error: error: ...`** — the daemon stored
+  `_validate_size`'s already-prefixed message while every other daemon reply
+  stores a bare one for `_call` to prefix once.
+- **The HANDOFF continuation prompt listed six portable pyte defects including
+  IL/DL cursor column.** It is five, and IL/DL is explicitly excluded — filing it
+  upstream would have been rejected, since pyte matches the standard there and
+  this project is the deviation. That prompt is what a fresh session pastes and
+  follows, so the error was one step from becoming a bad upstream patch.
+- **Two version contradictions inside HANDOFF.md** — a `VERSION = 0.2.0` line nine
+  lines below the 0.2.1 banner, and a "read this first" pointer still routing to
+  work from two rounds earlier. The ten-site version gate cannot see prose.
 
 ### Changed
 - `tests/run_all.py` is **43/43 on macOS**, the first full green on this host. The
@@ -85,6 +114,14 @@ more measured emulation fixes.
   this project does. Five implementations against two, so the behaviour stays —
   but it must not be upstreamed, and the docstring that had asserted "real
   terminals keep the column" now records the full split.
+- **GitHub Actions pins brought current** — 27 pins across 9 workflows
+  (`checkout` v4→v7, `setup-python` v5→v7, `deploy-pages` v4→v5,
+  `configure-pages` v5→v6, `upload-pages-artifact` v3→v5, `login-action` v3→v4,
+  `codeql-action` v3→v4), clearing a seven-PR Dependabot backlog and the Node 20
+  deprecation warning on every run. The breaking changes were read rather than
+  assumed: `checkout` v7 blocks fork-PR checkout under `pull_request_target` /
+  `workflow_run` and `setup-python` v7 removed the `pip-install` input — this repo
+  uses neither. `mkdocs-material` docs-build floor raised to 9.7.7.
 
 ## [0.2.0] - 2026-07-27
 
