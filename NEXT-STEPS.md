@@ -24,14 +24,16 @@ non-negotiable and overrides any shortcut that looks faster.
 
 ## Verified ground-truth snapshot (checked against disk 2026-08-06)
 
-- **v0.2.1 is PREPARED ON `main` BUT NOT TAGGED (2026-08-06).** Ten version sites read
-  0.2.1, CHANGELOG entry written, vendored core synced, PR #8 merged (28 checks green),
-  wheel built and verified from a clean-venv install. The remaining step is the OWNER's:
-  `git tag v0.2.1 && git push origin v0.2.1` → publish.yml does PyPI + MCP Registry via
-  OIDC. Left undone deliberately: a published version number can never be reused. Until
-  it ships, every PyPI 0.2.0 install is still exposed to the pyte-upgrade timebomb that
-  the capability detection fixes (HANDOFF §10j).
-- Release: latest RELEASED = **v0.2.0** on PyPI as dist `smartcli-toolkit` (import
+- **v0.2.1 IS RELEASED (2026-08-06).** Tagged from `main` at `9454f05`; all three
+  publish.yml jobs green including `publish-mcp` (which only runs on a real tag push, so
+  the bumped action pins executed there for the first time). Live and verified: PyPI
+  serves 0.2.1 as wheel + sdist, the MCP Registry lists 0.2.1 `active`, the GitHub
+  Release is published and Latest, GHCR image built. A clean-venv
+  `pip install smartcli-toolkit==0.2.1` confirms the fixes reached users. This closes
+  the pyte-upgrade timebomb exposure for new installs (HANDOFF §10j). The PyPI JSON
+  index lagged a few minutes behind the green publish — the workflow is the truth,
+  not the index.
+- Previous release: **v0.2.0** on PyPI as dist `smartcli-toolkit` (import
   stays `smartcli_core`). Repo github.com/dwgx/SmartCLI, tags v0.1.0…v0.2.0 with
   GitHub Releases (`git tag | tail -3` → v0.1.8, v0.2.0; `git log --oneline -1
   v0.2.0` → `f2a0db0 release: v0.2.0 — hardened control plane, installable MCP,

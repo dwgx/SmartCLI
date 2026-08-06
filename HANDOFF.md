@@ -6,24 +6,28 @@
 
 ## 0. Release & current state — READ THIS FIRST
 
-> **2026-08-06 — v0.2.1 is PREPARED ON `main` BUT NOT TAGGED.** All ten version
-> sites read 0.2.1, the CHANGELOG entry is written, the vendored core is re-synced,
-> and PR #8 is merged (28 commits, all 28 CI checks green on three OSes). The wheel
-> was built and installed into a clean venv: version 0.2.1, `Requires-Python
-> >=3.10`, `smartcli_core/py.typed` + `smartcli_drive/{tui,mcp_server}.py` present,
-> `twine check` PASSED, `smartcli-tui doctor` works, and the fixes are live from the
-> installed artifact (CUD below a scroll region → row 9; DCH on `中x` → `"x"`;
-> `alt_screen` True after `ESC[?1049h`). **The remaining step is the owner's:
-> `git tag v0.2.1 && git push origin v0.2.1`**, which triggers publish.yml
-> (PyPI OIDC → MCP Registry OIDC). It is left undone deliberately — a published
-> version number can never be reused, even if yanked.
+> **2026-08-06 — v0.2.1 IS RELEASED AND LIVE.** Tagged from `main` at `9454f05`;
+> all three `publish.yml` jobs green (build → PyPI OIDC → MCP Registry OIDC),
+> including `publish-mcp`, which only ever runs on a real tag push and had
+> therefore never executed with the bumped action pins. Verified end to end rather
+> than from the workflow status: PyPI serves `0.2.1` with both a wheel and an sdist,
+> the MCP Registry lists `io.github.dwgx/smartcli` at 0.2.1 `active`, the GitHub
+> Release is published and marked Latest, and the GHCR image built. Installing
+> `smartcli-toolkit==0.2.1` from PyPI into a clean venv confirms the fixes reached
+> users: CUD below a scroll region → row 9, DCH on `中x` → `"x"`, `alt_screen`
+> True→False across `ESC[?1049h`/`l`, DL blanks the rows it vacates, `resize` in
+> `--help`, and `smartcli_drive.mcp_server` imports.
 >
-> **Why it matters that this ships:** the pyte capability detection
-> (`_PYTE_HAS_ALT`, `_PYTE_DCH_HANDLES_WIDE`) existed only on a branch, so every
-> 0.2.0 install from PyPI is still exposed to a `pip install -U pyte` blanking the
-> primary screen on every full-screen program exit. See §10j.
+> **What it defused:** the pyte capability detection (`_PYTE_HAS_ALT`,
+> `_PYTE_DCH_HANDLES_WIDE`) existed only on a branch until now, so every 0.2.0
+> install was exposed to a `pip install -U pyte` blanking the primary screen on
+> every full-screen program exit. That exposure is closed. See §10j.
+>
+> Note the PyPI JSON index lagged several minutes behind the green publish — the
+> workflow is the source of truth, not the index, exactly as this section has always
+> said.
 
-SmartCLI is **published and public**; latest RELEASED version **v0.2.0** (2026-07-27, live on PyPI + GitHub + MCP Registry). v0.2.0 shipped from branch `codex/cross-platform-mcp-hardening`, merged to `main` and tagged; `publish.yml` published to PyPI and re-published `server.json` to the MCP Registry via OIDC — all three jobs green, verified by installing `smartcli-toolkit==0.2.0` from PyPI in a clean venv. This section is the authoritative current-state record; anything older in this doc that contradicts it is stale. See §10 for the whole 0.2.0 arc: drive-tui control-plane security hardening, `visual_hash` + `wait_visual_change` (closes old known-#3), the wheel now shipping `smartcli_drive` + three console scripts, `mcp` as a required dependency, Python floor 3.10, CI drive-smoke/package jobs, and **twelve screen-emulation bugs** found by differential testing against real terminals — including the alternate screen buffer, which pyte does not implement at all, so every full-screen TUI was previously unreadable. **BREAKING in 0.2.0:** Python 3.9 dropped; the MCP SDK is a required dependency. v0.1.8 added `wait_any`, **Sixel graphics output**, and a **Terminal-Bench agent adapter** (§9h). v0.1.7 shipped `spectrum_bars` + `cbonsai` (catalog 30) and the **MCP Registry** listing (`io.github.dwgx/smartcli`, active — §9g).
+SmartCLI is **published and public**; latest RELEASED version **v0.2.1** (2026-08-06, live on PyPI + GitHub + MCP Registry). The previous release was **v0.2.0** (2026-07-27). v0.2.0 shipped from branch `codex/cross-platform-mcp-hardening`, merged to `main` and tagged; `publish.yml` published to PyPI and re-published `server.json` to the MCP Registry via OIDC — all three jobs green, verified by installing `smartcli-toolkit==0.2.0` from PyPI in a clean venv. This section is the authoritative current-state record; anything older in this doc that contradicts it is stale. See §10 for the whole 0.2.0 arc: drive-tui control-plane security hardening, `visual_hash` + `wait_visual_change` (closes old known-#3), the wheel now shipping `smartcli_drive` + three console scripts, `mcp` as a required dependency, Python floor 3.10, CI drive-smoke/package jobs, and **twelve screen-emulation bugs** found by differential testing against real terminals — including the alternate screen buffer, which pyte does not implement at all, so every full-screen TUI was previously unreadable. **BREAKING in 0.2.0:** Python 3.9 dropped; the MCP SDK is a required dependency. v0.1.8 added `wait_any`, **Sixel graphics output**, and a **Terminal-Bench agent adapter** (§9h). v0.1.7 shipped `spectrum_bars` + `cbonsai` (catalog 30) and the **MCP Registry** listing (`io.github.dwgx/smartcli`, active — §9g).
 
 **Where it lives:**
 - **PyPI:** `pip install smartcli-toolkit` → https://pypi.org/project/smartcli-toolkit/ . The dist name is **`smartcli-toolkit`**; the **import package stays `smartcli_core`** (`from smartcli_core import PtySession`). Latest on PyPI = **0.2.0** (the JSON index can lag a few minutes after a release — the `Publish to PyPI` workflow going green is the source of truth, not the index).
@@ -1255,6 +1259,38 @@ before fanning out. The one surviving agent's work was recoverable from
 `<transcriptDir>/journal.jsonl`, which is the only reason the round was not a total
 loss — read the journal before re-deriving anything.
 
+**The release was then adversarially reviewed BEFORE tagging, and that ordering
+paid for itself.** Six dimensions attacked the eleven commits, each finding then
+handed to a skeptic instructed to refute it. Five real defects came back — every
+one introduced by this session's own work — and three findings were correctly
+refuted (the MCP `None` risk, since `alt_screen` is unconditional in
+`_snapshot_response`; the semver worry, since every release from 0.1.1 on shipped
+features in a patch bump; and a restatement). The most consequential was the
+CONTINUATION PROMPT naming six portable pyte defects including IL/DL cursor column:
+that block is what a fresh session pastes and follows, so the error was one step
+from becoming an upstream patch that §10i had already concluded would be rejected.
+The reviewers also read the Dependabot changelogs that had been skipped — `checkout`
+v7 blocks fork-PR checkout under `pull_request_target`/`workflow_run`, `setup-python`
+v7 removed `pip-install`, and this repo uses neither, so the bumps were safe but had
+shipped on "the versions exist," which is not the same claim.
+
+Two dimensions never reported. The test-quality one died twice — first to the
+model-id failure above, then to a 403 on the credential's region — so its checklist
+was worked through by hand and is recorded as the weaker evidence it is. It still
+found a redundant assertion (`"30x100" in stdout or "[screen 30x100]" in stdout`,
+where the loose first clause makes the second unreachable and could be satisfied by
+the child's echo) and an unexplained `LESSSECURE=1` that turned out to be
+load-bearing: the driven child inherits the host environment, so a developer's
+`LESSOPEN` rewrites what `less` displays — measured, the fixture's 200 lines became
+`CORRUPTED <path>`.
+
+**v0.2.1 shipped on 2026-08-06** from `9454f05`, verified end to end rather than
+from the workflow status: PyPI serves wheel + sdist, the MCP Registry lists 0.2.1
+`active`, the GitHub Release is Latest, and a clean-venv install from PyPI confirms
+CUD/DCH/alt_screen/DL and the `resize` verb. `publish-mcp` — which only runs on a
+real tag push and had therefore never executed with the bumped pins — went green.
+`tests/run_all.py` was 43/43 before tagging, with no FAIL, no SKIP and no rerun.
+
 ---
 
 ## CONTINUATION PROMPT (paste to next AI)
@@ -1327,13 +1363,12 @@ is QUOTA-EXHAUSTED / DEAD — do live research with built-in WebSearch / WebFetc
 Pace multi-agent fan-outs to API health: an 8-wide fan-out died to 529 storms on
 2026-07-27; batches of 2 completed fine.
 
-RELEASE STATE: **v0.2.1 is PREPARED ON `main` BUT NOT TAGGED** (2026-08-06) — ten version
-sites at 0.2.1, CHANGELOG written, vendored core synced, PR #8 merged with all 28 CI checks
-green, wheel built + installed in a clean venv and the fixes confirmed live from the
-artifact. The ONLY remaining step is the owner's: `git tag v0.2.1 && git push origin
-v0.2.1`, which fires publish.yml (PyPI OIDC → MCP Registry OIDC). Do not tag on your own
-initiative; a published version number can never be reused. Until it ships, PyPI users are
-still exposed to the pyte-upgrade timebomb (§10j). Previous RELEASED = **v0.2.0** (2026-07-27; PyPI + GitHub tags v0.1.0…v0.2.0
+RELEASE STATE: latest RELEASED = **v0.2.1** (2026-08-06) — live on PyPI (wheel + sdist),
+the MCP Registry (0.2.1 `active`), and a published GitHub Release marked Latest; all three
+publish.yml jobs green including publish-mcp. Verified by installing
+`smartcli-toolkit==0.2.1` from PyPI into a clean venv. Standing rule for releases: a
+published version number can never be reused, so confirm with the owner before tagging
+unless they have said to. Previous RELEASED = **v0.2.0** (2026-07-27; PyPI + GitHub tags v0.1.0…v0.2.1
 + a GitHub Release). It merged the codex/cross-platform-mcp-hardening branch — see HANDOFF
 §10 for the whole arc — and was BREAKING: dropped Python 3.9, made the MCP SDK a required
 dependency. All three publish.yml jobs went green (build → PyPI OIDC → MCP Registry OIDC),
