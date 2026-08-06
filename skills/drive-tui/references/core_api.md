@@ -45,7 +45,7 @@ Two independent hash primitives on `ScreenModel`: `content_hash()` covers plain 
 ## Backends (`smartcli_core.pty_backend`)
 `get_default_backend()` → `WinptyBackend` (pywinpty/ConPTY, daemon reader thread → queue) on win32, else `PosixPtyBackend` (pty.fork + select). Both normalize reads to bytes and feed one long-lived `pyte.ByteStream`.
 
-## Platform notes verified on this host (Windows 11, Python 3.14.6, pyte 3.0.5, pywinpty 3.0.5)
+## Platform notes verified on this host (Windows 11, Python 3.14.6, pyte 0.8.2, pywinpty 3.0.5)
 - ConPTY first byte ~20ms after spawn, but a program's own banner can lag seconds (Python REPL banner ~3s). Use `wait_for(<prompt>)` with a generous timeout for the first prompt.
 - Raw Ctrl-C (0x03) does NOT reliably interrupt a line-mode child under ConPTY. If `C-c` doesn't work, `close` and restart the session. POSIX signals work normally.
 - `send_line` uses `\r`. Raw-mode apps needing `\n` should use `send_text("...\n")`.

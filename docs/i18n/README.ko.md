@@ -18,7 +18,7 @@
 
 SmartCLI는 에이전트와 사람이 함께 수행하는 터미널 작업을 위한 워크스페이스입니다: 대화형 터미널 프로그램을 **조작하고**, 화면이 실제로 무엇을 보여 주는지 **인식하고**, 시각 요소와 레이아웃을 다시 **렌더링**하는 작업이죠. 이 툴킷은 하나의 공유 가능한 플러그인 방식 PTY 백엔드와 `pyte` 화면 모델 위에 구축되었습니다 — 스크린샷/비전 방식 대신 이 방식을 택한 이유는, 단일한 구조적 화면 모델이 인식(화면 읽기)과 렌더링(화면 그리기)을 모두 뒷받침하도록 하기 위해서입니다. PTY 계층은 의도적으로 tmux에 묶여 있지 **않습니다**: 로컬 개발은 Windows에서 ConPTY(`pywinpty`)를 통해 이뤄지며, 대상 프로그램은 다른 환경의 POSIX pty나 tmux 위에서 실행될 수 있습니다. 이 코어 위에 3개의 스킬이 놓이며, 각각은 체크아웃한 위치에서 그대로 실행하는 독립형 도구입니다.
 
-로컬 개발은 Windows 11, Python 3.14.6, `pyte` + `pywinpty` / ConPTY 환경에서 이뤄지며, CI 는 Windows + Linux + macOS 매트릭스에서 검증합니다. 실제 `tmux` 는 아직 검증되지 않았으므로, 스크린샷 리포트는 실제 tmux 캡처가 아니라 정직하게 `pyte-simulation`으로 표기됩니다.
+로컬 개발은 Windows 11, Python 3.14.6, `pyte` + `pywinpty` / ConPTY 환경에서 이뤄지며, CI 는 Windows + Linux + macOS 매트릭스에서 검증합니다. **지각이 옳다는 것을 아는 방법.** 스크린 모델은 실제 터미널과 일치할 때만 쓸모가 있으므로, 그것을 주장하지 않고 측정합니다. 동일한 바이트를 실제 **tmux** pane 과 우리 모델에 함께 넣고 두 셀 그리드를 셀 단위로 비교합니다. 이를 수행하는 스위트가 셋 —— 엄선한 35개 사례, **tmux 와 GNU screen 이 모두 동의할 때만** 해당 동작을 정답으로 인정하는 3자 대조, 그리고 무작위 VT 시퀀스에 대한 생성적 퍼즈. 이 작업으로 **12개의 에뮬레이션 결함**을 찾아 고쳤으며, 여기에는 대체 화면 버퍼가 포함됩니다(`pyte` 는 1049/1047/47 을 전혀 구현하지 않아, 전체 화면 프로그램의 출력이 메인 화면 위에 그려지고 종료 후에도 복원되지 않았습니다). 범위와 남은 경계 사례는 [`LIMITATIONS.md`](../../skills/drive-tui/references/LIMITATIONS.md) 참조됩니다.
 
 ## 실제 TUI 조작하기
 
@@ -198,7 +198,7 @@ confirm, form, progress, wizard)를 함께 제공합니다.
 session`). 세 스킬 모두의 기반이 되는 재사용 가능하고 임포트 가능한 토대입니다.
 
 **지식 그래프** (`knowledge/`) — 정확한 렌더링 공식, ANSI 시퀀스, 실측 상수를 담은
-122개 노트의 위키링크 그래프로, 각 노트에는 출처와 상호 링크가 달려 있습니다. [`knowledge/INDEX.md`](../../knowledge/INDEX.md)를 참고하세요.
+140+ 개 `.md` 노트의 위키링크 그래프로, 각 노트에는 출처와 상호 링크가 달려 있습니다. [`knowledge/INDEX.md`](../../knowledge/INDEX.md)를 참고하세요.
 
 ## 프로젝트 구조
 
@@ -210,7 +210,7 @@ SmartCLI/
   skills/tui-ui/           terminal UI layout engine and widgets (17 widgets)
   tools/screenshot/        pyte -> PNG smoke-test harness
   tools/agentcli/          agent-CLI control validation harness
-  knowledge/               122-note knowledge graph (see knowledge/INDEX.md)
+  knowledge/               wiki-link knowledge graph, 140+ .md files (see knowledge/INDEX.md)
   showcase/                rendered effect PNGs (see Screenshots)
   tests/                   direct script-style regressions
   research/                archived first-pass research notes
@@ -220,7 +220,7 @@ SmartCLI/
 
 - **[`README-USAGE.md`](../../README-USAGE.md)** — 전체 사용법 치트시트: 모든 스킬,
   스크린샷 및 AGENTCLI 하네스, 회귀 테스트 명령.
-- **[`knowledge/INDEX.md`](../../knowledge/INDEX.md)** — 122개 노트의 지식 그래프.
+- **[`knowledge/INDEX.md`](../../knowledge/INDEX.md)** — 지식 그래프(140+ 개 `.md` 파일).
 - **[`AGENTCLI-VALIDATION.md`](../../AGENTCLI-VALIDATION.md)** — 에이전트-CLI 제어 테스트 매트릭스.
 - **[`CHANGELOG.md`](../../CHANGELOG.md)** — 릴리스 기록.
 

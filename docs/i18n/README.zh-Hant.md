@@ -18,7 +18,7 @@
 
 SmartCLI 是一個為終端機工作打造的工作區，而這些工作 agent 與人都會做：**驅動**互動式終端機程式、**感知**畫面實際顯示的內容，以及把視覺與版面**渲染**回終端機。它建構於單一共用、可插拔的 PTY 後端，再加上 `pyte` 畫面模型 — 之所以選這個做法而非截圖／視覺辨識，是為了讓單一的結構化畫面模型能同時餵給感知（讀取畫面）與渲染（繪製畫面）兩端。PTY 這一層刻意**不**綁定 tmux：本地開發在 Windows 上透過 ConPTY（`pywinpty`）執行，而目標程式則可在別處跑在 POSIX pty 或 tmux 之下。三個技能座落在這個核心之上，每一個都是能從 checkout 原地執行的獨立工具。
 
-CI 會跑 Windows + Linux + macOS 三平台矩陣：POSIX pty 後端在 Linux 與 macOS 上皆已驗證，本地開發則在 Windows 11、Python 3.14.6、`pyte` + `pywinpty` / ConPTY 上驗證。尚未接上真正的 `tmux`，因此截圖報告會誠實地標記為 `pyte-simulation`，而非真正的 tmux 擷取。
+CI 會跑 Windows + Linux + macOS 三平台矩陣：POSIX pty 後端在 Linux 與 macOS 上皆已驗證，本地開發則在 Windows 11、Python 3.14.6、`pyte` + `pywinpty` / ConPTY 上驗證。**我們怎麼知道感知是對的。** 螢幕模型只有和真實終端一致才有用，所以這件事是被測量的、不是被斷言的：同一批位元組同時餵給真實的 **tmux** pane 和我們的模型，再逐格比對兩張 cell grid。三套測試在做這件事 —— 35 個精選案例、一個只在 **tmux 與 GNU screen 同時同意**時才採信行為的三方比對，以及一個對隨機 VT 序列的生成式 fuzz。這輪測量找出並修掉了 **12 個模擬缺陷**，其中包括交替螢幕緩衝區（`pyte` 完全沒有實作 1049/1047/47，所以全螢幕程式的輸出過去會畫在主螢幕之上、離開後也從不還原）。涵蓋範圍與仍存在的邊角情況見 [`LIMITATIONS.md`](../../skills/drive-tui/references/LIMITATIONS.md)。
 
 ## 驅動真實的 TUI
 
@@ -195,7 +195,7 @@ confirm、form、progress、wizard），能對畫面做 `classify()` 並加以 `
 語意 snapshot + readiness sync（`pty_backend / screen_model / snapshot / readiness /
 session`）。這是三個技能底下那個可重用、可匯入的基礎。
 
-**知識圖譜**（`knowledge/`）— 一個由 122 篇筆記組成的 wiki-link 圖譜，收錄精確的渲染
+**知識圖譜**（`knowledge/`）— 一個由 140+ 篇 `.md` 筆記組成的 wiki-link 圖譜，收錄精確的渲染
 公式、ANSI 序列與實測常數，每篇筆記都附有出處與交叉連結。
 參見 [`knowledge/INDEX.md`](../../knowledge/INDEX.md)。
 
@@ -209,7 +209,7 @@ SmartCLI/
   skills/tui-ui/           terminal UI layout engine and widgets (17 widgets)
   tools/screenshot/        pyte -> PNG smoke-test harness
   tools/agentcli/          agent-CLI control validation harness
-  knowledge/               122-note knowledge graph (see knowledge/INDEX.md)
+  knowledge/               wiki-link knowledge graph, 140+ .md files (see knowledge/INDEX.md)
   showcase/                rendered effect PNGs (see Screenshots)
   tests/                   direct script-style regressions
   research/                archived first-pass research notes
@@ -219,7 +219,7 @@ SmartCLI/
 
 - **[`README-USAGE.md`](../../README-USAGE.md)** — 完整的使用速查表：每一個技能、
   截圖與 AGENTCLI 測試工具，以及回歸測試指令。
-- **[`knowledge/INDEX.md`](../../knowledge/INDEX.md)** — 122 篇筆記的知識圖譜。
+- **[`knowledge/INDEX.md`](../../knowledge/INDEX.md)** — 知識圖譜（140+ 篇 `.md` 檔案）。
 - **[`AGENTCLI-VALIDATION.md`](../../AGENTCLI-VALIDATION.md)** — agent-CLI 控制測試矩陣。
 - **[`CHANGELOG.md`](../../CHANGELOG.md)** — 版本發佈歷史。
 

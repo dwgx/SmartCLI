@@ -18,7 +18,7 @@
 
 SmartCLI 是一个面向终端工作的工作区，agent 和人类都会用到它：**驱动**交互式终端程序、**感知**屏幕上真正显示的内容，以及将视觉效果与布局**渲染**输出。它构建在一套共享、可插拔的 PTY 后端加上 `pyte` 屏幕模型之上 —— 之所以选择这种方案而非截图/视觉方案，是为了让同一个结构化的屏幕模型同时服务于感知（读取屏幕）和渲染（绘制屏幕）。PTY 层刻意**不**与 tmux 绑定：本地开发在 Windows 上通过 ConPTY（`pywinpty`）运行，而目标程序可以在别处的 POSIX pty 或 tmux 下运行。三个 skill 都坐落在这套内核之上，每一个都是自成一体的工具，直接在代码检出目录中就地运行。
 
-CI 跑 Windows + Linux + macOS 三平台矩阵，POSIX pty 后端（spawn/read/drive/resize/无僵尸进程 terminate）已在 CI 的 Linux 和 macOS 上验证。本地开发在 Windows 11、Python 3.14.6、`pyte` + `pywinpty` / ConPTY 上运行。这台机器没有真正的 `tmux`，因此截图报告如实标注为 `pyte-simulation`，而非真实的 tmux 抓取。
+CI 跑 Windows + Linux + macOS 三平台矩阵，POSIX pty 后端（spawn/read/drive/resize/无僵尸进程 terminate）已在 CI 的 Linux 和 macOS 上验证。本地开发在 Windows 11、Python 3.14.6、`pyte` + `pywinpty` / ConPTY 上运行。**我们怎么知道感知是对的。** 屏幕模型只有和真实终端一致才有用，所以这件事是被测量的、不是被断言的：同一批字节同时喂给真实的 **tmux** pane 和我们的模型，再逐格比对两张 cell grid。三套测试在做这件事 —— 35 个精选用例、一个只在 **tmux 与 GNU screen 同时同意**时才采信行为的三方比对，以及一个对随机 VT 序列的生成式 fuzz。这轮测量找出并修掉了 **12 个仿真缺陷**，其中包括交替屏幕缓冲区（`pyte` 完全没有实现 1049/1047/47，所以全屏程序的输出过去会画在主屏之上、退出后也从不恢复）。覆盖范围与仍存在的边角情况见 [`LIMITATIONS.md`](../../skills/drive-tui/references/LIMITATIONS.md)。
 
 ## 驱动真实 TUI
 
@@ -191,7 +191,7 @@ confirm、form、progress、wizard），它们会先对屏幕执行 `classify()`
 语义化快照 + 就绪同步（`pty_backend / screen_model / snapshot / readiness /
 session`）。这是三个 skill 之下可复用、可导入的基础。
 
-**知识图谱**（`knowledge/`）—— 一个由 122 篇笔记通过 wiki 链接构成的图谱，收录了
+**知识图谱**（`knowledge/`）—— 一个由 140+ 篇 `.md` 笔记通过 wiki 链接构成的图谱，收录了
 精确的渲染公式、ANSI 序列和实测常量，每篇笔记都附有来源和
 交叉引用。参见 [`knowledge/INDEX.md`](../../knowledge/INDEX.md)。
 
@@ -205,7 +205,7 @@ SmartCLI/
   skills/tui-ui/           terminal UI layout engine and widgets (17 widgets)
   tools/screenshot/        pyte -> PNG smoke-test harness
   tools/agentcli/          agent-CLI control validation harness
-  knowledge/               122-note knowledge graph (see knowledge/INDEX.md)
+  knowledge/               wiki-link knowledge graph, 140+ .md files (see knowledge/INDEX.md)
   showcase/                rendered effect PNGs (see Screenshots)
   tests/                   direct script-style regressions
   research/                archived first-pass research notes
@@ -215,7 +215,7 @@ SmartCLI/
 
 - **[`README-USAGE.md`](../../README-USAGE.md)** —— 完整的使用速查表：每个 skill、
   截图和 AGENTCLI 测试框架，以及回归测试命令。
-- **[`knowledge/INDEX.md`](../../knowledge/INDEX.md)** —— 122 篇笔记的知识图谱。
+- **[`knowledge/INDEX.md`](../../knowledge/INDEX.md)** —— 知识图谱（140+ 篇 `.md` 文件）。
 - **[`AGENTCLI-VALIDATION.md`](../../AGENTCLI-VALIDATION.md)** —— agent-CLI 控制测试矩阵。
 - **[`CHANGELOG.md`](../../CHANGELOG.md)** —— 发布历史。
 
