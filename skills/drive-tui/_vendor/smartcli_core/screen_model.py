@@ -70,7 +70,11 @@ class _ByteStream(pyte.ByteStream):
     # that could legitimately contain ':' (OSC strings, DCS payloads) is touched.
     _SGR_COLON = __import__("re").compile(rb"\x1b\[([\d;:]*:[\d;:]*)m")
 
-    def feed(self, data: bytes) -> None:
+    # The bytes-vs-str override is pyte's own Liskov violation, not ours:
+    # Stream.feed takes str, ByteStream.feed narrows it to bytes and carries the
+    # same ignore upstream. Matching it keeps this override honest to the class
+    # we actually inherit from.
+    def feed(self, data: bytes) -> None:  # type: ignore[override]
         if b":" in data:
             data = self._SGR_COLON.sub(
                 lambda m: b"\x1b[" + m.group(1).replace(b":", b";") + b"m", data)
@@ -708,7 +712,11 @@ class ScreenModel:
         # them here (pyte builds the correct reply from its own cursor/attrs) and
         # PtySession.pump() writes them back to the PTY. See drain_replies().
         self._reply_buf = bytearray()
-        self.screen.write_process_input = self._collect_reply
+        # Deliberate instance-level replacement of a base-class no-op: this is
+        # pyte's documented hook for device-query replies, and it is a method on
+        # Screen rather than a callback attribute, so there is no non-assigning
+        # way to install it.
+        self.screen.write_process_input = self._collect_reply  # type: ignore[method-assign]
 
     def _collect_reply(self, data) -> None:
         """pyte hands us the bytes/str it wants sent back to the process."""
