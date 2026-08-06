@@ -146,7 +146,10 @@ def test_happy_path() -> None:
     cp = run_cli("resize", "--id", sid, "--cols", "100", "--rows", "30")
     check(cp.returncode == 0, "resize exit 0", detail=f"rc={cp.returncode}")
     cp = run_cli("snapshot", "--id", sid)
-    check("30x100" in cp.stdout or "[screen 30x100]" in cp.stdout,
+    # Assert the HEADER form only. A bare "30x100" would also be satisfied by the
+    # child echoing that string back, which is the same class of false pass as
+    # matching a REPL's echo of your own payload.
+    check("[screen 30x100]" in cp.stdout,
           "resize moved the grid to 30x100",
           detail=repr(cp.stdout.splitlines()[0][:70] if cp.stdout else ""))
 

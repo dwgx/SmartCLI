@@ -197,6 +197,13 @@ def main() -> int:
             # check fails for an environmental reason. Reproduced locally with
             # `env -u TERM`, which is the only reason this was not another
             # passes-on-my-machine assertion.
+            # LESSSECURE=1 is not decoration: the child INHERITS the host
+            # environment, so a developer's LESSOPEN preprocessor would rewrite
+            # what less displays. Measured with `LESSOPEN='|echo CORRUPTED %s'`:
+            # the fixture's 200 lines were replaced by "CORRUPTED <path>", which
+            # would empty the wait marker and fail this block for a reason that
+            # has nothing to do with the alternate screen. Secure mode also
+            # disables the history file, so the probe leaves no ~/.lesshst behind.
             r = start(cmd=f"less {fixture}", cols=80, rows=24,
                       env={"TERM": "xterm-256color", "LESSSECURE": "1"})
             sid = r.get("sid", "")
