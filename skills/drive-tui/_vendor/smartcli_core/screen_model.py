@@ -707,6 +707,18 @@ class ScreenModel:
         return bool(self.screen.cursor.hidden)
 
     @property
+    def alt_screen(self) -> bool:
+        """True while a full-screen program owns the screen.
+
+        The single most useful fact about a screen after "what does it say": a
+        driving agent decides differently when ``vim``/``less``/``htop`` is up
+        than at a shell prompt — whether ``q`` quits or types a letter, whether
+        arrow keys navigate or edit. It was previously reachable only as
+        ``model.screen.alt_screen``, i.e. by reaching through to the pyte object.
+        """
+        return bool(self.screen.alt_screen)
+
+    @property
     def title(self) -> str:
         return self.screen.title or ""
 

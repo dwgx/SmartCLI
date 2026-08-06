@@ -473,6 +473,41 @@ check(_m.display[2].rstrip().startswith("      X"),
       "1048 and 1049 in one CSI restore the cursor once",
       detail=f"row3={_m.display[2].rstrip()!r} cursor={_m.cursor}")
 
+
+# --- alt_screen must be reachable by whoever is DRIVING, not just internally --
+# Whether a full-screen program owns the screen changes what an action MEANS: `q`
+# quits a pager but types a letter at a prompt, arrows navigate a menu but edit a
+# line. It was previously readable only as model.screen.alt_screen — reaching
+# through to the pyte object — so nothing in the semantic Snapshot an agent
+# actually consumes said so.
+from smartcli_core.snapshot import build_snapshot as _build  # noqa: E402
+import json as _json  # noqa: E402
+
+_m = ScreenModel(cols=20, rows=3)
+_m.feed(b"shell\r\n")
+check(_m.alt_screen is False, "ScreenModel.alt_screen is False on the primary screen")
+_snap = _build(_m)
+check(_snap.alt_screen is False, "Snapshot.alt_screen is False on the primary screen")
+check("alt_screen" not in _snap.to_text().splitlines()[0],
+      "to_text does not mention alt_screen on the primary screen",
+      detail=_snap.to_text().splitlines()[0])
+check(_json.loads(_snap.to_json())["hints"]["alt_screen"] is False,
+      "to_json hints report alt_screen False")
+
+_m.feed(b"\x1b[?1049hPAGER")
+check(_m.alt_screen is True, "ScreenModel.alt_screen is True inside the alt screen")
+_snap = _build(_m)
+check(_snap.alt_screen is True, "Snapshot.alt_screen is True inside the alt screen")
+check("alt_screen" in _snap.to_text().splitlines()[0],
+      "to_text announces alt_screen in the header",
+      detail=_snap.to_text().splitlines()[0])
+check(_json.loads(_snap.to_json())["hints"]["alt_screen"] is True,
+      "to_json hints report alt_screen True")
+
+_m.feed(b"\x1b[?1049l")
+check(_m.alt_screen is False and _build(_m).alt_screen is False,
+      "both surfaces go back to False after the program exits")
+
 if FAILURES:
     print(f"\ntest_terminal_fidelity FAIL -- {len(FAILURES)} check(s):")
     for f in FAILURES:

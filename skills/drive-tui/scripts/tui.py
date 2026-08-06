@@ -222,6 +222,10 @@ def _snapshot_response(sess: PtySession, snap, **fields) -> dict:
     return {
         "ok": True,
         "alive": sess.is_alive(),
+        # Whether a full-screen program owns the screen changes what the next
+        # action MEANS (does `q` quit or type a letter?), so it travels with every
+        # observation rather than only inside the JSON payload.
+        "alt_screen": sess.model.alt_screen,
         "text": snap.to_text(),
         "json": json.dumps(structured, ensure_ascii=False),
         "hash": content_hash,
@@ -551,7 +555,7 @@ def cmd_snapshot(args) -> int:
     resp = _call(args.id, {"action": "snapshot"})
     print(
         f"# hash={resp.get('hash')} visual_hash={resp.get('visual_hash')} "
-        f"alive={resp.get('alive')}",
+        f"alive={resp.get('alive')} alt_screen={resp.get('alt_screen')}",
         file=sys.stderr,
     )
     _print_snap(resp, args.json)
