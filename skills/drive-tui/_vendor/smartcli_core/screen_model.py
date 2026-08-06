@@ -22,6 +22,34 @@ from pyte.screens import Char
 from wcwidth import wcwidth as wcwidth_cached  # pyte's own width dependency
 
 
+def _pyte_dch_handles_wide() -> bool:
+    """Does the installed ``pyte`` already widen DCH over a two-column glyph?
+
+    Unlike the alternate screen there is no attribute to test for, so this asks
+    the question behaviourally, once, on a throwaway 4x1 screen: delete the wide
+    glyph in ``中x`` and see whether ``x`` ends up at column 0 (the stub travelled
+    with its base) or vanishes.
+
+    It exists because ``_Screen.delete_characters`` widens the count itself, and
+    doing that on top of a pyte that already does it deletes one cell too many —
+    silently eating a character. With ``pyte>=0.8.1`` unpinned, that would arrive
+    as a dependency upgrade, not a code change. Measured against a pyte carrying
+    the fix: the override turned ``"x"`` into ``""``.
+    """
+    try:
+        probe = pyte.Screen(4, 1)
+        pyte.ByteStream(probe).feed("\u4e2dx".encode() + b"\r\x1b[1P")
+        return probe.buffer[0][0].data == "x"
+    except Exception:
+        # Never let a probe break import; the override is correct for every
+        # released pyte, so assume the historical behaviour on doubt.
+        return False
+
+
+#: Evaluated once at import: see _pyte_dch_handles_wide.
+_PYTE_DCH_HANDLES_WIDE: bool = _pyte_dch_handles_wide()
+
+
 class _ByteStream(pyte.ByteStream):
     """``pyte.ByteStream`` with NEL dispatch and SGR sub-parameter tolerance."""
 
@@ -360,6 +388,11 @@ class _Screen(pyte.Screen):
         gives ``"x"`` on tmux 3.6b, we produced ``" x"``). Found by
         ``tests/_diff_fuzz_tmux.py``.
         """
+        if _PYTE_DCH_HANDLES_WIDE:
+            # The installed pyte already widens the count itself; adding to it
+            # would delete one cell too many. See _pyte_dch_handles_wide.
+            super().delete_characters(count)
+            return
         line = self.buffer[self.cursor.y]
         x = self.cursor.x
         extra = 0

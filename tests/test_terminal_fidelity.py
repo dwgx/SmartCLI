@@ -508,6 +508,35 @@ _m.feed(b"\x1b[?1049l")
 check(_m.alt_screen is False and _build(_m).alt_screen is False,
       "both surfaces go back to False after the program exits")
 
+
+# --- DCH must not be widened twice once pyte widens it itself ----------------
+# `_Screen.delete_characters` adds one to the count when the cursor sits on a
+# two-column glyph, because pyte deletes cells without regard to width. If a pyte
+# release ever does that itself, adding to it deletes one cell too many — and with
+# `pyte>=0.8.1` unpinned that arrives as a dependency upgrade, not a code change.
+# Measured against a pyte carrying the fix: `中x` + CR + DCH went from "x" to "".
+# There is no attribute to test for, so the capability is probed behaviourally.
+from smartcli_core.screen_model import (  # noqa: E402
+    _PYTE_DCH_HANDLES_WIDE, _pyte_dch_handles_wide)
+
+check(_PYTE_DCH_HANDLES_WIDE == _pyte_dch_handles_wide(),
+      "the DCH capability probe is stable across calls",
+      detail=f"cached={_PYTE_DCH_HANDLES_WIDE} fresh={_pyte_dch_handles_wide()}")
+
+_m = ScreenModel(cols=20, rows=2)
+_m.feed("\u4e2dx".encode() + b"\r\x1b[1P")
+check(_m.display[0].rstrip() == "x",
+      "DCH deletes a wide glyph and its stub, whichever layer widens the count",
+      detail=f"row0={_m.display[0].rstrip()!r} "
+             f"probe={_PYTE_DCH_HANDLES_WIDE}")
+
+# A narrow glyph must be unaffected in either configuration.
+_m = ScreenModel(cols=20, rows=2)
+_m.feed(b"abc\r\x1b[1P")
+check(_m.display[0].rstrip() == "bc",
+      "DCH on a narrow glyph deletes exactly one cell",
+      detail=f"row0={_m.display[0].rstrip()!r}")
+
 if FAILURES:
     print(f"\ntest_terminal_fidelity FAIL -- {len(FAILURES)} check(s):")
     for f in FAILURES:
