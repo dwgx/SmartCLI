@@ -127,6 +127,24 @@ class _Screen(pyte.Screen):
     # 1047/47 switch buffers without the cursor save.
     _ALT_MODES = (1049, 1047, 47)
 
+    #: Private mode 1048 — save/restore the cursor as DECSC/DECRC do, WITHOUT
+    #: switching buffers. It is the other half of 1049, which xterm documents as
+    #: 1047 combined with 1048.
+    #:
+    #: EVIDENCE LEVEL, stated because it is weaker than everything else in this
+    #: class: the xterm specification defines it, but NEITHER reference emulator
+    #: implements it. Measured — a `1048h`/`1048l` pair does not restore the
+    #: cursor in tmux 3.6b or GNU screen 4.00.03, while the same movement through
+    #: DECSC/DECRC does in both (so the probe can detect a restore; the absence is
+    #: real, not a rig artifact). Every full-screen program in practice emits 1049.
+    #:
+    #: Supported anyway because this layer's job is to perceive what a program
+    #: SENT, and a program that sends 1048 means DECSC. The alternative — matching
+    #: the references by ignoring it — would make us silently drop a documented
+    #: sequence. Kept deliberately separate from _ALT_MODES so it can never affect
+    #: buffer switching, and locked by a test that names the divergence.
+    _CURSOR_ONLY_MODE = 1048
+
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._alt_active = False
@@ -136,6 +154,10 @@ class _Screen(pyte.Screen):
         # rendition too. Without it, a TUI that left reverse video or a colour
         # on made every character the shell wrote afterwards inherit it.
         self._saved_cursor: tuple[int, int, Char] | None = None
+        # How many 1048 saves WE pushed onto pyte's savepoint stack, so an
+        # unpaired 1048l cannot pop somebody else's savepoint or fall through
+        # to restore_cursor's empty-stack homing.
+        self._cursor_only_depth = 0
 
     def _enter_alt(self, save_cursor: bool) -> None:
         if self._alt_active:
@@ -186,6 +208,7 @@ class _Screen(pyte.Screen):
         self._alt_active = False
         self._saved_main = None
         self._saved_cursor = None
+        self._cursor_only_depth = 0
 
     def resize(self, lines: int | None = None,
                columns: int | None = None) -> None:
@@ -263,17 +286,34 @@ class _Screen(pyte.Screen):
         return self._alt_active
 
     def set_mode(self, *modes: int, **kwargs) -> None:
-        if kwargs.get("private") and not self._PYTE_HAS_ALT:
-            for mode in modes:
-                if mode in self._ALT_MODES:
-                    self._enter_alt(save_cursor=(mode == 1049))
+        if kwargs.get("private"):
+            if not self._PYTE_HAS_ALT:
+                for mode in modes:
+                    if mode in self._ALT_MODES:
+                        self._enter_alt(save_cursor=(mode == 1049))
+            # 1048 is cursor-only. Skipped when the base class implements it
+            # itself, or the cursor would be saved twice.
+            if self._CURSOR_ONLY_MODE in modes and not self._PYTE_HAS_ALT:
+                self.save_cursor()
+                self._cursor_only_depth += 1
         super().set_mode(*modes, **kwargs)
 
     def reset_mode(self, *modes: int, **kwargs) -> None:
-        if kwargs.get("private") and not self._PYTE_HAS_ALT:
-            for mode in modes:
-                if mode in self._ALT_MODES:
-                    self._leave_alt()
+        if kwargs.get("private"):
+            if not self._PYTE_HAS_ALT:
+                for mode in modes:
+                    if mode in self._ALT_MODES:
+                        self._leave_alt()
+            # Only restore against a save WE made. pyte's restore_cursor homes
+            # the cursor when its stack is empty (its documented DECRC
+            # behaviour), so an unpaired `ESC[?1048l` — which both reference
+            # emulators ignore outright — would otherwise teleport the cursor to
+            # the top-left. The depth counter keeps DECSC's stack semantics for
+            # repeated 1048h while making the unpaired case inert.
+            if (self._CURSOR_ONLY_MODE in modes and not self._PYTE_HAS_ALT
+                    and self._cursor_only_depth > 0):
+                self._cursor_only_depth -= 1
+                self.restore_cursor()
         super().reset_mode(*modes, **kwargs)
 
     def cursor_up(self, count: int | None = None) -> None:

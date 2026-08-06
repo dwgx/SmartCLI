@@ -423,6 +423,56 @@ check(not _switched and not _probe._alt_active,
       detail=f"_alt_active={_probe._alt_active} "
              f"_saved_main_set={_probe._saved_main is not None}")
 
+
+# --- private mode 1048: cursor save/restore without a buffer switch ----------
+# WEAKER EVIDENCE than everything else in this file, stated so nobody mistakes it
+# for a measured behaviour: xterm defines 1048, but NEITHER reference emulator
+# implements it. Measured — a 1048h/1048l pair does not restore the cursor in tmux
+# 3.6b or GNU screen 4.00.03, while the same movement via DECSC/DECRC does in both
+# (so the probe can detect a restore; the absence is real). Supported anyway
+# because this layer's job is to perceive what a program SENT, and 1048 means
+# DECSC. What IS locked below is that it never touches the buffer, and that the
+# unpaired case stays inert rather than teleporting the cursor the way pyte's
+# empty-stack restore_cursor would.
+
+_m = ScreenModel(cols=20, rows=6)
+_m.feed(b"\x1b[2;5H\x1b[?1048h\x1b[5;1Hjunk\x1b[?1048lX")
+check(_m.display[1].rstrip().startswith("    X"),
+      "1048 saves and restores the cursor",
+      detail=f"row2={_m.display[1].rstrip()!r} cursor={_m.cursor}")
+
+_m = ScreenModel(cols=10, rows=2)
+_m.feed(b"MAIN\x1b[?1048h")
+check(any("MAIN" in line for line in _m.display) and not _m.screen.alt_screen,
+      "1048 does not switch buffers",
+      detail=f"display={[l.rstrip() for l in _m.display]} alt={_m.screen.alt_screen}")
+
+# pyte's restore_cursor homes the cursor on an empty savepoint stack, so without
+# the depth counter an unpaired rmcup-ish 1048l teleported to (0, 0).
+for _label, _payload, _want in (
+        ("alone", b"\x1b[4;9H\x1b[?1048l", (3, 8)),
+        ("after 1049h", b"\x1b[4;9H\x1b[?1049h\x1b[?1048l", (3, 8)),
+        ("after RIS", b"\x1b[2;3H\x1b[?1048h\x1bc\x1b[5;5H\x1b[?1048l", (4, 4))):
+    _m = ScreenModel(cols=20, rows=8)
+    _m.feed(_payload)
+    check(_m.cursor == _want,
+          f"an unpaired 1048l is inert ({_label})",
+          detail=f"cursor={_m.cursor} want={_want}")
+
+# Repeated 1048h must keep DECSC's stack semantics: the LAST save wins.
+_m = ScreenModel(cols=20, rows=8)
+_m.feed(b"\x1b[2;3H\x1b[?1048h\x1b[5;5H\x1b[?1048h\x1b[7;7H\x1b[?1048l")
+check(_m.cursor == (4, 4),
+      "repeated 1048h keeps DECSC stack semantics",
+      detail=f"cursor={_m.cursor} want=(4,4)")
+
+# 1048 and 1049 in ONE CSI must not double-restore.
+_m = ScreenModel(cols=20, rows=6)
+_m.feed(b"\x1b[3;7H\x1b[?1048;1049h\x1b[1;1Halt\x1b[?1048;1049lX")
+check(_m.display[2].rstrip().startswith("      X"),
+      "1048 and 1049 in one CSI restore the cursor once",
+      detail=f"row3={_m.display[2].rstrip()!r} cursor={_m.cursor}")
+
 if FAILURES:
     print(f"\ntest_terminal_fidelity FAIL -- {len(FAILURES)} check(s):")
     for f in FAILURES:
