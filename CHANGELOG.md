@@ -5,6 +5,87 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-08-06
+
+A perception-correctness release. The headline is not a feature: **an upgrade of
+`pyte` alone could have blanked the primary screen for every 0.2.0 user**, and
+this release defuses that before it ships upstream. Everything else is the
+alternate-screen work reaching the surfaces an agent actually reads, plus five
+more measured emulation fixes.
+
+### Fixed
+- **Two dependency timebombs, defused by capability detection rather than a
+  version pin.** `pyte>=0.8.1` is an open range in both `requirements.txt` and
+  `pyproject.toml`, so the day upstream ships its own alternate screen
+  ([selectel/pyte#212](https://github.com/selectel/pyte/pull/212), which this
+  project authored), subclass *and* base class would both switch — restoring a
+  BLANK primary screen on every full-screen program exit. Measured: `['', '', '']`.
+  The second is `delete_characters` widening DCH over a wide glyph; against a pyte
+  that does the same, `中x` + CR + DCH went from `"x"` to `""`, silently eating a
+  character. Both now ask the installed pyte what it can do (`_PYTE_HAS_ALT` via
+  `hasattr`, `_PYTE_DCH_HANDLES_WIDE` via a one-shot behavioural probe). A cap
+  would have kept users off the upstream fix forever and needed revising every
+  release. Verified under BOTH stock 0.8.2 and a patched checkout, because a
+  one-sided test cannot distinguish "correct" from "the branch that happens to run
+  here".
+- **`CUD` (cursor down) was missing its DECSTBM override.** `index()` and
+  `cursor_up()` were overridden for exactly this defect class; their mirror was
+  not, so from below a scroll region `ESC[3;6r ESC[8;1H ESC[1B` landed on row 6
+  where tmux and GNU screen both give row 9. Found by asking why the third
+  override was absent — a gap a generative fuzzer cannot surface, because it
+  generates sequences, not absences.
+- **`DL` (delete lines) left the rows it vacated populated** instead of blanking
+  them.
+- **Resizing while on the alternate screen** clipped the saved primary screen
+  correctly, restored the pen along with the cursor, and left the alternate screen
+  on RIS.
+- **Mode 1048 no longer collides with 1049's save slot.** Adding 1048 initially
+  routed it through the same `_alt_savepoint` as 1049, reintroducing the defect
+  the dedicated slot was created for one commit earlier.
+- **The MCP `snapshot` tool silently dropped `alt_screen`.** The daemon has always
+  sent it and the CLI has always printed it, so MCP clients — the surface this
+  project promotes hardest — were the only ones that could not tell whether a
+  full-screen program owned the screen. That is precisely the blindness the
+  alternate-screen work exists to remove.
+- **The mypy gate was checking a state that does not exist.** CI installed only
+  `ruff` and `mypy`, so `pyte` was absent, `ignore_missing_imports` degraded
+  `pyte.Screen` to `Any`, and a correct `type: ignore` was reported as unused
+  while two genuine errors present since 0.2.0 went unseen. The gate now installs
+  the runtime dependencies and is mutation-verified to still bite.
+- `examples/drive_vim.py` runs from a source checkout, not only an install, and
+  the driven test fixtures no longer `import msvcrt` unconditionally — that alone
+  was four of the suite's failures on POSIX.
+
+### Added
+- **Private mode 1048** (cursor save/restore without the buffer switch), with its
+  weaker evidence level stated in the code: xterm defines it, but neither
+  reference emulator implements it, so there is no ground truth to check against.
+- **`alt_screen` on every surface an agent reads** — `ScreenModel`, `Snapshot`,
+  the `to_text()` header (it leads the flags, because it changes what an action
+  MEANS), the JSON hints, and every drive-tui daemon reply. Previously reachable
+  only by poking the underlying pyte object.
+- **`tui.py resize`** — the daemon and MCP had supported resize since the control
+  plane was hardened; the CLI had no verb. A rejected size returns an error and
+  leaves the session alive.
+- `tests/test_terminal_fidelity.py` locks, including DECCOLM against the alternate
+  screen, and a cross-platform `getwch()` (`tests/_kbd.py`) that enters raw mode
+  once rather than per keystroke — otherwise an `ESC [ A` gets split across three
+  separate raw-mode entries.
+- `RESEARCH-PROMPTS.md` — the calibrated research anchors, each recording what a
+  good answer would actually change in the backlog.
+
+### Changed
+- `tests/run_all.py` is **43/43 on macOS**, the first full green on this host. The
+  four prior failures were platform gaps in test fixtures, not product bugs — and
+  with four known failures a genuine regression was indistinguishable from the
+  noise floor.
+- Documented as a deliberate CHOICE rather than a bug: **IL/DL keep the cursor
+  column.** An independent re-check found pyte matches xterm, vte and the DEC VT
+  reference here; tmux, GNU screen, urxvt, konsole and linuxvc keep the column as
+  this project does. Five implementations against two, so the behaviour stays —
+  but it must not be upstreamed, and the docstring that had asserted "real
+  terminals keep the column" now records the full split.
+
 ## [0.2.0] - 2026-07-27
 
 Security hardening of the drive-tui control plane, an installable MCP surface,

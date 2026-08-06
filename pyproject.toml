@@ -20,7 +20,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "smartcli-toolkit"
-version = "0.2.0"
+version = "0.2.1"
 description = "Cross-platform PTY, semantic terminal screen model, CLI and MCP server for driving interactive TUIs."
 readme = "README.md"
 license = "MIT"
