@@ -83,7 +83,14 @@ more measured emulation fixes.
 The release was reviewed before tagging. Five real defects came back, all
 introduced by this release's own work, and all fixed here — **four found by
 independent adversarial agents, and the last (the version contradictions) found by
-reading back over the release commit rather than by any agent or gate**:
+reading back over the release commit rather than by any agent or gate**.
+
+To be precise about what that does and does not claim: the *defects* were found
+independently, but the *fixes written in response* were verified by the author only.
+One of them touches `smartcli_core`, whose policy requires independent adversarial
+review before a change ships. That review happened AFTER the tag, not before, so the
+policy was not met for this release. It has since been run and the fix held up; the
+gap is recorded rather than smoothed over.
 - **The lint-gate fix would have re-broken the gate from the other direction.** The
   `type: ignore[misc]` on `super().alternate_screen` is correct only while pyte
   *lacks* the attribute; the day pyte ships it, `warn_unused_ignores` fails on an

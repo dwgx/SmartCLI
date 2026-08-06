@@ -360,9 +360,18 @@ class _Screen(pyte.Screen):
         Reads through to the base class where that implements the feature, so the
         answer is right whichever layer performed the switch.
 
-        ``getattr`` rather than ``super().alternate_screen``, and the default is
-        deliberately unreachable: ``_PYTE_HAS_ALT`` already proved the attribute
-        exists before this branch runs. It is written this way because the direct
+        ``getattr`` rather than ``super().alternate_screen``. The default is
+        unreachable for the reason it exists — ``_PYTE_HAS_ALT`` already proved the
+        attribute is present — but NOT unconditionally, and the difference was
+        pointed out by review rather than noticed here: ``hasattr`` on a *class*
+        holding a ``@property`` is True without ever running the getter, so a future
+        pyte whose getter itself raised ``AttributeError`` would be swallowed by the
+        default and reported as ``False`` instead of surfacing. That is a narrow
+        window (it needs an upstream getter bug, and any other exception type still
+        propagates), and both candidate fallbacks are equally wrong in it —
+        ``_alt_active`` is not maintained by this class once the base class owns the
+        switching — so the behaviour stands and the limit is stated instead of
+        being asserted away. It is written this way because the direct
         access needs a ``type: ignore[misc]`` on a pyte that lacks the attribute
         and NO ignore on a pyte that has it — so with ``warn_unused_ignores``, one
         spelling or the other fails the lint gate depending only on which pyte is
