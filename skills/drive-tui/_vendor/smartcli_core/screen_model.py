@@ -359,9 +359,20 @@ class _Screen(pyte.Screen):
 
         Reads through to the base class where that implements the feature, so the
         answer is right whichever layer performed the switch.
+
+        ``getattr`` rather than ``super().alternate_screen``, and the default is
+        deliberately unreachable: ``_PYTE_HAS_ALT`` already proved the attribute
+        exists before this branch runs. It is written this way because the direct
+        access needs a ``type: ignore[misc]`` on a pyte that lacks the attribute
+        and NO ignore on a pyte that has it — so with ``warn_unused_ignores``, one
+        spelling or the other fails the lint gate depending only on which pyte is
+        installed. That is the same dependency-triggered break ``_PYTE_HAS_ALT``
+        exists to prevent, and a version-dependent ignore would need revising on
+        the very release that makes the capability check unnecessary. Verified
+        clean under both stock 0.8.2 and a pyte carrying the attribute.
         """
         if self._PYTE_HAS_ALT:
-            return bool(super().alternate_screen)  # type: ignore[misc]
+            return bool(getattr(super(), "alternate_screen", False))
         return self._alt_active
 
     def set_mode(self, *modes: int, **kwargs) -> None:
