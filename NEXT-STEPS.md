@@ -312,6 +312,29 @@ non-negotiable and overrides any shortcut that looks faster.
   never both).
 - **Effort:** M
 
+### A0-I18N-ONBOARD. Port the English onboarding flow to the four locales  [S]
+- **Goal:** the English README now opens with a copy-pasteable "Drive something in 30
+  seconds" block and the runnable `examples/drive_vim.py` comparison (0.1.8 fails to save
+  the file, 0.2.0 succeeds). None of `docs/i18n/README.{zh-Hans,zh-Hant,ja,ko}.md` has
+  either — they jump from `pip install` straight to the lazygit section. Verified:
+  `grep -n '30 秒\|30-second\|drive_vim' docs/i18n/README.*.md` returns nothing.
+- **Why it matters:** those two blocks are the whole onboarding argument. The quickstart is
+  the only copy-paste path that proves the install worked, and the drive_vim comparison is
+  the concrete evidence that motivates trusting the alt-screen fix. A reader routed to a
+  locale by the language switcher currently gets a materially thinner case.
+- **Found by:** the independent discovery-mode review (2026-08-06), confirmed by a skeptic.
+  It was filed rather than fixed alongside the three accuracy defects in `efb43a9` because
+  this is a content port, and burying it in a fix commit would have hidden its size.
+- **First step:** read README.md's quickstart + drive_vim section, then port both into each
+  locale at the same position (right under the install command), keeping each file's
+  existing voice. Relative links from `docs/i18n/` need `../../` — the accuracy fixes in
+  `efb43a9` are a worked example.
+- **Verify:** `PYTHONIOENCODING=utf-8 python3 tests/test_doc_counts.py` stays green (it
+  enforces counts across localized docs including the CJK phrasings); every ported link
+  resolves; and the commands in each locale's quickstart are byte-identical to the English
+  ones, since a translated command is a broken command.
+- **Effort:** S
+
 ### A0-DOCKER-RUN. Make CI actually RUN the image, not just build it  [S]
 - **Goal:** `docker.yml` builds and pushes but never runs the result
   (`grep -nE "run:|docker run" .github/workflows/docker.yml` returns nothing). Add a
