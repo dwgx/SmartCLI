@@ -1049,13 +1049,44 @@ and the orphan it "fixes" is manufactured by SmartCLI's own `draw()` override �
 the test that locks it would pass without the fix. Defect 2's root cause is
 misattributed to `insert_lines` (which pops unconditionally; holes render as
 `default_char`, correctly) when it lives in `delete_lines`, and SmartCLI's own fix
-does not cover the minimal case `b"Q\r\x1b[1M"`. **Six are confirmed live on
-master and port mechanically**: IL/DL homing the cursor column, half-overwriting a
-wide glyph, DCH on a wide glyph, NEL not returning to column 0, and DECSTBM
-region-escape in both `index()` and `cursor_up()`. Three more were found that are
+does not cover the minimal case `b"Q\r\x1b[1M"`. **Five are confirmed live on
+master and port mechanically**: half-overwriting a wide glyph, DCH on a wide glyph,
+NEL not returning to column 0, and DECSTBM region-escape in both `index()` and
+`cursor_up()`.
+
+**IL/DL homing the cursor column was REMOVED from that list by an independent
+re-check, and this is the most important correction in this section.** pyte is
+right and this project is the one deviating. The documented split:
+
+    column 0 (pyte)   xterm, vte, and the DEC VT reference — terminalguide gives
+                      the reference as "Moves the cursor to the left margin"
+    column kept (us)  tmux 3.6b, GNU screen, urxvt, konsole, linuxvc
+
+Five implementations keep the column and two reset it, so SmartCLI keeping it is a
+defensible CHOICE and it stays. But pyte's docstrings cite VT102/VT220, whose
+reference says column 0 — so upstreaming this would move pyte away from the
+standard it targets and would rightly be rejected. **Do not file it.** The
+`_Screen` docstring previously asserted "real terminals keep the column" as though
+it were unanimous, which is exactly what made the mistaken upstream plan look
+sound; it now records the full split. This is the ZWJ mistake's near-repeat, caught
+one step earlier. Three more were found that are
 not in the seven: last-column wide-glyph wrap, ICH/ECH straddling a wide glyph
 (no reference measurement — do not upstream), and SGR colon sub-parameters drawn
-as literal text.
+as literal text — **which already has an open upstream PR**. pyte #180
+("Understand (and discard) SGR subparameters", open since 2024-10-08, MERGEABLE)
+fixes exactly that symptom, and issues #179/#178 cover it; the bottleneck is
+maintainer review, not a missing report, so filing again would waste the very
+credibility this triage exists to protect. A +1 or a rebase offer on #180 is the
+useful move. Also worth knowing before writing any wide-glyph patch: pyte #206 is
+actively rewriting the same `draw()`/grapheme path.
+
+Defect 7 (orphaned wide stub) needs splitting in two. Its RECORDED evidence is
+stale — the payload locked in `tests/test_terminal_fidelity.py` produces the wanted
+result on untouched master and on 0.8.2 with zero SmartCLI code, so filing that
+would be the credibility failure. But the defect as NAMED is still live on master
+with a 3-byte repro (`b"a" + 中 + CR + 文` renders width 7 in an 8-column screen),
+and it shares a root cause with the half-overwrite defect, so it folds into that
+one patch rather than being filed separately.
 
 Their independence from #212 was MEASURED, not assumed. The triage built its port
 on top of the alternate-screen branch (its 145-test run gives that away — untouched

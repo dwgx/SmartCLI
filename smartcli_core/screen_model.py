@@ -78,20 +78,40 @@ class _ByteStream(pyte.ByteStream):
 
 
 class _Screen(pyte.Screen):
-    """``pyte.Screen`` with two real-terminal divergences fixed.
+    """``pyte.Screen`` with measured real-terminal divergences addressed.
 
-    **1. IL/DL must not move the cursor column.** ``pyte``'s
-    ``insert_lines``/``delete_lines`` call ``carriage_return()``, snapping the
-    cursor to column 0. Real terminals keep the column: after
-    ``ESC[5;8H ESC[1L abc``, both tmux 3.6b and GNU screen render
-    ``"       abc"`` (column 8) while pyte rendered ``"abc"`` (column 0).
-    Two independent emulators agreeing settles it — ECMA-48 is ambiguous enough
-    here that reasoning alone would not have. Found by
-    ``tests/_diff_fuzz_tmux.py`` (generative differential fuzz), which is
-    exactly the class of bug hand-written cases miss: TUIs that repaint a list
-    by inserting a line and then writing at the current column landed their text
-    in the wrong column for us, so a recipe reading a "selected" row could read
-    the wrong text.
+    **1. IL/DL keep the cursor column — a DELIBERATE CHOICE, not a bug fix.**
+    ``pyte``'s ``insert_lines``/``delete_lines`` call ``carriage_return()``,
+    snapping the cursor to column 0; this subclass keeps the column, so after
+    ``ESC[5;8H ESC[1L abc`` we render ``"       abc"`` where pyte renders
+    ``"abc"``.
+
+    The implementations genuinely disagree, and the split is not what the
+    original note here claimed. Counting what is documented:
+
+        column 0 (pyte's behaviour)  : xterm, vte, and the DEC VT reference,
+                                      which terminalguide gives as "Moves the
+                                      cursor to the left margin"
+        column kept (ours)          : tmux 3.6b, GNU screen, urxvt, konsole,
+                                      linuxvc
+
+    So five documented implementations keep the column and two reset it. The
+    project's rule — match what two independent references agree on — points at
+    keeping it, and tmux and GNU screen were both measured directly. That is why
+    this stays.
+
+    But it is a choice between real behaviours, NOT a defect in pyte, and the
+    distinction matters: **this must never be upstreamed.** pyte's own docstrings
+    cite VT102/VT220, whose reference says column 0, so a PR "fixing" it would
+    move pyte away from the standard it targets and would rightly be rejected.
+    That was caught by an independent re-check of a triage that had listed it as
+    a mechanical upstream port; the earlier note in this docstring, claiming
+    "real terminals keep the column" as though that were unanimous, is what made
+    the mistake plausible.
+
+    Well-behaved programs do not depend on the column after IL/DL, precisely
+    because it varies — so the practical stakes are low either way. Originally
+    surfaced by ``tests/_diff_fuzz_tmux.py``.
 
     **2. A zero-width joiner must not truncate the batch.**
     ``pyte.Screen.draw`` walks the batch character by character and, for a
