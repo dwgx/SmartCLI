@@ -662,6 +662,21 @@ def cmd_alive(args) -> int:
     return 0 if resp.get("alive") else 1
 
 
+def cmd_resize(args) -> int:
+    # The daemon owns validation: it converts _validate_size's SystemExit into
+    # an error REPLY so an out-of-range size cannot tear down a live session.
+    # _call then turns that reply back into SystemExit for the CLI caller, which
+    # is the shared convention for every verb here — so a rejected size exits
+    # non-zero with the daemon's message and never reaches the lines below.
+    resp = _call(args.id, {"action": "resize", "cols": args.cols, "rows": args.rows})
+    if args.json:
+        print(json.dumps({"ok": True, "sid": args.id,
+                          "cols": args.cols, "rows": args.rows}))
+    else:
+        print(f"resized {args.id} to {args.cols}x{args.rows}")
+    return 0
+
+
 def cmd_close(args) -> int:
     try:
         _call(args.id, {"action": "close"})
@@ -868,6 +883,13 @@ def build_parser() -> argparse.ArgumentParser:
     sp = sub.add_parser("alive", help="check whether the child process is still running")
     sp.add_argument("--id", required=True)
     sp.set_defaults(func=cmd_alive)
+
+    sp = sub.add_parser("resize", help="change the terminal size of a live session")
+    sp.add_argument("--id", required=True)
+    sp.add_argument("--cols", required=True, type=int)
+    sp.add_argument("--rows", required=True, type=int)
+    sp.add_argument("--json", action="store_true")
+    sp.set_defaults(func=cmd_resize)
 
     sp = sub.add_parser("close", help="terminate the session and its daemon")
     sp.add_argument("--id", required=True)
