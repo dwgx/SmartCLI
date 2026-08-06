@@ -14,8 +14,10 @@ Notes:
     box-drawing / braille proof dumps encode on legacy Windows codepages.
   * Drive probes run real ConPTY sessions and are SLOW — each gets its own
     generous timeout; they are never assumed fast.
-  * verify_fx has a known random-seconds flake — one automatic rerun is
-    allowed before it is counted as a failure.
+  * verify_fx has a known random-seconds flake, and _diff_fuzz_tmux a
+    load-dependent one (its tmux capture can settle early once the suite has
+    spawned dozens of PTYs) — each gets one automatic rerun before it counts as
+    a failure. Both use fixed inputs, so a real failure recurs on the rerun.
   * Optional tests (_drive_probe6, test_readiness) may be added by other
     agents; if absent they are skipped-with-note, not failed.
 """
@@ -195,9 +197,16 @@ def build_suite():
     suite.append(Test("_diff_two_refs (tmux AND GNU screen vs our model)",
                       [PY, str(TESTS / "_diff_two_refs.py")], ROOT, 900,
                       optional=True))
+    # rerun=True for a load-dependent flake, not a random one. The seed is FIXED,
+    # so both attempts feed tmux byte-for-byte the same 40 payloads: a real
+    # divergence fails twice, while a slow capture fails once. Observed failing
+    # here in a full-suite run and passing standalone with the identical argv,
+    # including immediately after _diff_two_refs — by that point the suite has
+    # already spawned verify_fx and six drive probes, and the probe's
+    # settle-polling can return before tmux has finished painting.
     suite.append(Test("_diff_fuzz_tmux (generative differential fuzz)",
                       [PY, str(TESTS / "_diff_fuzz_tmux.py"), "--count", "40",
-                       "--seed", "2"], ROOT, 600, optional=True))
+                       "--seed", "2"], ROOT, 600, optional=True, rerun=True))
     suite.append(Test("test_wait_any (pexpect-style multi-marker wait)",
                       [PY, str(TESTS / "test_wait_any.py")], ROOT, 60,
                       optional=True))
