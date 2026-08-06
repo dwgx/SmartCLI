@@ -1099,6 +1099,42 @@ them hostage to it. Do NOT upstream IL/DL from outside a scroll region (tmux per
 it, GNU screen discards it — no ground truth) or ZWJ cluster width (master already
 picked tmux's side via `grapheme_clusters`).
 
+**A third review round (7 agents, serialised, 4 hours) found one HIGH that was
+mine.** Adding mode 1048 routed it through the same `_alt_savepoint` slot as 1049,
+which reintroduced the exact defect the dedicated slot had been created for one
+commit earlier: a program issuing `ESC[?1048h` while the alternate screen was up
+overwrote the cursor smcup saved for the shell. Measured — `ESC[3;7H smcup
+ESC[5;15H ESC[?1048h rmcup` gave cursor `(4,14)` where both the control and the
+DECSC path give `(2,6)`. SmartCLI is immune (its 1048 uses pyte's savepoint stack
+while 1049 uses a separate tuple), so this was upstream-only. 1048 now has its own
+slot.
+
+That round also found **`cursor_down` missing its DECSTBM override** in both
+codebases. `index` and `cursor_up` were overridden for exactly this defect class;
+their mirror was not, so `ESC[3;6r ESC[8;1H ESC[1B` from below the region landed
+on row 6 where tmux and GNU screen both give row 9. Notable for how it was found:
+by asking why the third override was absent, not by any failure — a gap a
+generative fuzzer cannot surface, because it generates sequences, not absences.
+
+**And it corrected the upstream plan twice more.** The SGR colon-subparameter
+defect already has an open upstream PR (#180, MERGEABLE since 2024-10-08) plus
+issues #179/#178, so the bottleneck is review, not reporting — filing again would
+spend the credibility this triage exists to protect. And E9 (last-column wide-glyph
+wrap), which the triage called mechanical and suite-green, actually **breaks
+`test_draw_width2_line_end`** on pristine master; the triager's port never
+contained E9, so its green suite never covered it. Also worth knowing before
+writing any wide-glyph patch: pyte #206 is actively rewriting the same
+`draw()`/grapheme path, and pyte's own `test_draw_width2_irm` is an xfail that
+asserts the split-clear answer — upstream's suite already documents that defect.
+
+**Two blind spots in my own tests, both caught by mutation rather than by review.**
+The paired `1048h`/`1048l` sequence cannot distinguish a suppressed save from a
+working one (a suppressed save leaves an empty slot, the restore is inert, and 1049
+supplies the same answer either way), so the test now moves the cursor between
+them. And the CUD row-cap assertion was a no-op: without a DECSTBM region the
+override is never entered, so pyte's own clamp did the work and deleting the
+override's bound left the test green.
+
 **Method notes worth more than any of the fixes.** Three separate times a
 differential failure turned out to be the RIG: `less -X` disables the alternate
 screen (the feature under test), GNU screen's `altscreen` defaults off, and a
