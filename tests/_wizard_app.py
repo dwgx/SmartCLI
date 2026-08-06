@@ -11,7 +11,12 @@ marker on the cursor row so _is_done() fires.
 
 Keys: Enter advances; q exits the final screen.
 """
-import sys, msvcrt
+import os
+import sys
+
+# Spawned as `python tests/_x_app.py`, so tests/ is not on sys.path.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _kbd import getwch
 
 TOTAL = 3
 BOTTOM_ROW = 24
@@ -43,7 +48,7 @@ def draw_done():
 
 draw_step()
 while True:
-    ch = msvcrt.getwch()
+    ch = getwch()
     if finished:
         if ch == "q":
             break
