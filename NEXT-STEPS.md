@@ -312,6 +312,38 @@ non-negotiable and overrides any shortcut that looks faster.
   never both).
 - **Effort:** M
 
+### A0-DOCKER-RUN. Make CI actually RUN the image, not just build it  [S]
+- **Goal:** `docker.yml` builds and pushes but never runs the result
+  (`grep -nE "run:|docker run" .github/workflows/docker.yml` returns nothing). Add a
+  step that starts the built image with no arguments and speaks one JSON-RPC
+  `initialize` + `tools/list` over stdio, asserting `serverInfo.version` equals the
+  package version and that 14 tools come back.
+- **Why it matters:** that is exactly how an MCP directory validates a server, and
+  it is the check that would have caught the v0.2.0 bug where the image defaulted to
+  `CMD ["fx gallery"]` — a directory would have received animation frames and scored
+  the server broken. The `CMD ["mcp"]` fix has shipped in two releases now with **no
+  automated test ever running it**; the only evidence is that the build is green,
+  which proves nothing about what the image does when started.
+- **Partial evidence as of 2026-08-06 (v0.2.1):** verified by RECONSTRUCTING the
+  image layout rather than running a container (no Docker on this host) — copied
+  `smartcli_core/` + `skills/` into a scratch dir, set the Dockerfile's exact
+  `PYTHONPATH`, installed only `requirements.txt` (not the package, matching the
+  image), and spoke JSON-RPC from outside the repo: `serverInfo` = 0.2.1, 14 tools,
+  `snapshot`'s description mentions `alt_screen`. So the bootstrap path resolves and
+  the entrypoint's `mcp` branch is sound. **This is not a container run** — it does
+  not cover the base image, the `ENTRYPOINT` script itself, or anything the
+  Dockerfile's own layers do.
+- **First step:** in `docker.yml`, build with `load: true` for the smoke step (a
+  pushed multi-arch manifest cannot be run directly), then
+  `printf '<initialize>\n<initialized>\n<tools/list>\n' | docker run -i --rm <tag>`
+  and parse the replies. Note the server needs the `notifications/initialized`
+  message between the two requests or `tools/list` never answers — that cost a round
+  when probing it by hand.
+- **Verify:** the step fails if `CMD` is changed back to a demo, and fails if
+  `serverInfo` reports the SDK's version instead of ours (both are real bugs this
+  project has already had).
+- **Effort:** S
+
 ### ~~A0-CLI-RESIZE. Expose resize as a CLI subcommand~~  [DONE 2026-08-06]
 - **Result:** `tui.py resize --id <SID> --cols N --rows M` (plus `--json`). Validation
   deliberately stays in the daemon, which converts `_validate_size`'s `SystemExit` into
