@@ -322,6 +322,52 @@ m = ScreenModel(cols=20, rows=3)
 m.feed(b"a:b:c")
 check(m.display[0].rstrip() == "a:b:c", "literal colons in text are unaffected")
 
+
+# --- alternate-screen state that must survive a resize, a RIS, and an exit ---
+# All five below were found by an adversarial review of the resize fix above,
+# which had clipped the saved BUFFER but left everything else attached to the
+# saved CURSOR unprotected. The first is the worst class of bug in this project:
+# perception silently stops updating and nothing reports a problem.
+
+_m = ScreenModel(cols=10, rows=8)
+_m.feed(b"\x1b[7;3Hx\x1b[?1049h")
+_m.resize(cols=10, rows=3)          # shrink while the program owns the screen
+_m.feed(b"\x1b[?1049l")
+check(_m.cursor[0] < _m.rows and _m.cursor[1] < _m.cols,
+      "restoring the cursor after a shrink clamps it into the screen",
+      detail=f"rows={_m.rows} cols={_m.cols} cursor={_m.cursor}")
+_m.feed(b"AFTER")
+check(any("AFTER" in line for line in _m.display),
+      "text written after that restore is still visible",
+      detail=repr([line.rstrip() for line in _m.display]))
+
+_m = ScreenModel(cols=10, rows=3)
+_m.feed(b"PRIMARY\x1b[?1049hALTDATA\x1bc")
+check(_m.screen.alt_screen is False,
+      "RIS leaves the alternate screen",
+      detail=f"alt_screen={_m.screen.alt_screen}")
+_m.feed(b"NEXTPROG\x1b[?1049l")
+check(any("NEXTPROG" in line for line in _m.display),
+      "a rmcup after RIS does not resurrect the pre-RIS screen",
+      detail=repr([line.rstrip() for line in _m.display]))
+
+# 1049 is "save cursor as in DECSC", and DECSC saves the pen too: a TUI that
+# left reverse video on must not tint what the shell writes next.
+_m = ScreenModel(cols=12, rows=3)
+_m.feed(b"\x1b[1;1H\x1b[?1049h\x1b[7m\x1b[?1049lshell")
+check(not any(_m.cell(_m.cursor[0], x).reverse for x in range(5)),
+      "the pen set inside the alternate screen does not bleed into the shell",
+      detail=f"reverse={[_m.cell(_m.cursor[0], x).reverse for x in range(5)]}")
+
+# pyte's own resize treats 0 as "unchanged"; this override must agree.
+_m = ScreenModel(cols=10, rows=3)
+_m.feed(b"PRIMARY-1\r\nPRIMARY-2\x1b[?1049h")
+_m.resize(cols=0, rows=0)
+_m.feed(b"\x1b[?1049l")
+check(any("PRIMARY-1" in line for line in _m.display),
+      "resize(0, 0) leaves the saved primary screen alone",
+      detail=repr([line.rstrip() for line in _m.display]))
+
 if FAILURES:
     print(f"\ntest_terminal_fidelity FAIL -- {len(FAILURES)} check(s):")
     for f in FAILURES:

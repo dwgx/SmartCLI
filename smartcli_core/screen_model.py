@@ -17,6 +17,7 @@ from typing import NamedTuple
 
 import pyte
 from pyte import modes as mo
+from pyte.screens import Char
 
 from wcwidth import wcwidth as wcwidth_cached  # pyte's own width dependency
 
@@ -130,7 +131,11 @@ class _Screen(pyte.Screen):
         super().__init__(*args, **kwargs)
         self._alt_active = False
         self._saved_main: dict | None = None
-        self._saved_cursor: tuple[int, int] | None = None
+        # (row, col, attrs). The pen travels with the position because 1049 is
+        # defined as "save cursor as in DECSC", and DECSC saves the graphic
+        # rendition too. Without it, a TUI that left reverse video or a colour
+        # on made every character the shell wrote afterwards inherit it.
+        self._saved_cursor: tuple[int, int, Char] | None = None
 
     @property
     def alt_screen(self) -> bool:
@@ -141,7 +146,8 @@ class _Screen(pyte.Screen):
         if self._alt_active:
             return
         self._saved_main = dict(self.buffer)
-        self._saved_cursor = (self.cursor.y, self.cursor.x) if save_cursor else None
+        self._saved_cursor = ((self.cursor.y, self.cursor.x, self.cursor.attrs)
+                              if save_cursor else None)
         self.buffer.clear()
         self._alt_active = True
         # NOTE: the cursor is deliberately NOT homed. xterm clears the alternate
@@ -158,10 +164,33 @@ class _Screen(pyte.Screen):
         self._saved_main = None
         self._alt_active = False
         if self._saved_cursor is not None:
-            y, x = self._saved_cursor
-            self.cursor.y, self.cursor.x = y, x
+            y, x, attrs = self._saved_cursor
+            # CLAMP. The screen may have been resized while the program owned
+            # the alternate screen, and restoring a row that no longer exists
+            # left the cursor permanently outside the buffer: every subsequent
+            # write landed on a row `display` never renders, so the agent read a
+            # screen that had silently stopped updating. Found by review after
+            # the resize fix here clipped the saved BUFFER but not the saved
+            # CURSOR — one half of the same defect.
+            self.cursor.y = min(max(y, 0), self.lines - 1)
+            self.cursor.x = min(max(x, 0), self.columns - 1)
+            self.cursor.attrs = attrs
             self._saved_cursor = None
         self.dirty.update(range(self.lines))
+
+    def reset(self) -> None:
+        """Overloaded so RIS leaves the alternate screen.
+
+        ``pyte.Screen.reset`` clears ``buffer`` but knows nothing about the
+        alternate-screen state kept here, so after ``ESC c`` the flag stayed set:
+        the next program's smcup was a silent no-op (it paints onto what the
+        agent believes is the primary screen), and a later rmcup resurrected the
+        pre-RIS screen. Real terminals return to the primary buffer on RIS.
+        """
+        super().reset()
+        self._alt_active = False
+        self._saved_main = None
+        self._saved_cursor = None
 
     def resize(self, lines: int | None = None,
                columns: int | None = None) -> None:
@@ -180,8 +209,12 @@ class _Screen(pyte.Screen):
         patch for pyte issue #90, where the offscreen buffer had the same hole.
         """
         old_lines, old_columns = self.lines, self.columns
-        new_lines = old_lines if lines is None else lines
-        new_columns = old_columns if columns is None else columns
+        # `or` rather than `is None`: pyte's own resize does `lines = lines or
+        # self.lines`, so 0 means "unchanged" there. Testing `is None` here made
+        # resize(0, 0) — a no-op for the live screen — clip the saved primary
+        # screen to nothing.
+        new_lines = lines or old_lines
+        new_columns = columns or old_columns
         super().resize(lines, columns)
 
         saved = self._saved_main
