@@ -562,6 +562,33 @@ for _label, _payload, _want in (
     check(_got == _want, f"DL blanks what it vacates ({_label})",
           detail=f"got={_got} want={_want}")
 
+
+# --- DECCOLM is the one mode whose handler does real buffer work --------------
+# ESC[?3h saves saved_columns, resizes to 132, erase_in_display(2)s and homes the
+# cursor; ESC[?3l resizes back. All of that touches buffer state, and the
+# alt-screen code changes what "the buffer" is, so the combination is worth
+# pinning even though 132-column mode is a VT100 leftover. Six shapes were probed
+# and all were already correct; these two are the ones that touch the saved
+# primary screen, i.e. the part this branch changed.
+_m = ScreenModel(cols=80, rows=4)
+_m.feed(b"KEEPME\x1b[?1049hALTDATA\x1b[?3h")   # DECCOLM entered ON the alt screen
+_m.feed(b"\x1b[?3l\x1b[?1049l")
+check(any("KEEPME" in line for line in _m.display) and _m.cols == 80,
+      "DECCOLM on the alt screen leaves the saved primary screen intact",
+      detail=f"cols={_m.cols} display={[l.rstrip() for l in _m.display][:2]}")
+
+# Three full cycles must not accumulate damage or leave over-wide cells.
+_m = ScreenModel(cols=80, rows=6)
+_m.feed(b"line1\r\nline2")
+for _ in range(3):
+    _m.feed(b"\x1b[?1049h\x1b[?3halt\x1b[?3l\x1b[?1049l")
+_over = [y for y in range(_m.rows)
+         if any(x >= _m.cols for x in _m.screen.buffer[y])]
+check(any("line1" in line for line in _m.display) and not _over,
+      "repeated DECCOLM + alt-screen cycles leave a consistent grid",
+      detail=f"cols={_m.cols} over-wide rows={_over} "
+             f"display={[l.rstrip() for l in _m.display][:3]}")
+
 if FAILURES:
     print(f"\ntest_terminal_fidelity FAIL -- {len(FAILURES)} check(s):")
     for f in FAILURES:
