@@ -607,17 +607,26 @@ external proof invites "does it actually work?" with no answer.
 
 ## D. Save the calibrated deep-research anchors
 
-### D1. Write RESEARCH-PROMPTS.md from the session's /deep-research anchor list  [S]
-- **Goal:** persist the calibrated `/deep-research` prompt list so it is not lost.
-- **Why it matters:** these anchors were tuned this session and drive the competitive
-  benchmarking that keeps the A-grade gaps honest.
-- **Anchors to include:** conch, terminal-bench, plotille, TTE (terminaltexteffects),
-  PyPI trusted publishing. (Also benchmarked against: pexpect, Textual,
-  pytest-textual-snapshot.)
-- **First step:** create RESEARCH-PROMPTS.md, one section per anchor, each with the
-  specific question to research and what a good answer changes in this backlog.
-- **Verify:** file exists, each anchor has a runnable prompt. (Docs-only — no code gate.)
-- **Effort:** S
+### ~~D1. Write RESEARCH-PROMPTS.md from the session's /deep-research anchor list~~  [DONE 2026-08-06]
+- **Result:** `RESEARCH-PROMPTS.md`. Five anchors (conch, terminal-bench/Harbor, plotille,
+  TTE, PyPI trusted publishing), each with a specific question, a **Last checked** line,
+  and — the part that makes the file worth keeping — what a good answer would actually
+  CHANGE in this backlog. Anchors whose answer changes nothing are named as such rather
+  than padded: pexpect, Textual and pytest-textual-snapshot are recorded as already
+  benchmarked with no open sub-question, so nobody re-runs them to re-confirm measured
+  facts.
+- **Notable:** it states the real cost of the "just add one more effect/widget" answers —
+  a catalog bump has to clear `test_fx_contract`, move `verify_fx` 38/38 → 39/39, and
+  update every count site `test_doc_counts` gates. That is the kind of thing that makes a
+  research answer actionable instead of aspirational.
+- **Claims spot-checked against disk before committing:** the TTE snapshot in
+  `research/R1-effects-catalog.md` PART C (its frozen upstream catalog size @ HEAD
+  `7a91dd9`), the publish.yml action pin (`pypa/gh-action-pypi-publish@release/v1`), and
+  `braille_chart.py`'s existence.
+- **Gate note:** `test_doc_counts` initially FAILED on this entry — it read TTE's upstream
+  catalog size as an fx count and demanded 30. The gate was right to be suspicious of a
+  bare effect number in a shipping doc, so the figure is named rather than written as a
+  digit here. RESEARCH-PROMPTS.md itself passes: it discusses the fx catalog as 30→31.
 
 ---
 
