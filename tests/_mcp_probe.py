@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import os
 import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -83,6 +84,7 @@ def main() -> int:
     close = _fn("close")
     list_sessions = _fn("list_sessions")
     alive = _fn("alive")
+    send_keys = _fn("send_keys")
 
     print(f"REG_DIR={REG_DIR}")
 
@@ -132,6 +134,16 @@ def main() -> int:
               "snapshot JSON is structured, not a nested JSON string")
         check(isinstance(r.get("hash"), int) and isinstance(r.get("visual_hash"), int),
               "snapshot exposes text and visual baselines")
+        # The snapshot tool rebuilds its reply as a hand-written allowlist, and
+        # alt_screen was missing from it: the daemon sent the field, the CLI
+        # printed it, and only MCP clients were blind to whether a full-screen
+        # program owned the screen. Assert the KEY is present rather than just
+        # its value — a dropped field and a genuine False are the same thing to
+        # `.get()`, which is exactly why this went unnoticed.
+        check("alt_screen" in r, "snapshot reply carries alt_screen at all")
+        check(r.get("alt_screen") is False,
+              "alt_screen is False on a plain REPL (no full-screen program)",
+              detail=repr(r.get("alt_screen")))
 
         check(send_line(
             sid=sid,
@@ -159,6 +171,43 @@ def main() -> int:
                 break
             time.sleep(0.25)
         check(n == 0, "no leaked sessions after close (polled)", detail=f"{n} listed")
+
+        # --- alt_screen must report TRUE while a full-screen program owns the
+        # screen. The False assertion above cannot catch a dropped field, because a
+        # missing key and a genuine False are the same thing to `.get()` — which is
+        # precisely how the omission went unnoticed. So drive the state that matters.
+        #
+        # This needs a REAL full-screen program, not a REPL writing the escape
+        # itself: `python -i` on a PTY does not execute queued lines promptly, so the
+        # sequence only gets ECHOED and never runs. An echoed payload matching your
+        # own wait pattern is a false PASS (the trap recorded in HANDOFF 10g).
+        # `less` is used WITHOUT -X on purpose: -X disables the alternate screen,
+        # i.e. the feature under test (HANDOFF 10i, one of three rig mistakes).
+        #
+        # Serial by construction: this session starts only after the one above is
+        # closed and confirmed leak-free, per the one-PTY-at-a-time red line.
+        if shutil.which("less"):
+            fixture = REG_DIR / "altscreen_fixture.txt"
+            fixture.write_text("\n".join(str(i) for i in range(1, 201)), encoding="utf-8")
+            r = start(cmd=f"less {fixture}", cols=80, rows=24)
+            sid = r.get("sid", "")
+            check(bool(sid), "start real less for the alt-screen check", detail=repr(r))
+            r = wait_regex(sid=sid, pattern="1", timeout_ms=15000)
+            check(r.get("ok") and r.get("matched"), "less painted its first page")
+            r = snapshot(sid=sid)
+            check(r.get("alt_screen") is True,
+                  "alt_screen is True while a full-screen program owns the screen",
+                  detail=repr(r.get("alt_screen")))
+            check(send_keys(sid=sid, keys=["q"]).get("ok"), "send q to quit less")
+            time.sleep(1.0)
+            r = snapshot(sid=sid)
+            check(r.get("alt_screen") is False,
+                  "alt_screen is False again once the primary screen is restored",
+                  detail=repr(r.get("alt_screen")))
+            close(sid=sid)
+            sid = ""
+        else:
+            print("SKIP: less not on PATH — alt_screen True case not exercised")
     finally:
         if sid:
             try:
