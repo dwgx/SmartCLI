@@ -6,7 +6,12 @@ bottom row (so smartcli_core anchors it as the status bar), and switches to
 g top, G bottom, q quit -- exactly the vocabulary PagerPattern.drive uses
 (it sends Space for 'to_end').
 """
-import sys, msvcrt
+import os
+import sys
+
+# Spawned as `python tests/_x_app.py`, so tests/ is not on sys.path.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _kbd import getwch
 
 PAGE = 18          # body rows shown per screen (row 24 is the status line)
 BOTTOM_ROW = 24    # 1-based terminal row for the status prompt
@@ -52,15 +57,15 @@ def _page_up():
 
 def _read_key():
     """One logical key: swallows Windows/ANSI escape sequences to a token."""
-    ch = msvcrt.getwch()
+    ch = getwch()
     if ch in ("\x00", "\xe0"):                 # Windows fn/arrow prefix
-        ch2 = msvcrt.getwch()
+        ch2 = getwch()
         return {"Q": "pgdn", "I": "pgup"}.get(ch2, "")   # PgDn / PgUp
     if ch == "\x1b":                           # ANSI CSI sequence
-        if msvcrt.getwch() == "[":
+        if getwch() == "[":
             seq = ""
             while True:
-                c = msvcrt.getwch()
+                c = getwch()
                 seq += c
                 if c.isalpha() or c == "~":
                     break

@@ -222,6 +222,10 @@ def _snapshot_response(sess: PtySession, snap, **fields) -> dict:
     return {
         "ok": True,
         "alive": sess.is_alive(),
+        # Whether a full-screen program owns the screen changes what the next
+        # action MEANS (does `q` quit or type a letter?), so it travels with every
+        # observation rather than only inside the JSON payload.
+        "alt_screen": sess.model.alt_screen,
         "text": snap.to_text(),
         "json": json.dumps(structured, ensure_ascii=False),
         "hash": content_hash,
@@ -551,7 +555,7 @@ def cmd_snapshot(args) -> int:
     resp = _call(args.id, {"action": "snapshot"})
     print(
         f"# hash={resp.get('hash')} visual_hash={resp.get('visual_hash')} "
-        f"alive={resp.get('alive')}",
+        f"alive={resp.get('alive')} alt_screen={resp.get('alt_screen')}",
         file=sys.stderr,
     )
     _print_snap(resp, args.json)
@@ -656,6 +660,21 @@ def cmd_alive(args) -> int:
     resp = _call(args.id, {"action": "alive"})
     print("alive" if resp.get("alive") else "dead")
     return 0 if resp.get("alive") else 1
+
+
+def cmd_resize(args) -> int:
+    # The daemon owns validation: it converts _validate_size's SystemExit into
+    # an error REPLY so an out-of-range size cannot tear down a live session.
+    # _call then turns that reply back into SystemExit for the CLI caller, which
+    # is the shared convention for every verb here — so a rejected size exits
+    # non-zero with the daemon's message and never reaches the lines below.
+    resp = _call(args.id, {"action": "resize", "cols": args.cols, "rows": args.rows})
+    if args.json:
+        print(json.dumps({"ok": True, "sid": args.id,
+                          "cols": args.cols, "rows": args.rows}))
+    else:
+        print(f"resized {args.id} to {args.cols}x{args.rows}")
+    return 0
 
 
 def cmd_close(args) -> int:
@@ -864,6 +883,13 @@ def build_parser() -> argparse.ArgumentParser:
     sp = sub.add_parser("alive", help="check whether the child process is still running")
     sp.add_argument("--id", required=True)
     sp.set_defaults(func=cmd_alive)
+
+    sp = sub.add_parser("resize", help="change the terminal size of a live session")
+    sp.add_argument("--id", required=True)
+    sp.add_argument("--cols", required=True, type=int)
+    sp.add_argument("--rows", required=True, type=int)
+    sp.add_argument("--json", action="store_true")
+    sp.set_defaults(func=cmd_resize)
 
     sp = sub.add_parser("close", help="terminate the session and its daemon")
     sp.add_argument("--id", required=True)

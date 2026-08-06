@@ -101,7 +101,14 @@ def ref_grid(payload: bytes, use_screen: bool) -> list[str]:
         inner = f'stty -onlcr -echo; cat {f}; sleep 40'
         if use_screen:
             rc = Path(td) / "screenrc"
-            rc.write_text("startup_message off\nvbell off\n")
+            # `altscreen` defaults to OFF in GNU screen (man screen: "Initial
+            # setting is `off'"). Without it screen ignores 47/1047/1049
+            # entirely, so the alt-screen cases below were comparing against a
+            # reference with the feature DISABLED — every one of them reported a
+            # reference-vs-reference disagreement (UNDEFINED) for a rig reason,
+            # not a semantic one. Exactly the "suspect the rig first" failure
+            # this probe's own docstring warns about.
+            rc.write_text("startup_message off\nvbell off\naltscreen on\n")
             cmd = f'screen -c {rc} sh -c "{inner}"'
         else:
             cmd = f'sh -c "{inner}"'

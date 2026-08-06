@@ -1,5 +1,10 @@
 """A tiny full-screen ANSI menu: reverse-video bar, Up/Down nav, Enter selects."""
-import sys, msvcrt
+import os
+import sys
+
+# Spawned as `python tests/_x_app.py`, so tests/ is not on sys.path.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _kbd import getwch
 
 ITEMS = ["Apple", "Banana", "Cherry", "Date", "Elderberry"]
 sel = 0
@@ -17,18 +22,18 @@ def draw():
 
 draw()
 while True:
-    ch = msvcrt.getwch()
+    ch = getwch()
     if ch == "\x00" or ch == "\xe0":            # arrow prefix on Windows
-        ch2 = msvcrt.getwch()
+        ch2 = getwch()
         if ch2 == "H":                          # Up
             sel = (sel - 1) % len(ITEMS)
         elif ch2 == "P":                        # Down
             sel = (sel + 1) % len(ITEMS)
         draw()
     elif ch == "\x1b":                          # ANSI arrow (ESC [ A/B)
-        ch2 = msvcrt.getwch()
+        ch2 = getwch()
         if ch2 == "[":
-            ch3 = msvcrt.getwch()
+            ch3 = getwch()
             if ch3 == "A":
                 sel = (sel - 1) % len(ITEMS)
             elif ch3 == "B":

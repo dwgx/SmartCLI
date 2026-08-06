@@ -27,7 +27,8 @@ Combos: `C-x`/`^X` → Ctrl (Ctrl-A = 0x01). `M-x` → ESC prefix (Alt). Unknown
 Cursor/nav keys are DECCKM-adaptive — automatically: `send_keys` reads the live `ScreenModel.app_cursor` state and emits the SS3 form (`\x1bOA` for Up) when the program has enabled application-cursor-keys mode (`\x1b[?1h`, what curses `keypad(True)` does), else the normal CSI form (`\x1b[A`). Callers just send `Up`; no mode handling needed.
 
 ## Snapshot (`smartcli_core.snapshot`)
-Fields: `size (rows,cols)`, `lines`, `cursor (row,col)`, `cursor_hidden`, `selected_line`, `selected` (a `Span`), `selected_reason`, `status_bar`, `status_bar_row`, `title`, `menu_items` (list of `Span`), `errors` (list of `(row,text,reason)`), `screen_reverse`.
+Fields: `size (rows,cols)`, `lines`, `cursor (row,col)`, `cursor_hidden`, `alt_screen`, `selected_line`, `selected` (a `Span`), `selected_reason`, `status_bar`, `status_bar_row`, `title`, `menu_items` (list of `Span`), `errors` (list of `(row,text,reason)`), `screen_reverse`.
+- `alt_screen`: a full-screen program owns the screen (vim/less/htop) — mirrors `ScreenModel.alt_screen`. `to_text()` inserts `alt_screen` first among the header flags, before `selected`/`status`/`errors`, because it changes what an action MEANS.
 - `selected_line` / `selected`: widest highlighted (reverse-video, non-default-bg, or bold) span, else the cursor line. Foreground colour alone is deliberately NOT a highlight (syntax-coloured output would false-positive). This is the menu-selection signal.
 - `menu_items`: every highlighted span in reading order — the choices in a menu.
 - `errors`: lines with red fg (`reason="red_fg"`) or matching `error|failed|traceback|exception` (`reason="keyword"`).

@@ -55,6 +55,7 @@ class Snapshot:
         menu_items: every highlighted span in reading order.
         errors: lines flagged as errors, as ``(row, text, reason)``.
         screen_reverse: DECSCNM (screen-wide reverse) active.
+        alt_screen: a full-screen program owns the screen (vim/less/htop).
     """
 
     size: tuple[int, int]
@@ -70,6 +71,7 @@ class Snapshot:
     menu_items: list[Span] = field(default_factory=list)
     errors: list[tuple[int, str, str]] = field(default_factory=list)
     screen_reverse: bool = False
+    alt_screen: bool = False
 
     # -- rendering ---------------------------------------------------------
 
@@ -97,6 +99,10 @@ class Snapshot:
             header_bits.append(f'title="{self.title}"')
         if self.errors:
             header_bits.append(f"errors={len(self.errors)}")
+        if self.alt_screen:
+            # Leads the flags: it changes what an action MEANS, so an agent
+            # reading only the start of the header still sees it.
+            header_bits.insert(1, "alt_screen")
         if self.screen_reverse:
             header_bits.append("screen_reverse")
 
@@ -156,6 +162,7 @@ class Snapshot:
         hints: dict = {
             "has_hidden_cursor": self.cursor_hidden,
             "screen_reverse": self.screen_reverse,
+            "alt_screen": self.alt_screen,
         }
         if self.errors:
             hints["errors"] = [
@@ -294,4 +301,5 @@ def build_snapshot(model: ScreenModel) -> Snapshot:
         menu_items=menu_items,
         errors=errors,
         screen_reverse=base_reverse,
+        alt_screen=model.alt_screen,
     )

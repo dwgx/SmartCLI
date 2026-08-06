@@ -1,5 +1,10 @@
 """fzf-like incremental filter: query prompt + candidate list + X/Y count."""
-import sys, msvcrt
+import os
+import sys
+
+# Spawned as `python tests/_x_app.py`, so tests/ is not on sys.path.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _kbd import getwch
 
 ITEMS = ["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "apple", "grape"]
 query = ""
@@ -21,7 +26,7 @@ def draw():
 
 draw()
 while True:
-    ch = msvcrt.getwch()
+    ch = getwch()
     if ch in ("\r", "\n"):
         matched = [it for it in ITEMS if query.lower() in it.lower()]
         top = matched[0] if matched else ""

@@ -1,7 +1,7 @@
 # NEXT-STEPS — SmartCLI prioritized task queue
 
-Written 2026-07-12; snapshot + queue last reconciled **2026-07-27** (post-v0.2.0-branch
-work — see HANDOFF §10). This file is the single source of truth for "what to do
+Written 2026-07-12; snapshot + queue last reconciled **2026-08-06** (post-v0.2.0-release
+work — see HANDOFF §10h/10i). This file is the single source of truth for "what to do
 next". Tasks are ordered by impact/effort and written as **self-contained prompts**:
 a fresh AI with no memory of this session can pick any task and start. Each task
 states the goal, why it matters, a concrete first step, how to verify, and effort
@@ -22,16 +22,23 @@ non-negotiable and overrides any shortcut that looks faster.
 
 ---
 
-## Verified ground-truth snapshot (checked against disk 2026-07-27)
+## Verified ground-truth snapshot (checked against disk 2026-08-06)
 
-- Release: latest RELEASED = **v0.1.8** on PyPI as dist `smartcli-toolkit` (import
-  stays `smartcli_core`). Repo github.com/dwgx/SmartCLI, tags v0.1.0…v0.1.8 with
-  GitHub Releases. **v0.2.0 is code-complete but UNRELEASED** — committed on branch
-  `codex/cross-platform-mcp-hardening` (HANDOFF §10): security-hardened drive-tui
-  control plane, visual_hash + wait-visual-change, wheel ships smartcli_drive +
-  smartcli-tui/smartcli-mcp/smartcli-toolkit commands, mcp required dep, Python
-  floor 3.10. 3 skills also on skillhu.bz. `.claude-plugin/marketplace.json`
-  present. Codecov + Read the Docs (smartcli.readthedocs.io) live.
+- Release: latest RELEASED = **v0.2.0** on PyPI as dist `smartcli-toolkit` (import
+  stays `smartcli_core`). Repo github.com/dwgx/SmartCLI, tags v0.1.0…v0.2.0 with
+  GitHub Releases (`git tag | tail -3` → v0.1.8, v0.2.0; `git log --oneline -1
+  v0.2.0` → `f2a0db0 release: v0.2.0 — hardened control plane, installable MCP,
+  terminal fidelity`). **v0.2.0 was merged to `main`, tagged, and published on
+  2026-07-27** — PyPI + GitHub Release + MCP Registry, all three publish.yml jobs
+  green (build → PyPI OIDC → MCP Registry OIDC). It carries: security-hardened
+  drive-tui control plane, visual_hash + wait-visual-change, wheel ships
+  smartcli_drive + smartcli-tui/smartcli-mcp/smartcli-toolkit commands, mcp
+  required dep, Python floor 3.10. Since release, two more sessions landed on
+  `main` (HANDOFF §10h/10i, both 2026-08-05/06): a real Harbor adapter, a
+  dependency-drift gate, alt_screen surfaced end-to-end, mode 1048, and a
+  cursor_down DECSTBM fix — none of these bumped the version. 3 skills also on
+  skillhu.bz. `.claude-plugin/marketplace.json` present. Codecov + Read the Docs
+  (smartcli.readthedocs.io) live.
 - Version 0.2.0 (in-tree) is consistent across **TEN** sites: pyproject.toml,
   smartcli_core/__init__.py, skills/cmd-art/fx/__init__.py, all 3 skills/*/SKILL.md,
   marketplace.json, **plugin.json**, _vendor/smartcli_core/__init__.py, server.json
@@ -42,6 +49,13 @@ non-negotiable and overrides any shortcut that looks faster.
   ui/widgets_ext/); knowledge **143 md files**. `python -m fx list` = 30,
   `python -m ui widgets` = 17. Anti-drift gate (test_doc_counts.py) enforces effect
   AND widget counts across shipping docs (extended 2026-07-27).
+- Suite size: `tests/run_all.py` `build_suite()` is **43 entries**, **43/43 green on
+  macOS as of 2026-08-06** — the first full green here. It was 39/43 for a while; the
+  four earlier failures were platform gaps in test fixtures (`_menu_app.py` and three
+  siblings opening with `import sys, msvcrt` and dying on POSIX before drawing
+  anything; `examples/drive_vim.py` unable to import `smartcli_core` from a checkout),
+  not product bugs. See HANDOFF §10i. Registration is unconditional — tmux probes SKIP
+  themselves rather than deregistering — so 43 does not vary by host.
 - CI (updated 2026-07-27): **9 workflows**. `ci.yml` is a **3-OS matrix**
   (windows/ubuntu/macos × **py3.10/3.14**) running the deterministic gates incl.
   `test_doc_counts` + `test_version_sync` (anti-drift), `test_visual_change`,
@@ -236,15 +250,75 @@ non-negotiable and overrides any shortcut that looks faster.
 - **Still open:** a GUI-terminal reference (kitty/Alacritty — neither is
   installed here; both would need `brew install`), and DCS/DECRQSS round-trips.
 
-### A0-CLI-RESIZE. Expose resize as a CLI subcommand  [S]
-- **Goal:** the daemon + MCP support resize but the CLI has no verb — close the
-  asymmetry (documented in SKILL.md as MCP-only for now).
-- **Verify:** `tui.py resize --id <SID> --cols N --rows M` against a live session;
-  out-of-range sizes must return the error reply (test_drive_security already locks
-  the daemon path). Optional follow-up: `--theme` fallback for unthemed fx show
-  segments (SKILL.md documents current behavior honestly; making the flag real is a
-  small cli.py change).
-- **Effort:** S
+### A0-PYTE-UPSTREAM. File the six confirmed-live pyte defects, mechanically ported  [M]
+- **Goal:** upstream port patches for the six pyte defects that were MEASURED (not
+  assumed) to be both real on pyte master and independent of the unreviewed
+  alternate-screen PR: half-overwriting a wide glyph, DCH on a wide glyph, NEL not
+  returning to column 0, and DECSTBM region-escape in both `index()` and
+  `cursor_up()`. Independence was proven by extracting the 130-line diff and
+  applying it to an untouched `upstream/master` worktree — both files applied
+  cleanly and the suite stayed at 117 passed / 1 xfailed, so these six do not need
+  to wait on selectel/pyte#212.
+- **Why it matters:** `selectel/pyte#212` (the alternate-screen buffer, closing a
+  9-year-old help-wanted issue) is `MERGEABLE` with 0 reviews and that upstream's
+  last merge was ~11 months ago — attaching mechanical, independent wins to an
+  unreviewed PR would make them hostage to it for no reason. See HANDOFF §10i for
+  the full triage, including the two defects that did NOT survive independent
+  re-check and must stay out of any upstream filing:
+  - **Do NOT** file IL/DL homing the cursor column outside a scroll region — a
+    second re-check found pyte's column-0 behavior matches xterm/vte/the DEC VT
+    reference (terminalguide: "moves the cursor to the left margin"); SmartCLI
+    keeping the column is a defensible choice (tmux 3.6b, GNU screen, urxvt,
+    konsole, linuxvc all keep it too) but upstreaming it would move pyte away
+    from the standard it targets and would rightly be rejected.
+  - **Do NOT** file ZWJ cluster width — pyte master already picked tmux's side
+    via `grapheme_clusters`.
+  - **Do NOT** re-file SGR colon sub-parameters (`ESC[4:3mU` drawing literal
+    `"3mU"`) — pyte #180 ("Understand (and discard) SGR subparameters", open
+    since 2024-10-08) is already `MERGEABLE` for exactly that symptom, plus
+    issues #179/#178 cover it. The bottleneck there is maintainer review, not a
+    missing report; a +1 or a rebase offer on #180 is the useful move, not a new
+    issue.
+  - The orphaned-wide-stub defect (originally counted as a seventh) is **not a
+    pyte defect** — its repro passes on untouched master with zero SmartCLI code;
+    the orphan is manufactured by SmartCLI's own `draw()` override. Do not file it
+    as a standalone issue, but its 3-byte repro (`b"a" + 中 + CR + 文` renders
+    width 7 in an 8-column screen) folds into the half-overwrite patch since they
+    share a root cause.
+  - Read pyte #206 (actively rewriting the same `draw()`/grapheme path) before
+    writing any wide-glyph patch — a patch against code #206 is about to replace
+    is wasted work.
+- **First step:** read HANDOFF §10i in full (the independence-measurement
+  paragraph and the two "corrected the upstream plan" paragraphs) before touching
+  anything; re-derive each of the six repros against current pyte master yourself
+  rather than trusting the prior session's numbers, since pyte master moves.
+- **Verify:** each patch applies cleanly to an untouched `upstream/master`
+  worktree and pyte's own test suite stays green (no new failures) after
+  applying it; SmartCLI's own capability-detection tests
+  (`_PYTE_HAS_ALT`, `_PYTE_DCH_HANDLES_WIDE` in `smartcli_core/screen_model.py`)
+  must keep passing against BOTH stock pyte and the patched checkout — a
+  one-sided run cannot tell "correct" from "the branch that happens to run
+  here" (this project's own §10i mutation-testing note: hardcoding the DCH
+  probe to a fixed value is only ever observable under one of the two pytes,
+  never both).
+- **Effort:** M
+
+### ~~A0-CLI-RESIZE. Expose resize as a CLI subcommand~~  [DONE 2026-08-06]
+- **Result:** `tui.py resize --id <SID> --cols N --rows M` (plus `--json`). Validation
+  deliberately stays in the daemon, which converts `_validate_size`'s `SystemExit` into
+  an error REPLY — `SystemExit` is a `BaseException` and would otherwise sail through the
+  per-connection `except Exception` guard and tear down the live session. `_call` turns
+  that reply back into `SystemExit` for the CLI caller, matching every other verb here.
+- **Verified on a live PTY** (one session at a time, zero leaks after each): 80x24 →
+  `resize 100x30` reports `[screen 30x100]`; `--json` returns
+  `{"ok": true, "sid": ..., "cols": 90, "rows": 28}`; `99999x99999` exits 1 with the
+  daemon's limits message and `alive` still reports alive afterwards — a rejected size
+  does not kill the session. No new PTY proof was needed for the resize itself:
+  `PtySession.resize` already drives `TIOCSWINSZ` / `setwinsize` and the pyte grid
+  together. SKILL.md's MCP-only caveat removed and `resize` added to both verb lists.
+- **Still open (was an aside on this task):** `--theme` fallback for unthemed `fx show`
+  segments — SKILL.md documents current behavior honestly; making the flag real is a
+  small cli.py change.
 
 ---
 
@@ -533,17 +607,26 @@ external proof invites "does it actually work?" with no answer.
 
 ## D. Save the calibrated deep-research anchors
 
-### D1. Write RESEARCH-PROMPTS.md from the session's /deep-research anchor list  [S]
-- **Goal:** persist the calibrated `/deep-research` prompt list so it is not lost.
-- **Why it matters:** these anchors were tuned this session and drive the competitive
-  benchmarking that keeps the A-grade gaps honest.
-- **Anchors to include:** conch, terminal-bench, plotille, TTE (terminaltexteffects),
-  PyPI trusted publishing. (Also benchmarked against: pexpect, Textual,
-  pytest-textual-snapshot.)
-- **First step:** create RESEARCH-PROMPTS.md, one section per anchor, each with the
-  specific question to research and what a good answer changes in this backlog.
-- **Verify:** file exists, each anchor has a runnable prompt. (Docs-only — no code gate.)
-- **Effort:** S
+### ~~D1. Write RESEARCH-PROMPTS.md from the session's /deep-research anchor list~~  [DONE 2026-08-06]
+- **Result:** `RESEARCH-PROMPTS.md`. Five anchors (conch, terminal-bench/Harbor, plotille,
+  TTE, PyPI trusted publishing), each with a specific question, a **Last checked** line,
+  and — the part that makes the file worth keeping — what a good answer would actually
+  CHANGE in this backlog. Anchors whose answer changes nothing are named as such rather
+  than padded: pexpect, Textual and pytest-textual-snapshot are recorded as already
+  benchmarked with no open sub-question, so nobody re-runs them to re-confirm measured
+  facts.
+- **Notable:** it states the real cost of the "just add one more effect/widget" answers —
+  a catalog bump has to clear `test_fx_contract`, move `verify_fx` 38/38 → 39/39, and
+  update every count site `test_doc_counts` gates. That is the kind of thing that makes a
+  research answer actionable instead of aspirational.
+- **Claims spot-checked against disk before committing:** the TTE snapshot in
+  `research/R1-effects-catalog.md` PART C (its frozen upstream catalog size @ HEAD
+  `7a91dd9`), the publish.yml action pin (`pypa/gh-action-pypi-publish@release/v1`), and
+  `braille_chart.py`'s existence.
+- **Gate note:** `test_doc_counts` initially FAILED on this entry — it read TTE's upstream
+  catalog size as an fx count and demanded 30. The gate was right to be suspicious of a
+  bare effect number in a shipping doc, so the figure is named rather than written as a
+  digit here. RESEARCH-PROMPTS.md itself passes: it discusses the fx catalog as 30→31.
 
 ---
 

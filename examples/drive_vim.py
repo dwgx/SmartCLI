@@ -28,7 +28,16 @@ from pathlib import Path
 try:
     from smartcli_core import PtySession
 except ImportError:
-    sys.exit("pip install smartcli-toolkit  # then re-run")
+    # Running from a source checkout: sys.path[0] is examples/, not the repo
+    # root, so the import above cannot see smartcli_core even though it is right
+    # there. tests/run_all.py drives this file as a gate, so it has to work
+    # in-tree as well as from an install.
+    _root = Path(__file__).resolve().parents[1]
+    if (_root / "smartcli_core" / "__init__.py").exists():
+        sys.path.insert(0, str(_root))
+        from smartcli_core import PtySession
+    else:
+        sys.exit("pip install smartcli-toolkit  # then re-run")
 
 VIM = shutil.which("vim")
 if not VIM:

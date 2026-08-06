@@ -194,7 +194,10 @@ def list_sessions() -> dict:
 def snapshot(sid: str, as_json: bool = False) -> dict:
     """Read a semantic snapshot of the session's current screen.
 
-    Returns {"ok", "alive", "text", "hash", "visual_hash"}: `text` is the
+    Returns {"ok", "alive", "alt_screen", "text", "hash", "visual_hash"}:
+    `alt_screen` is true while a full-screen program (vim, less, htop, ...)
+    owns the screen — keys are commands to that program, not input to a
+    shell, and `text` is its frame rather than scrollback. `text` is the
     rendered screen; `json` (the structured cell/cursor model) is included only
     when as_json=true. `hash` covers text content only — use it as the
     wait_change baseline; `visual_hash` also covers styling, selection and
@@ -208,6 +211,7 @@ def snapshot(sid: str, as_json: bool = False) -> dict:
     out = {
         "ok": True,
         "alive": resp.get("alive"),
+        "alt_screen": resp.get("alt_screen"),
         "text": resp.get("text", ""),
         "hash": resp.get("hash"),
         "visual_hash": resp.get("visual_hash"),

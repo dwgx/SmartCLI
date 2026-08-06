@@ -17,8 +17,37 @@ from typing import NamedTuple
 
 import pyte
 from pyte import modes as mo
+from pyte.screens import Char
 
 from wcwidth import wcwidth as wcwidth_cached  # pyte's own width dependency
+
+
+def _pyte_dch_handles_wide() -> bool:
+    """Does the installed ``pyte`` already widen DCH over a two-column glyph?
+
+    Unlike the alternate screen there is no attribute to test for, so this asks
+    the question behaviourally, once, on a throwaway 4x1 screen: delete the wide
+    glyph in ``中x`` and see whether ``x`` ends up at column 0 (the stub travelled
+    with its base) or vanishes.
+
+    It exists because ``_Screen.delete_characters`` widens the count itself, and
+    doing that on top of a pyte that already does it deletes one cell too many —
+    silently eating a character. With ``pyte>=0.8.1`` unpinned, that would arrive
+    as a dependency upgrade, not a code change. Measured against a pyte carrying
+    the fix: the override turned ``"x"`` into ``""``.
+    """
+    try:
+        probe = pyte.Screen(4, 1)
+        pyte.ByteStream(probe).feed("\u4e2dx".encode() + b"\r\x1b[1P")
+        return probe.buffer[0][0].data == "x"
+    except Exception:
+        # Never let a probe break import; the override is correct for every
+        # released pyte, so assume the historical behaviour on doubt.
+        return False
+
+
+#: Evaluated once at import: see _pyte_dch_handles_wide.
+_PYTE_DCH_HANDLES_WIDE: bool = _pyte_dch_handles_wide()
 
 
 class _ByteStream(pyte.ByteStream):
@@ -41,7 +70,11 @@ class _ByteStream(pyte.ByteStream):
     # that could legitimately contain ':' (OSC strings, DCS payloads) is touched.
     _SGR_COLON = __import__("re").compile(rb"\x1b\[([\d;:]*:[\d;:]*)m")
 
-    def feed(self, data: bytes) -> None:
+    # The bytes-vs-str override is pyte's own Liskov violation, not ours:
+    # Stream.feed takes str, ByteStream.feed narrows it to bytes and carries the
+    # same ignore upstream. Matching it keeps this override honest to the class
+    # we actually inherit from.
+    def feed(self, data: bytes) -> None:  # type: ignore[override]
         if b":" in data:
             data = self._SGR_COLON.sub(
                 lambda m: b"\x1b[" + m.group(1).replace(b":", b";") + b"m", data)
@@ -49,20 +82,40 @@ class _ByteStream(pyte.ByteStream):
 
 
 class _Screen(pyte.Screen):
-    """``pyte.Screen`` with two real-terminal divergences fixed.
+    """``pyte.Screen`` with measured real-terminal divergences addressed.
 
-    **1. IL/DL must not move the cursor column.** ``pyte``'s
-    ``insert_lines``/``delete_lines`` call ``carriage_return()``, snapping the
-    cursor to column 0. Real terminals keep the column: after
-    ``ESC[5;8H ESC[1L abc``, both tmux 3.6b and GNU screen render
-    ``"       abc"`` (column 8) while pyte rendered ``"abc"`` (column 0).
-    Two independent emulators agreeing settles it — ECMA-48 is ambiguous enough
-    here that reasoning alone would not have. Found by
-    ``tests/_diff_fuzz_tmux.py`` (generative differential fuzz), which is
-    exactly the class of bug hand-written cases miss: TUIs that repaint a list
-    by inserting a line and then writing at the current column landed their text
-    in the wrong column for us, so a recipe reading a "selected" row could read
-    the wrong text.
+    **1. IL/DL keep the cursor column — a DELIBERATE CHOICE, not a bug fix.**
+    ``pyte``'s ``insert_lines``/``delete_lines`` call ``carriage_return()``,
+    snapping the cursor to column 0; this subclass keeps the column, so after
+    ``ESC[5;8H ESC[1L abc`` we render ``"       abc"`` where pyte renders
+    ``"abc"``.
+
+    The implementations genuinely disagree, and the split is not what the
+    original note here claimed. Counting what is documented:
+
+        column 0 (pyte's behaviour)  : xterm, vte, and the DEC VT reference,
+                                      which terminalguide gives as "Moves the
+                                      cursor to the left margin"
+        column kept (ours)          : tmux 3.6b, GNU screen, urxvt, konsole,
+                                      linuxvc
+
+    So five documented implementations keep the column and two reset it. The
+    project's rule — match what two independent references agree on — points at
+    keeping it, and tmux and GNU screen were both measured directly. That is why
+    this stays.
+
+    But it is a choice between real behaviours, NOT a defect in pyte, and the
+    distinction matters: **this must never be upstreamed.** pyte's own docstrings
+    cite VT102/VT220, whose reference says column 0, so a PR "fixing" it would
+    move pyte away from the standard it targets and would rightly be rejected.
+    That was caught by an independent re-check of a triage that had listed it as
+    a mechanical upstream port; the earlier note in this docstring, claiming
+    "real terminals keep the column" as though that were unanimous, is what made
+    the mistake plausible.
+
+    Well-behaved programs do not depend on the column after IL/DL, precisely
+    because it varies — so the practical stakes are low either way. Originally
+    surfaced by ``tests/_diff_fuzz_tmux.py``.
 
     **2. A zero-width joiner must not truncate the batch.**
     ``pyte.Screen.draw`` walks the batch character by character and, for a
@@ -126,22 +179,52 @@ class _Screen(pyte.Screen):
     # 1047/47 switch buffers without the cursor save.
     _ALT_MODES = (1049, 1047, 47)
 
+    #: Private mode 1048 — save/restore the cursor as DECSC/DECRC do, WITHOUT
+    #: switching buffers. It is the other half of 1049, which xterm documents as
+    #: 1047 combined with 1048.
+    #:
+    #: EVIDENCE LEVEL, stated because it is weaker than everything else in this
+    #: class: the xterm specification defines it, but NEITHER reference emulator
+    #: implements it. Measured — a `1048h`/`1048l` pair does not restore the
+    #: cursor in tmux 3.6b or GNU screen 4.00.03, while the same movement through
+    #: DECSC/DECRC does in both (so the probe can detect a restore; the absence is
+    #: real, not a rig artifact). Every full-screen program in practice emits 1049.
+    #:
+    #: Supported anyway because this layer's job is to perceive what a program
+    #: SENT, and a program that sends 1048 means DECSC. The alternative — matching
+    #: the references by ignoring it — would make us silently drop a documented
+    #: sequence. Kept deliberately separate from _ALT_MODES so it can never affect
+    #: buffer switching, and locked by a test that names the divergence.
+    #:
+    #: Note for whoever sees the behaviour change: once ``_PYTE_HAS_ALT`` is true
+    #: this class hands 1048 to the base class, whose pending implementation uses
+    #: a single dedicated slot rather than a stack — so repeated ``1048h`` will
+    #: OVERWRITE rather than nest. Both are defensible (xterm says "as DECSC",
+    #: and DECSC is a stack; a single slot cannot strand savepoints), neither
+    #: reference emulator implements 1048 at all, so there is no ground truth to
+    #: prefer one. Recorded here so the drift is not mistaken for a regression.
+    _CURSOR_ONLY_MODE = 1048
+
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._alt_active = False
         self._saved_main: dict | None = None
-        self._saved_cursor: tuple[int, int] | None = None
-
-    @property
-    def alt_screen(self) -> bool:
-        """True while the alternate screen buffer is active."""
-        return self._alt_active
+        # (row, col, attrs). The pen travels with the position because 1049 is
+        # defined as "save cursor as in DECSC", and DECSC saves the graphic
+        # rendition too. Without it, a TUI that left reverse video or a colour
+        # on made every character the shell wrote afterwards inherit it.
+        self._saved_cursor: tuple[int, int, Char] | None = None
+        # How many 1048 saves WE pushed onto pyte's savepoint stack, so an
+        # unpaired 1048l cannot pop somebody else's savepoint or fall through
+        # to restore_cursor's empty-stack homing.
+        self._cursor_only_depth = 0
 
     def _enter_alt(self, save_cursor: bool) -> None:
         if self._alt_active:
             return
         self._saved_main = dict(self.buffer)
-        self._saved_cursor = (self.cursor.y, self.cursor.x) if save_cursor else None
+        self._saved_cursor = ((self.cursor.y, self.cursor.x, self.cursor.attrs)
+                              if save_cursor else None)
         self.buffer.clear()
         self._alt_active = True
         # NOTE: the cursor is deliberately NOT homed. xterm clears the alternate
@@ -158,23 +241,158 @@ class _Screen(pyte.Screen):
         self._saved_main = None
         self._alt_active = False
         if self._saved_cursor is not None:
-            y, x = self._saved_cursor
-            self.cursor.y, self.cursor.x = y, x
+            y, x, attrs = self._saved_cursor
+            # CLAMP. The screen may have been resized while the program owned
+            # the alternate screen, and restoring a row that no longer exists
+            # left the cursor permanently outside the buffer: every subsequent
+            # write landed on a row `display` never renders, so the agent read a
+            # screen that had silently stopped updating. Found by review after
+            # the resize fix here clipped the saved BUFFER but not the saved
+            # CURSOR — one half of the same defect.
+            self.cursor.y = min(max(y, 0), self.lines - 1)
+            self.cursor.x = min(max(x, 0), self.columns - 1)
+            self.cursor.attrs = attrs
             self._saved_cursor = None
         self.dirty.update(range(self.lines))
 
+    def reset(self) -> None:
+        """Overloaded so RIS leaves the alternate screen.
+
+        ``pyte.Screen.reset`` clears ``buffer`` but knows nothing about the
+        alternate-screen state kept here, so after ``ESC c`` the flag stayed set:
+        the next program's smcup was a silent no-op (it paints onto what the
+        agent believes is the primary screen), and a later rmcup resurrected the
+        pre-RIS screen. Real terminals return to the primary buffer on RIS.
+        """
+        super().reset()
+        self._alt_active = False
+        self._saved_main = None
+        self._saved_cursor = None
+        self._cursor_only_depth = 0
+
+    def resize(self, lines: int | None = None,
+               columns: int | None = None) -> None:
+        """Resize, clipping the SAVED primary screen the same way as the live one.
+
+        ``pyte.Screen.resize`` only touches ``self.buffer``, which during
+        alternate-screen mode is the alternate buffer — the saved primary screen
+        is invisible to it. So a terminal resized while a full-screen program was
+        running (the user drags the window while ``vim``/``less``/``htop`` is up,
+        or ``drive-tui``'s own ``resize`` action fires) restored a primary screen
+        of the old shape on exit: the wrong ROWS, because pyte drops rows from
+        the top while an untouched save keeps its original numbering, plus
+        over-wide cells that `display` hides but a later grow-back would reveal.
+
+        Found by re-auditing this class against the same defect in the upstream
+        patch for pyte issue #90, where the offscreen buffer had the same hole.
+
+        KNOWN DIVERGENCE, deliberately not "fixed". With DECSTBM margins set that
+        exclude row 0, a shrink through the alternate screen restores different
+        rows than the same shrink without one. The cause is in pyte: it shrinks by
+        homing the cursor and calling ``delete_lines``, which does nothing when the
+        cursor sits outside the scroll region, so the live buffer keeps its TOP rows
+        (``AAA/BBB``) where the unmargined case keeps its bottom ones
+        (``CCC/DDD``) — and with margins ``(1, 3)`` it keeps a single row.
+
+        Matching that here was rejected rather than overlooked. Real terminals
+        REFLOW on resize instead of clipping, and they reset DECSTBM as part of it
+        — pyte itself calls ``set_margins()`` at the end of ``resize`` — so using
+        the outgoing margins to decide which rows to drop has no counterpart to
+        measure against. Copying an unverifiable rule into the second buffer would
+        add a hacky buffer swap and would still not be right, only symmetric. This
+        is the same call the project makes for IL/DL from outside a scroll region,
+        where the two reference emulators disagree: record the divergence, do not
+        pick a side. See tests/test_terminal_fidelity.py, which pins the
+        no-margins case and documents this one without asserting on it.
+        """
+        old_lines, old_columns = self.lines, self.columns
+        # `or` rather than `is None`: pyte's own resize does `lines = lines or
+        # self.lines`, so 0 means "unchanged" there. Testing `is None` here made
+        # resize(0, 0) — a no-op for the live screen — clip the saved primary
+        # screen to nothing.
+        new_lines = lines or old_lines
+        new_columns = columns or old_columns
+        super().resize(lines, columns)
+
+        saved = self._saved_main
+        if saved is None:
+            return
+        if new_lines < old_lines:
+            # Match pyte: shrinking drops rows from the TOP, so the surviving
+            # rows shift up and renumber. Reading low-to-high is safe because
+            # the source index always leads the destination.
+            drop = old_lines - new_lines
+            for y in range(new_lines):
+                row = saved.pop(y + drop, None)
+                if row is not None:
+                    saved[y] = row
+                else:
+                    saved.pop(y, None)
+            for y in range(new_lines, old_lines):
+                saved.pop(y, None)
+        if new_columns < old_columns:
+            for line in saved.values():
+                for x in range(new_columns, old_columns):
+                    line.pop(x, None)
+
+    #: True when the installed ``pyte`` implements the alternate screen buffer
+    #: itself, so this subclass must NOT switch as well.
+    #:
+    #: pyte has not implemented it in any release up to 0.8.2 (issue #90, open
+    #: since 2017), which is why the implementation below exists. An upstream
+    #: patch is pending, and the day it ships in a release every installation
+    #: with the usual ``pyte>=0.8.1`` requirement picks it up automatically —
+    #: at which point doing the work twice restores a BLANK primary screen on
+    #: every full-screen program exit, i.e. exactly the bug this class was
+    #: written to prevent, reintroduced silently by a dependency upgrade.
+    #:
+    #: Detected once at import rather than pinning ``pyte<0.8.3``: a version cap
+    #: would keep users off the fix forever and has to be revised every release,
+    #: whereas the capability check is correct both before and after, and needs
+    #: no maintenance. When it reports True the base class does the switching and
+    #: ``_alt_active`` simply mirrors ``screen.alternate_screen``.
+    _PYTE_HAS_ALT: bool = hasattr(pyte.Screen, "alternate_screen")
+
+    @property
+    def alt_screen(self) -> bool:
+        """True while the alternate screen buffer is active.
+
+        Reads through to the base class where that implements the feature, so the
+        answer is right whichever layer performed the switch.
+        """
+        if self._PYTE_HAS_ALT:
+            return bool(super().alternate_screen)  # type: ignore[misc]
+        return self._alt_active
+
     def set_mode(self, *modes: int, **kwargs) -> None:
         if kwargs.get("private"):
-            for mode in modes:
-                if mode in self._ALT_MODES:
-                    self._enter_alt(save_cursor=(mode == 1049))
+            if not self._PYTE_HAS_ALT:
+                for mode in modes:
+                    if mode in self._ALT_MODES:
+                        self._enter_alt(save_cursor=(mode == 1049))
+            # 1048 is cursor-only. Skipped when the base class implements it
+            # itself, or the cursor would be saved twice.
+            if self._CURSOR_ONLY_MODE in modes and not self._PYTE_HAS_ALT:
+                self.save_cursor()
+                self._cursor_only_depth += 1
         super().set_mode(*modes, **kwargs)
 
     def reset_mode(self, *modes: int, **kwargs) -> None:
         if kwargs.get("private"):
-            for mode in modes:
-                if mode in self._ALT_MODES:
-                    self._leave_alt()
+            if not self._PYTE_HAS_ALT:
+                for mode in modes:
+                    if mode in self._ALT_MODES:
+                        self._leave_alt()
+            # Only restore against a save WE made. pyte's restore_cursor homes
+            # the cursor when its stack is empty (its documented DECRC
+            # behaviour), so an unpaired `ESC[?1048l` — which both reference
+            # emulators ignore outright — would otherwise teleport the cursor to
+            # the top-left. The depth counter keeps DECSC's stack semantics for
+            # repeated 1048h while making the unpaired case inert.
+            if (self._CURSOR_ONLY_MODE in modes and not self._PYTE_HAS_ALT
+                    and self._cursor_only_depth > 0):
+                self._cursor_only_depth -= 1
+                self.restore_cursor()
         super().reset_mode(*modes, **kwargs)
 
     def cursor_up(self, count: int | None = None) -> None:
@@ -191,6 +409,25 @@ class _Screen(pyte.Screen):
             self.cursor.y = max(self.cursor.y - (count or 1), 0)
             return
         super().cursor_up(count)
+
+    def cursor_down(self, count: int | None = None) -> None:
+        """CUD — the mirror of :meth:`cursor_up`, and it was missed.
+
+        ``pyte`` clamps to the DECSTBM bottom margin unconditionally
+        (``min(cursor.y + count, bottom)``), so a cursor BELOW the region is
+        dragged up into it — CUD moving the cursor UP. Measured on tmux 3.6b and
+        GNU screen 4.00.03, which agree: region 3..6, cursor on row 8, ``ESC[1B``
+        lands on row 9; pyte and this class both landed on row 6.
+
+        Found by an independent review that asked why ``index`` and ``cursor_up``
+        were overridden here but their mirror was not — the same defect class,
+        already fixed twice, left in place a third time because nothing tested it.
+        """
+        top, bottom = self.margins or (0, self.lines - 1)
+        if not (top <= self.cursor.y <= bottom):
+            self.cursor.y = min(self.cursor.y + (count or 1), self.lines - 1)
+            return
+        super().cursor_down(count)
 
     def next_line(self) -> None:
         """NEL (``ESC E``) — index AND carriage return, unconditionally.
@@ -213,6 +450,11 @@ class _Screen(pyte.Screen):
         gives ``"x"`` on tmux 3.6b, we produced ``" x"``). Found by
         ``tests/_diff_fuzz_tmux.py``.
         """
+        if _PYTE_DCH_HANDLES_WIDE:
+            # The installed pyte already widens the count itself; adding to it
+            # would delete one cell too many. See _pyte_dch_handles_wide.
+            super().delete_characters(count)
+            return
         line = self.buffer[self.cursor.y]
         x = self.cursor.x
         extra = 0
@@ -261,6 +503,30 @@ class _Screen(pyte.Screen):
         self.cursor.x = col  # real terminals keep the column; pyte homes it
 
     def delete_lines(self, count: int | None = None) -> None:
+        """DL — deleting must BLANK the rows it vacates, not leave them behind.
+
+        ``insert_lines`` above already routes through :meth:`_shift_lines` to keep
+        every row present in pyte's sparse buffer. DL had the mirror-image hole and
+        did not: pyte copies ``buffer[y] = buffer.pop(y + count)`` only ``if
+        y + count in self.buffer``, so when the source row was never written the
+        DESTINATION keeps its old contents instead of going blank.
+
+        Two visible consequences, both measured against tmux 3.6b AND GNU screen
+        4.00.03, which agree on all of them: ``Q`` + CR + ``ESC[1M`` left ``Q`` on
+        screen where both references clear it, and ``A/B/C`` + ``ESC[2M`` deleted
+        only ONE row, leaving ``['C', 'B']`` where both give ``['C']``.
+
+        The earlier IL-side fix masked this: the repro recorded for it happened to
+        materialise the rows first, so it passed while the minimal case stayed
+        broken. Found by triaging which of this project's fixes are genuinely
+        absent upstream.
+        """
+        top, bottom = self.margins or (0, self.lines - 1)
+        if top <= self.cursor.y <= bottom:
+            self._shift_lines(self.cursor.y, bottom,
+                              min(count or 1, bottom - self.cursor.y + 1),
+                              down=False)
+            return
         col = self.cursor.x
         super().delete_lines(count)
         self.cursor.x = col
@@ -446,7 +712,11 @@ class ScreenModel:
         # them here (pyte builds the correct reply from its own cursor/attrs) and
         # PtySession.pump() writes them back to the PTY. See drain_replies().
         self._reply_buf = bytearray()
-        self.screen.write_process_input = self._collect_reply
+        # Deliberate instance-level replacement of a base-class no-op: this is
+        # pyte's documented hook for device-query replies, and it is a method on
+        # Screen rather than a callback attribute, so there is no non-assigning
+        # way to install it.
+        self.screen.write_process_input = self._collect_reply  # type: ignore[method-assign]
 
     def _collect_reply(self, data) -> None:
         """pyte hands us the bytes/str it wants sent back to the process."""
@@ -566,6 +836,18 @@ class ScreenModel:
     @property
     def cursor_hidden(self) -> bool:
         return bool(self.screen.cursor.hidden)
+
+    @property
+    def alt_screen(self) -> bool:
+        """True while a full-screen program owns the screen.
+
+        The single most useful fact about a screen after "what does it say": a
+        driving agent decides differently when ``vim``/``less``/``htop`` is up
+        than at a shell prompt — whether ``q`` quits or types a letter, whether
+        arrow keys navigate or edit. It was previously reachable only as
+        ``model.screen.alt_screen``, i.e. by reaching through to the pyte object.
+        """
+        return bool(self.screen.alt_screen)
 
     @property
     def title(self) -> str:

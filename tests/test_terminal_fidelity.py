@@ -268,6 +268,44 @@ m.feed(b"main\r\n\x1b[?47hALT")
 check(m.display[1].rstrip() == "ALT", "legacy mode 47 switches without homing",
       detail=repr([line.rstrip() for line in m.display[:2]]))
 
+# Resizing WHILE on the alternate screen must clip the saved primary screen the
+# same way as the live one. pyte.Screen.resize only touches self.buffer, which is
+# the ALTERNATE buffer at that moment, so the saved primary screen was left at
+# the old shape: the user drags the window while vim/less/htop is up (or
+# drive-tui's own resize action fires) and the wrong rows come back on exit.
+# The expected values are derived by resizing a screen that never entered the
+# alternate buffer, so they cannot encode a defect in the clipping code itself.
+def _alt_resize(payload: bytes, cols: int, rows: int,
+                new_cols: int, new_rows: int, via_alt: bool) -> ScreenModel:
+    mm = ScreenModel(cols=cols, rows=rows)
+    mm.feed(payload)
+    if via_alt:
+        mm.feed(b"\x1b[?1049h")
+    mm.resize(cols=new_cols, rows=new_rows)
+    if via_alt:
+        mm.feed(b"\x1b[?1049l")
+    return mm
+
+
+_ROWS_PAYLOAD = b"AAA\r\nBBB\r\nCCC\r\nDDD"
+_direct = _alt_resize(_ROWS_PAYLOAD, 6, 4, 6, 2, via_alt=False)
+_viaalt = _alt_resize(_ROWS_PAYLOAD, 6, 4, 6, 2, via_alt=True)
+check([r.rstrip() for r in _viaalt.display] == [r.rstrip() for r in _direct.display],
+      "resize on the alt screen drops saved rows from the top, as pyte does",
+      detail=f"direct={[r.rstrip() for r in _direct.display]} "
+             f"via_alt={[r.rstrip() for r in _viaalt.display]}")
+
+_COLS_PAYLOAD = b"AAAAAAAA\r\nBBBBBBBB\r\nCCCCCCCC"
+_direct = _alt_resize(_COLS_PAYLOAD, 8, 3, 3, 3, via_alt=False)
+_viaalt = _alt_resize(_COLS_PAYLOAD, 8, 3, 3, 3, via_alt=True)
+_over_direct = [y for y in range(_direct.screen.lines)
+                if any(x >= 3 for x in _direct.screen.buffer[y])]
+_over_viaalt = [y for y in range(_viaalt.screen.lines)
+                if any(x >= 3 for x in _viaalt.screen.buffer[y])]
+check(_over_viaalt == _over_direct == [],
+      "resize on the alt screen leaves no over-wide cells in the saved screen",
+      detail=f"direct={_over_direct} via_alt={_over_viaalt}")
+
 print("\n--- SGR sub-parameters must not spill onto the screen ---")
 # pyte's parser does not know ':' (ITU-T T.416), so it aborted the sequence and
 # drew the remainder as text: ESC[4:3mU put the literal "3mU" on the grid.
@@ -283,6 +321,343 @@ for label, payload in (("curly underline 4:3", b"\x1b[4:3mU\x1b[0m"),
 m = ScreenModel(cols=20, rows=3)
 m.feed(b"a:b:c")
 check(m.display[0].rstrip() == "a:b:c", "literal colons in text are unaffected")
+
+
+# --- alternate-screen state that must survive a resize, a RIS, and an exit ---
+# All five below were found by an adversarial review of the resize fix above,
+# which had clipped the saved BUFFER but left everything else attached to the
+# saved CURSOR unprotected. The first is the worst class of bug in this project:
+# perception silently stops updating and nothing reports a problem.
+
+_m = ScreenModel(cols=10, rows=8)
+_m.feed(b"\x1b[7;3Hx\x1b[?1049h")
+_m.resize(cols=10, rows=3)          # shrink while the program owns the screen
+_m.feed(b"\x1b[?1049l")
+check(_m.cursor[0] < _m.rows and _m.cursor[1] < _m.cols,
+      "restoring the cursor after a shrink clamps it into the screen",
+      detail=f"rows={_m.rows} cols={_m.cols} cursor={_m.cursor}")
+_m.feed(b"AFTER")
+check(any("AFTER" in line for line in _m.display),
+      "text written after that restore is still visible",
+      detail=repr([line.rstrip() for line in _m.display]))
+
+_m = ScreenModel(cols=10, rows=3)
+_m.feed(b"PRIMARY\x1b[?1049hALTDATA\x1bc")
+check(_m.screen.alt_screen is False,
+      "RIS leaves the alternate screen",
+      detail=f"alt_screen={_m.screen.alt_screen}")
+_m.feed(b"NEXTPROG\x1b[?1049l")
+check(any("NEXTPROG" in line for line in _m.display),
+      "a rmcup after RIS does not resurrect the pre-RIS screen",
+      detail=repr([line.rstrip() for line in _m.display]))
+
+# 1049 is "save cursor as in DECSC", and DECSC saves the pen too: a TUI that
+# left reverse video on must not tint what the shell writes next.
+_m = ScreenModel(cols=12, rows=3)
+_m.feed(b"\x1b[1;1H\x1b[?1049h\x1b[7m\x1b[?1049lshell")
+check(not any(_m.cell(_m.cursor[0], x).reverse for x in range(5)),
+      "the pen set inside the alternate screen does not bleed into the shell",
+      detail=f"reverse={[_m.cell(_m.cursor[0], x).reverse for x in range(5)]}")
+
+# pyte's own resize treats 0 as "unchanged"; this override must agree.
+_m = ScreenModel(cols=10, rows=3)
+_m.feed(b"PRIMARY-1\r\nPRIMARY-2\x1b[?1049h")
+_m.resize(cols=0, rows=0)
+_m.feed(b"\x1b[?1049l")
+check(any("PRIMARY-1" in line for line in _m.display),
+      "resize(0, 0) leaves the saved primary screen alone",
+      detail=repr([line.rstrip() for line in _m.display]))
+
+
+# --- the alternate screen must work whether or not pyte implements it --------
+# pyte issue #90 has been open since 2017, so this class implements the feature
+# itself. An upstream patch is pending, and the usual `pyte>=0.8.1` requirement
+# means the day it ships in a release every installation picks it up -- at which
+# point BOTH layers would switch and the primary screen would restore blank on
+# every full-screen program exit. `_Screen._PYTE_HAS_ALT` decides which layer
+# does the work.
+#
+# What is asserted here is deterministic under whichever pyte is installed: the
+# flag agrees with the base class, and the round trip works either way. The
+# cross-version case is additionally verified by hand against a patched pyte
+# checkout -- a monkeypatch of the real base class would be exactly the
+# self-satisfying harness HARD RULE 5 forbids, so the logic is instead exercised
+# through a stand-in base class below.
+import pyte as _pyte  # noqa: E402
+from smartcli_core.screen_model import _Screen  # noqa: E402
+
+check(_Screen._PYTE_HAS_ALT == hasattr(_pyte.Screen, "alternate_screen"),
+      "the pyte-capability flag matches the installed pyte",
+      detail=f"flag={_Screen._PYTE_HAS_ALT} "
+             f"base={hasattr(_pyte.Screen, 'alternate_screen')}")
+
+_m = ScreenModel(cols=14, rows=3)
+_m.feed(b"SHELL-1\r\nSHELL-2")
+_before = [line.rstrip() for line in _m.display]
+_m.feed(b"\x1b[?1049hPAGER")
+_alt_in = _m.screen.alt_screen
+_m.feed(b"\x1b[?1049l")
+check([line.rstrip() for line in _m.display] == _before,
+      "the alt-screen round trip restores the primary screen exactly",
+      detail=f"before={_before} after={[l.rstrip() for l in _m.display]}")
+check(_alt_in and not _m.screen.alt_screen,
+      "alt_screen reads True inside and False after, whichever layer switched",
+      detail=f"inside={_alt_in} after={_m.screen.alt_screen}")
+
+# Exercise the branch the installed pyte does NOT take. The inheritance chain
+# stays REAL (a genuine _Screen subclass over the installed pyte.Screen); only
+# the capability flag is overridden, and nothing is monkeypatched -- the
+# observation is the state _enter_alt would have written. A fabricated base class
+# was tried first and broke zero-argument super(), which is a fair warning that
+# it was too far from the real path to prove anything.
+class _CapableProbe(_Screen):
+    _PYTE_HAS_ALT = True
+
+
+_probe = _CapableProbe(8, 2)
+_probe.set_mode(1049, private=True)
+_switched = _probe._alt_active or _probe._saved_main is not None
+_probe.reset_mode(1049, private=True)
+check(not _switched and not _probe._alt_active,
+      "with a capable base class the subclass does not switch as well",
+      detail=f"_alt_active={_probe._alt_active} "
+             f"_saved_main_set={_probe._saved_main is not None}")
+
+
+# --- private mode 1048: cursor save/restore without a buffer switch ----------
+# WEAKER EVIDENCE than everything else in this file, stated so nobody mistakes it
+# for a measured behaviour: xterm defines 1048, but NEITHER reference emulator
+# implements it. Measured — a 1048h/1048l pair does not restore the cursor in tmux
+# 3.6b or GNU screen 4.00.03, while the same movement via DECSC/DECRC does in both
+# (so the probe can detect a restore; the absence is real). Supported anyway
+# because this layer's job is to perceive what a program SENT, and 1048 means
+# DECSC. What IS locked below is that it never touches the buffer, and that the
+# unpaired case stays inert rather than teleporting the cursor the way pyte's
+# empty-stack restore_cursor would.
+
+_m = ScreenModel(cols=20, rows=6)
+_m.feed(b"\x1b[2;5H\x1b[?1048h\x1b[5;1Hjunk\x1b[?1048lX")
+check(_m.display[1].rstrip().startswith("    X"),
+      "1048 saves and restores the cursor",
+      detail=f"row2={_m.display[1].rstrip()!r} cursor={_m.cursor}")
+
+_m = ScreenModel(cols=10, rows=2)
+_m.feed(b"MAIN\x1b[?1048h")
+check(any("MAIN" in line for line in _m.display) and not _m.screen.alt_screen,
+      "1048 does not switch buffers",
+      detail=f"display={[l.rstrip() for l in _m.display]} alt={_m.screen.alt_screen}")
+
+# pyte's restore_cursor homes the cursor on an empty savepoint stack, so without
+# the depth counter an unpaired rmcup-ish 1048l teleported to (0, 0).
+for _label, _payload, _want in (
+        ("alone", b"\x1b[4;9H\x1b[?1048l", (3, 8)),
+        ("after 1049h", b"\x1b[4;9H\x1b[?1049h\x1b[?1048l", (3, 8)),
+        ("after RIS", b"\x1b[2;3H\x1b[?1048h\x1bc\x1b[5;5H\x1b[?1048l", (4, 4))):
+    _m = ScreenModel(cols=20, rows=8)
+    _m.feed(_payload)
+    check(_m.cursor == _want,
+          f"an unpaired 1048l is inert ({_label})",
+          detail=f"cursor={_m.cursor} want={_want}")
+
+# Repeated 1048h must keep DECSC's stack semantics: the LAST save wins.
+_m = ScreenModel(cols=20, rows=8)
+_m.feed(b"\x1b[2;3H\x1b[?1048h\x1b[5;5H\x1b[?1048h\x1b[7;7H\x1b[?1048l")
+check(_m.cursor == (4, 4),
+      "repeated 1048h keeps DECSC stack semantics",
+      detail=f"cursor={_m.cursor} want=(4,4)")
+
+# 1048 and 1049 in ONE CSI must not double-restore.
+_m = ScreenModel(cols=20, rows=6)
+_m.feed(b"\x1b[3;7H\x1b[?1048;1049h\x1b[1;1Halt\x1b[?1048;1049lX")
+check(_m.display[2].rstrip().startswith("      X"),
+      "1048 and 1049 in one CSI restore the cursor once",
+      detail=f"row3={_m.display[2].rstrip()!r} cursor={_m.cursor}")
+
+
+# --- alt_screen must be reachable by whoever is DRIVING, not just internally --
+# Whether a full-screen program owns the screen changes what an action MEANS: `q`
+# quits a pager but types a letter at a prompt, arrows navigate a menu but edit a
+# line. It was previously readable only as model.screen.alt_screen — reaching
+# through to the pyte object — so nothing in the semantic Snapshot an agent
+# actually consumes said so.
+from smartcli_core.snapshot import build_snapshot as _build  # noqa: E402
+import json as _json  # noqa: E402
+
+_m = ScreenModel(cols=20, rows=3)
+_m.feed(b"shell\r\n")
+check(_m.alt_screen is False, "ScreenModel.alt_screen is False on the primary screen")
+_snap = _build(_m)
+check(_snap.alt_screen is False, "Snapshot.alt_screen is False on the primary screen")
+check("alt_screen" not in _snap.to_text().splitlines()[0],
+      "to_text does not mention alt_screen on the primary screen",
+      detail=_snap.to_text().splitlines()[0])
+check(_json.loads(_snap.to_json())["hints"]["alt_screen"] is False,
+      "to_json hints report alt_screen False")
+
+_m.feed(b"\x1b[?1049hPAGER")
+check(_m.alt_screen is True, "ScreenModel.alt_screen is True inside the alt screen")
+_snap = _build(_m)
+check(_snap.alt_screen is True, "Snapshot.alt_screen is True inside the alt screen")
+check("alt_screen" in _snap.to_text().splitlines()[0],
+      "to_text announces alt_screen in the header",
+      detail=_snap.to_text().splitlines()[0])
+check(_json.loads(_snap.to_json())["hints"]["alt_screen"] is True,
+      "to_json hints report alt_screen True")
+
+_m.feed(b"\x1b[?1049l")
+check(_m.alt_screen is False and _build(_m).alt_screen is False,
+      "both surfaces go back to False after the program exits")
+
+
+# --- DCH must not be widened twice once pyte widens it itself ----------------
+# `_Screen.delete_characters` adds one to the count when the cursor sits on a
+# two-column glyph, because pyte deletes cells without regard to width. If a pyte
+# release ever does that itself, adding to it deletes one cell too many — and with
+# `pyte>=0.8.1` unpinned that arrives as a dependency upgrade, not a code change.
+# Measured against a pyte carrying the fix: `中x` + CR + DCH went from "x" to "".
+# There is no attribute to test for, so the capability is probed behaviourally.
+from smartcli_core.screen_model import (  # noqa: E402
+    _PYTE_DCH_HANDLES_WIDE, _pyte_dch_handles_wide)
+
+check(_PYTE_DCH_HANDLES_WIDE == _pyte_dch_handles_wide(),
+      "the DCH capability probe is stable across calls",
+      detail=f"cached={_PYTE_DCH_HANDLES_WIDE} fresh={_pyte_dch_handles_wide()}")
+
+_m = ScreenModel(cols=20, rows=2)
+_m.feed("\u4e2dx".encode() + b"\r\x1b[1P")
+check(_m.display[0].rstrip() == "x",
+      "DCH deletes a wide glyph and its stub, whichever layer widens the count",
+      detail=f"row0={_m.display[0].rstrip()!r} "
+             f"probe={_PYTE_DCH_HANDLES_WIDE}")
+
+# A narrow glyph must be unaffected in either configuration.
+_m = ScreenModel(cols=20, rows=2)
+_m.feed(b"abc\r\x1b[1P")
+check(_m.display[0].rstrip() == "bc",
+      "DCH on a narrow glyph deletes exactly one cell",
+      detail=f"row0={_m.display[0].rstrip()!r}")
+
+
+# --- DL must blank the rows it vacates, not leave them behind -----------------
+# pyte copies `buffer[y] = buffer.pop(y + count)` only `if y + count in
+# self.buffer`, so when the source row was never written the DESTINATION keeps its
+# old contents. insert_lines already routed through _shift_lines to keep every row
+# present; DL had the mirror-image hole and did not.
+#
+# Every expectation below was measured against tmux 3.6b AND GNU screen 4.00.03,
+# which agree on all five. The earlier IL-side fix masked this: its recorded repro
+# happened to materialise the rows first, so it passed while the minimal case
+# stayed broken — which is why the minimal case leads the list.
+for _label, _payload, _want in (
+        ("minimal Q CR DL(1)",      b"Q\r\x1b[1M",                  []),
+        ("DL(1) with a row below",  b"A\r\nB\x1b[1;1H\x1b[1M",      ["B"]),
+        ("IL(3) then Q then DL(1)", b"\x1b[3LQ\x1b[1M",             []),
+        ("DL(2) over three rows",   b"A\r\nB\r\nC\x1b[1;1H\x1b[2M", ["C"]),
+        ("DL past the bottom",      b"A\r\nB\x1b[1;1H\x1b[9M",      [])):
+    _m = ScreenModel(cols=8, rows=4)
+    _m.feed(_payload)
+    _got = [line.rstrip() for line in _m.display]
+    while _got and _got[-1] == "":
+        _got.pop()
+    check(_got == _want, f"DL blanks what it vacates ({_label})",
+          detail=f"got={_got} want={_want}")
+
+
+# --- DECCOLM is the one mode whose handler does real buffer work --------------
+# ESC[?3h saves saved_columns, resizes to 132, erase_in_display(2)s and homes the
+# cursor; ESC[?3l resizes back. All of that touches buffer state, and the
+# alt-screen code changes what "the buffer" is, so the combination is worth
+# pinning even though 132-column mode is a VT100 leftover. Six shapes were probed
+# and all were already correct; these two are the ones that touch the saved
+# primary screen, i.e. the part this branch changed.
+_m = ScreenModel(cols=80, rows=4)
+_m.feed(b"KEEPME\x1b[?1049hALTDATA\x1b[?3h")   # DECCOLM entered ON the alt screen
+_m.feed(b"\x1b[?3l\x1b[?1049l")
+check(any("KEEPME" in line for line in _m.display) and _m.cols == 80,
+      "DECCOLM on the alt screen leaves the saved primary screen intact",
+      detail=f"cols={_m.cols} display={[l.rstrip() for l in _m.display][:2]}")
+
+# Three full cycles must not accumulate damage or leave over-wide cells.
+_m = ScreenModel(cols=80, rows=6)
+_m.feed(b"line1\r\nline2")
+for _ in range(3):
+    _m.feed(b"\x1b[?1049h\x1b[?3halt\x1b[?3l\x1b[?1049l")
+_over = [y for y in range(_m.rows)
+         if any(x >= _m.cols for x in _m.screen.buffer[y])]
+check(any("line1" in line for line in _m.display) and not _over,
+      "repeated DECCOLM + alt-screen cycles leave a consistent grid",
+      detail=f"cols={_m.cols} over-wide rows={_over} "
+             f"display={[l.rstrip() for l in _m.display][:3]}")
+
+
+# --- resize + DECSTBM: a divergence recorded rather than asserted -------------
+# With margins that exclude row 0, a shrink through the alternate screen restores
+# different rows than the same shrink without one. The cause is in pyte: it shrinks
+# by homing the cursor and calling delete_lines, which does nothing outside the
+# scroll region, so the live buffer keeps its TOP rows where the unmargined case
+# keeps its bottom ones. Real terminals reflow on resize and reset DECSTBM as part
+# of it, so there is nothing to measure the "right" answer against — the same
+# reason IL/DL from outside a region is left alone. What IS asserted is the
+# no-margins case; the margined one is printed so the divergence stays visible
+# instead of being rediscovered as a bug.
+def _shrink(margins, via_alt):
+    mm = ScreenModel(cols=6, rows=4)
+    mm.feed(b"AAA\r\nBBB\r\nCCC\r\nDDD")
+    if margins:
+        mm.screen.set_margins(*margins)
+    if via_alt:
+        mm.feed(b"\x1b[?1049h")
+    mm.resize(cols=6, rows=2)
+    if via_alt:
+        mm.feed(b"\x1b[?1049l")
+    out = [line.rstrip() for line in mm.display]
+    while out and out[-1] == "":
+        out.pop()
+    return out
+
+
+check(_shrink(None, False) == _shrink(None, True) == ["CCC", "DDD"],
+      "without margins, a shrink restores the same rows through the alt screen",
+      detail=f"direct={_shrink(None, False)} via_alt={_shrink(None, True)}")
+print("         [note] with DECSTBM margins the two paths differ, by pyte's own "
+      "margin-sensitive resize:")
+for _mg in ((2, 4), (1, 3)):
+    print(f"         [note]   margins={_mg}: direct={_shrink(_mg, False)} "
+          f"via_alt={_shrink(_mg, True)}")
+
+
+# --- CUD outside a DECSTBM region: the mirror of cursor_up, missed twice -------
+# pyte clamps to the bottom margin unconditionally, so a cursor BELOW the region
+# is dragged up into it — CUD moving the cursor UP. index() and cursor_up() were
+# both overridden here for exactly this defect class; their mirror was not, and
+# nothing tested it. Measured on tmux 3.6b AND GNU screen 4.00.03, which agree:
+# region 3..6, cursor row 8, ESC[1B writes on row 9.
+for _label, _payload, _want in (
+        ("below the region", b"\x1b[3;6r\x1b[8;1H\x1b[1B", 8),
+        ("inside the region", b"\x1b[3;6r\x1b[4;1H\x1b[1B", 4),
+        ("above the region", b"\x1b[5;8r\x1b[2;1H\x1b[1B", 2),
+        ("no region set", b"\x1b[8;1H\x1b[1B", 8)):
+    _m = ScreenModel(cols=10, rows=10)
+    _m.feed(_payload)
+    check(_m.cursor[0] == _want,
+          f"CUD is not clamped into a region it is outside of ({_label})",
+          detail=f"y={_m.cursor[0]} want={_want}")
+
+# CUD must still stop at the LAST row. This has to be exercised with the cursor
+# OUTSIDE a region: without one, `top <= y <= bottom` holds and pyte's own clamp
+# runs, so the override's bound is never reached. Mutation testing caught that —
+# deleting the bound left the first version of this check green.
+_m = ScreenModel(cols=10, rows=5)
+_m.feed(b"\x1b[2;3r\x1b[5;1H\x1b[9B")   # region 2..3, cursor on row 5, CUD 9
+check(_m.cursor[0] == 4,
+      "CUD outside a region still stops at the last row",
+      detail=f"y={_m.cursor[0]} want=4 (rows=5)")
+
+# And with no region at all, where pyte's own clamp does the work.
+_m = ScreenModel(cols=10, rows=5)
+_m.feed(b"\x1b[5;1H\x1b[9B")
+check(_m.cursor[0] == 4, "CUD with no region stops at the last row",
+      detail=f"y={_m.cursor[0]} want=4")
 
 if FAILURES:
     print(f"\ntest_terminal_fidelity FAIL -- {len(FAILURES)} check(s):")

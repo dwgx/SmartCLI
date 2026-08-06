@@ -8,7 +8,12 @@ matches() sees a ':' field marker on the cursor row, and its per-field
 last field) it redraws a confirmation screen echoing every value back, then
 stays alive so the driver can snapshot the result.
 """
-import sys, msvcrt
+import os
+import sys
+
+# Spawned as `python tests/_x_app.py`, so tests/ is not on sys.path.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _kbd import getwch
 
 FIELDS = ["Name", "Email"]           # filled in order, Tab-separated
 FIRST_ROW = 3                        # 1-based row of the first field (row1 title, row2 blank)
@@ -41,7 +46,7 @@ def draw_done():
 
 draw()
 while True:
-    ch = msvcrt.getwch()
+    ch = getwch()
     if done:
         if ch == "q":
             break
