@@ -1014,8 +1014,15 @@ so an agent reads a merged, impossible screen with nothing reporting a problem.
 The PR is three commits, `MERGEABLE`, and its history is worth reading as method
 rather than as code — two rounds of review found ten defects in my own patch.
 
-**Behaviour was measured, not derived.** Sixteen alt-screen cases diffed against a
-real tmux pane, then a three-way against tmux AND GNU screen. That settled one
+**Behaviour was measured, not derived.** Six alt-screen cases diffed against a real
+tmux pane — four in `_diff_tmux_pyte.py` (its own comment numbers them 26-29) plus
+two in the three-way `_diff_two_refs.py` against tmux AND GNU screen — with a
+further **26** alt-screen assertions locked deterministically in
+`test_terminal_fidelity.py`. Those two counts are different kinds of evidence and
+must not be added together: only the six were compared against a real terminal.
+(An earlier draft of this line said "sixteen ... diffed against a real tmux pane",
+a number that reconciles with nothing in the code; an independent review caught it.
+Count with `grep -c '"alt screen' tests/_diff_*.py`.) That settled one
 point the xterm documentation actively misleads on: the "without clearing" wording
 for 47/1047 describes the clearing action, not buffer lifetime. Taken literally it
 implies alternate-screen contents survive a round trip. **They do not, in either

@@ -28,10 +28,16 @@ regression run (drive-probes + `_sandbox_posix_backend.py` on Linux).
   `ScreenModel.alt_screen`, `Snapshot.alt_screen`, the `to_text()` header (leads the
   flags, inserted before `selected`/`status`/`errors`), the JSON `hints`, and every
   drive-tui daemon reply — rather than only being reachable by poking the pyte object.
-- **Verified:** sixteen alt-screen cases diffed against a real tmux pane, then a
-  three-way against tmux AND GNU screen (with `altscreen on`, which GNU screen
-  defaults off). On a live PTY: driving real `less` reports `alt_screen=True` in the
-  header while inside it and `False` after quitting.
+- **Verified:** six alt-screen cases diffed against a real terminal — four vs a tmux
+  pane in `_diff_tmux_pyte.py`, plus two in the three-way `_diff_two_refs.py` against
+  tmux AND GNU screen (with `altscreen on`, which GNU screen defaults off) — and a
+  further 26 alt-screen assertions locked deterministically in
+  `test_terminal_fidelity.py`. Keep those two numbers apart: only the six were
+  compared against a real terminal, and the 26 are in-memory. On a live PTY: driving
+  real `less` reports `alt_screen=True` in the header while inside it and `False`
+  after quitting. (This entry originally said "sixteen ... diffed against a real tmux
+  pane", copied from HANDOFF without counting; a review caught it. Count with
+  `grep -c '"alt screen' tests/_diff_*.py`.)
 
 ### 2026-07-19 · Selection-only and cursor-only changes were invisible (formerly a "Still open" entry)
 - **Symptom:** after an arrow key, a menu could move its selection using only
