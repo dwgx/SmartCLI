@@ -589,6 +589,42 @@ check(any("line1" in line for line in _m.display) and not _over,
       detail=f"cols={_m.cols} over-wide rows={_over} "
              f"display={[l.rstrip() for l in _m.display][:3]}")
 
+
+# --- resize + DECSTBM: a divergence recorded rather than asserted -------------
+# With margins that exclude row 0, a shrink through the alternate screen restores
+# different rows than the same shrink without one. The cause is in pyte: it shrinks
+# by homing the cursor and calling delete_lines, which does nothing outside the
+# scroll region, so the live buffer keeps its TOP rows where the unmargined case
+# keeps its bottom ones. Real terminals reflow on resize and reset DECSTBM as part
+# of it, so there is nothing to measure the "right" answer against — the same
+# reason IL/DL from outside a region is left alone. What IS asserted is the
+# no-margins case; the margined one is printed so the divergence stays visible
+# instead of being rediscovered as a bug.
+def _shrink(margins, via_alt):
+    mm = ScreenModel(cols=6, rows=4)
+    mm.feed(b"AAA\r\nBBB\r\nCCC\r\nDDD")
+    if margins:
+        mm.screen.set_margins(*margins)
+    if via_alt:
+        mm.feed(b"\x1b[?1049h")
+    mm.resize(cols=6, rows=2)
+    if via_alt:
+        mm.feed(b"\x1b[?1049l")
+    out = [line.rstrip() for line in mm.display]
+    while out and out[-1] == "":
+        out.pop()
+    return out
+
+
+check(_shrink(None, False) == _shrink(None, True) == ["CCC", "DDD"],
+      "without margins, a shrink restores the same rows through the alt screen",
+      detail=f"direct={_shrink(None, False)} via_alt={_shrink(None, True)}")
+print("         [note] with DECSTBM margins the two paths differ, by pyte's own "
+      "margin-sensitive resize:")
+for _mg in ((2, 4), (1, 3)):
+    print(f"         [note]   margins={_mg}: direct={_shrink(_mg, False)} "
+          f"via_alt={_shrink(_mg, True)}")
+
 if FAILURES:
     print(f"\ntest_terminal_fidelity FAIL -- {len(FAILURES)} check(s):")
     for f in FAILURES:

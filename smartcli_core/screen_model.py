@@ -261,6 +261,25 @@ class _Screen(pyte.Screen):
 
         Found by re-auditing this class against the same defect in the upstream
         patch for pyte issue #90, where the offscreen buffer had the same hole.
+
+        KNOWN DIVERGENCE, deliberately not "fixed". With DECSTBM margins set that
+        exclude row 0, a shrink through the alternate screen restores different
+        rows than the same shrink without one. The cause is in pyte: it shrinks by
+        homing the cursor and calling ``delete_lines``, which does nothing when the
+        cursor sits outside the scroll region, so the live buffer keeps its TOP rows
+        (``AAA/BBB``) where the unmargined case keeps its bottom ones
+        (``CCC/DDD``) — and with margins ``(1, 3)`` it keeps a single row.
+
+        Matching that here was rejected rather than overlooked. Real terminals
+        REFLOW on resize instead of clipping, and they reset DECSTBM as part of it
+        — pyte itself calls ``set_margins()`` at the end of ``resize`` — so using
+        the outgoing margins to decide which rows to drop has no counterpart to
+        measure against. Copying an unverifiable rule into the second buffer would
+        add a hacky buffer swap and would still not be right, only symmetric. This
+        is the same call the project makes for IL/DL from outside a scroll region,
+        where the two reference emulators disagree: record the divergence, do not
+        pick a side. See tests/test_terminal_fidelity.py, which pins the
+        no-margins case and documents this one without asserting on it.
         """
         old_lines, old_columns = self.lines, self.columns
         # `or` rather than `is None`: pyte's own resize does `lines = lines or
