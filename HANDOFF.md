@@ -1055,7 +1055,16 @@ wide glyph, DCH on a wide glyph, NEL not returning to column 0, and DECSTBM
 region-escape in both `index()` and `cursor_up()`. Three more were found that are
 not in the seven: last-column wide-glyph wrap, ICH/ECH straddling a wide glyph
 (no reference measurement — do not upstream), and SGR colon sub-parameters drawn
-as literal text. Do NOT upstream IL/DL from outside a scroll region (tmux performs
+as literal text.
+
+Their independence from #212 was MEASURED, not assumed. The triage built its port
+on top of the alternate-screen branch (its 145-test run gives that away — untouched
+master is 117), so "these do not depend on #212" was an assertion. Extracting the
+130-line diff and applying it to an untouched `upstream/master` worktree: both
+files apply cleanly and the suite stays at 117 passed / 1 xfailed. So the six can
+be filed without waiting on #212 — which matters, because that upstream's last
+merge was ~11 months ago and attaching mechanical wins to an unreviewed PR makes
+them hostage to it. Do NOT upstream IL/DL from outside a scroll region (tmux performs
 it, GNU screen discards it — no ground truth) or ZWJ cluster width (master already
 picked tmux's side via `grapheme_clusters`).
 
