@@ -137,11 +137,6 @@ class _Screen(pyte.Screen):
         # on made every character the shell wrote afterwards inherit it.
         self._saved_cursor: tuple[int, int, Char] | None = None
 
-    @property
-    def alt_screen(self) -> bool:
-        """True while the alternate screen buffer is active."""
-        return self._alt_active
-
     def _enter_alt(self, save_cursor: bool) -> None:
         if self._alt_active:
             return
@@ -238,15 +233,44 @@ class _Screen(pyte.Screen):
                 for x in range(new_columns, old_columns):
                     line.pop(x, None)
 
+    #: True when the installed ``pyte`` implements the alternate screen buffer
+    #: itself, so this subclass must NOT switch as well.
+    #:
+    #: pyte has not implemented it in any release up to 0.8.2 (issue #90, open
+    #: since 2017), which is why the implementation below exists. An upstream
+    #: patch is pending, and the day it ships in a release every installation
+    #: with the usual ``pyte>=0.8.1`` requirement picks it up automatically —
+    #: at which point doing the work twice restores a BLANK primary screen on
+    #: every full-screen program exit, i.e. exactly the bug this class was
+    #: written to prevent, reintroduced silently by a dependency upgrade.
+    #:
+    #: Detected once at import rather than pinning ``pyte<0.8.3``: a version cap
+    #: would keep users off the fix forever and has to be revised every release,
+    #: whereas the capability check is correct both before and after, and needs
+    #: no maintenance. When it reports True the base class does the switching and
+    #: ``_alt_active`` simply mirrors ``screen.alternate_screen``.
+    _PYTE_HAS_ALT: bool = hasattr(pyte.Screen, "alternate_screen")
+
+    @property
+    def alt_screen(self) -> bool:
+        """True while the alternate screen buffer is active.
+
+        Reads through to the base class where that implements the feature, so the
+        answer is right whichever layer performed the switch.
+        """
+        if self._PYTE_HAS_ALT:
+            return bool(super().alternate_screen)  # type: ignore[misc]
+        return self._alt_active
+
     def set_mode(self, *modes: int, **kwargs) -> None:
-        if kwargs.get("private"):
+        if kwargs.get("private") and not self._PYTE_HAS_ALT:
             for mode in modes:
                 if mode in self._ALT_MODES:
                     self._enter_alt(save_cursor=(mode == 1049))
         super().set_mode(*modes, **kwargs)
 
     def reset_mode(self, *modes: int, **kwargs) -> None:
-        if kwargs.get("private"):
+        if kwargs.get("private") and not self._PYTE_HAS_ALT:
             for mode in modes:
                 if mode in self._ALT_MODES:
                     self._leave_alt()

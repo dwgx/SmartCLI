@@ -368,6 +368,61 @@ check(any("PRIMARY-1" in line for line in _m.display),
       "resize(0, 0) leaves the saved primary screen alone",
       detail=repr([line.rstrip() for line in _m.display]))
 
+
+# --- the alternate screen must work whether or not pyte implements it --------
+# pyte issue #90 has been open since 2017, so this class implements the feature
+# itself. An upstream patch is pending, and the usual `pyte>=0.8.1` requirement
+# means the day it ships in a release every installation picks it up -- at which
+# point BOTH layers would switch and the primary screen would restore blank on
+# every full-screen program exit. `_Screen._PYTE_HAS_ALT` decides which layer
+# does the work.
+#
+# What is asserted here is deterministic under whichever pyte is installed: the
+# flag agrees with the base class, and the round trip works either way. The
+# cross-version case is additionally verified by hand against a patched pyte
+# checkout -- a monkeypatch of the real base class would be exactly the
+# self-satisfying harness HARD RULE 5 forbids, so the logic is instead exercised
+# through a stand-in base class below.
+import pyte as _pyte  # noqa: E402
+from smartcli_core.screen_model import _Screen  # noqa: E402
+
+check(_Screen._PYTE_HAS_ALT == hasattr(_pyte.Screen, "alternate_screen"),
+      "the pyte-capability flag matches the installed pyte",
+      detail=f"flag={_Screen._PYTE_HAS_ALT} "
+             f"base={hasattr(_pyte.Screen, 'alternate_screen')}")
+
+_m = ScreenModel(cols=14, rows=3)
+_m.feed(b"SHELL-1\r\nSHELL-2")
+_before = [line.rstrip() for line in _m.display]
+_m.feed(b"\x1b[?1049hPAGER")
+_alt_in = _m.screen.alt_screen
+_m.feed(b"\x1b[?1049l")
+check([line.rstrip() for line in _m.display] == _before,
+      "the alt-screen round trip restores the primary screen exactly",
+      detail=f"before={_before} after={[l.rstrip() for l in _m.display]}")
+check(_alt_in and not _m.screen.alt_screen,
+      "alt_screen reads True inside and False after, whichever layer switched",
+      detail=f"inside={_alt_in} after={_m.screen.alt_screen}")
+
+# Exercise the branch the installed pyte does NOT take. The inheritance chain
+# stays REAL (a genuine _Screen subclass over the installed pyte.Screen); only
+# the capability flag is overridden, and nothing is monkeypatched -- the
+# observation is the state _enter_alt would have written. A fabricated base class
+# was tried first and broke zero-argument super(), which is a fair warning that
+# it was too far from the real path to prove anything.
+class _CapableProbe(_Screen):
+    _PYTE_HAS_ALT = True
+
+
+_probe = _CapableProbe(8, 2)
+_probe.set_mode(1049, private=True)
+_switched = _probe._alt_active or _probe._saved_main is not None
+_probe.reset_mode(1049, private=True)
+check(not _switched and not _probe._alt_active,
+      "with a capable base class the subclass does not switch as well",
+      detail=f"_alt_active={_probe._alt_active} "
+             f"_saved_main_set={_probe._saved_main is not None}")
+
 if FAILURES:
     print(f"\ntest_terminal_fidelity FAIL -- {len(FAILURES)} check(s):")
     for f in FAILURES:
