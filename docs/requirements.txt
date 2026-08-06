@@ -1,2 +1,2 @@
 # Docs-site build deps (Read the Docs installs these). Not runtime deps.
-mkdocs-material>=9.5
+mkdocs-material>=9.7.7
