@@ -625,6 +625,30 @@ for _mg in ((2, 4), (1, 3)):
     print(f"         [note]   margins={_mg}: direct={_shrink(_mg, False)} "
           f"via_alt={_shrink(_mg, True)}")
 
+
+# --- CUD outside a DECSTBM region: the mirror of cursor_up, missed twice -------
+# pyte clamps to the bottom margin unconditionally, so a cursor BELOW the region
+# is dragged up into it — CUD moving the cursor UP. index() and cursor_up() were
+# both overridden here for exactly this defect class; their mirror was not, and
+# nothing tested it. Measured on tmux 3.6b AND GNU screen 4.00.03, which agree:
+# region 3..6, cursor row 8, ESC[1B writes on row 9.
+for _label, _payload, _want in (
+        ("below the region", b"\x1b[3;6r\x1b[8;1H\x1b[1B", 8),
+        ("inside the region", b"\x1b[3;6r\x1b[4;1H\x1b[1B", 4),
+        ("above the region", b"\x1b[5;8r\x1b[2;1H\x1b[1B", 2),
+        ("no region set", b"\x1b[8;1H\x1b[1B", 8)):
+    _m = ScreenModel(cols=10, rows=10)
+    _m.feed(_payload)
+    check(_m.cursor[0] == _want,
+          f"CUD is not clamped into a region it is outside of ({_label})",
+          detail=f"y={_m.cursor[0]} want={_want}")
+
+# CUD must still stop at the LAST row, region or not.
+_m = ScreenModel(cols=10, rows=5)
+_m.feed(b"\x1b[5;1H\x1b[9B")
+check(_m.cursor[0] == 4, "CUD stops at the last row",
+      detail=f"y={_m.cursor[0]} want=4")
+
 if FAILURES:
     print(f"\ntest_terminal_fidelity FAIL -- {len(FAILURES)} check(s):")
     for f in FAILURES:

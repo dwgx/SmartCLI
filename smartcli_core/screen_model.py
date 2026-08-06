@@ -406,6 +406,25 @@ class _Screen(pyte.Screen):
             return
         super().cursor_up(count)
 
+    def cursor_down(self, count: int | None = None) -> None:
+        """CUD — the mirror of :meth:`cursor_up`, and it was missed.
+
+        ``pyte`` clamps to the DECSTBM bottom margin unconditionally
+        (``min(cursor.y + count, bottom)``), so a cursor BELOW the region is
+        dragged up into it — CUD moving the cursor UP. Measured on tmux 3.6b and
+        GNU screen 4.00.03, which agree: region 3..6, cursor on row 8, ``ESC[1B``
+        lands on row 9; pyte and this class both landed on row 6.
+
+        Found by an independent review that asked why ``index`` and ``cursor_up``
+        were overridden here but their mirror was not — the same defect class,
+        already fixed twice, left in place a third time because nothing tested it.
+        """
+        top, bottom = self.margins or (0, self.lines - 1)
+        if not (top <= self.cursor.y <= bottom):
+            self.cursor.y = min(self.cursor.y + (count or 1), self.lines - 1)
+            return
+        super().cursor_down(count)
+
     def next_line(self) -> None:
         """NEL (``ESC E``) — index AND carriage return, unconditionally.
 
