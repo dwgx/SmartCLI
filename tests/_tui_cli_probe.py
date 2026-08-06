@@ -136,6 +136,39 @@ def test_happy_path() -> None:
     check(got42, "snapshot text contains 42 (no token flag needed; auto-loaded)",
           detail=repr(snap_text.strip()[-60:]))
 
+    # --- resize (the CLI verb, exercised on the SAME live session so no extra
+    # PTY is spawned). The daemon path is covered by test_drive_security; what is
+    # unique here is the CLI surface: that our grid really moves, that --json
+    # reports it, and that a REJECTED size exits non-zero while leaving the
+    # session alive. That last point is the one that matters: _validate_size
+    # raises SystemExit, a BaseException that would otherwise sail through the
+    # daemon's per-connection `except Exception` and kill the session.
+    cp = run_cli("resize", "--id", sid, "--cols", "100", "--rows", "30")
+    check(cp.returncode == 0, "resize exit 0", detail=f"rc={cp.returncode}")
+    cp = run_cli("snapshot", "--id", sid)
+    check("30x100" in cp.stdout or "[screen 30x100]" in cp.stdout,
+          "resize moved the grid to 30x100",
+          detail=repr(cp.stdout.splitlines()[0][:70] if cp.stdout else ""))
+
+    cp = run_cli("resize", "--id", sid, "--cols", "90", "--rows", "28", "--json")
+    ok_json = False
+    try:
+        payload = json.loads(cp.stdout.strip() or "{}")
+        ok_json = payload.get("ok") is True and payload.get("cols") == 90 and payload.get("rows") == 28
+    except json.JSONDecodeError:
+        pass
+    check(ok_json, "resize --json reports ok/cols/rows", detail=repr(cp.stdout.strip()[:90]))
+
+    cp = run_cli("resize", "--id", sid, "--cols", "99999", "--rows", "99999")
+    check(cp.returncode != 0, "out-of-range resize exits non-zero",
+          detail=f"rc={cp.returncode}")
+    check("too large" in (cp.stderr + cp.stdout),
+          "out-of-range resize reports the daemon's limits message",
+          detail=repr((cp.stderr + cp.stdout).strip()[:90]))
+    cp = run_cli("alive", "--id", sid)
+    check(cp.returncode == 0, "session SURVIVES a rejected resize (not torn down)",
+          detail=f"rc={cp.returncode} out={cp.stdout.strip()!r}")
+
     cp = run_cli("close", "--id", sid)
     check(cp.returncode == 0, "close exit 0", detail=f"rc={cp.returncode}")
     if sid in _STARTED:
