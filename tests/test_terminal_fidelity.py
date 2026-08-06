@@ -643,10 +643,20 @@ for _label, _payload, _want in (
           f"CUD is not clamped into a region it is outside of ({_label})",
           detail=f"y={_m.cursor[0]} want={_want}")
 
-# CUD must still stop at the LAST row, region or not.
+# CUD must still stop at the LAST row. This has to be exercised with the cursor
+# OUTSIDE a region: without one, `top <= y <= bottom` holds and pyte's own clamp
+# runs, so the override's bound is never reached. Mutation testing caught that —
+# deleting the bound left the first version of this check green.
+_m = ScreenModel(cols=10, rows=5)
+_m.feed(b"\x1b[2;3r\x1b[5;1H\x1b[9B")   # region 2..3, cursor on row 5, CUD 9
+check(_m.cursor[0] == 4,
+      "CUD outside a region still stops at the last row",
+      detail=f"y={_m.cursor[0]} want=4 (rows=5)")
+
+# And with no region at all, where pyte's own clamp does the work.
 _m = ScreenModel(cols=10, rows=5)
 _m.feed(b"\x1b[5;1H\x1b[9B")
-check(_m.cursor[0] == 4, "CUD stops at the last row",
+check(_m.cursor[0] == 4, "CUD with no region stops at the last row",
       detail=f"y={_m.cursor[0]} want=4")
 
 if FAILURES:
