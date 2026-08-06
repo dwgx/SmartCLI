@@ -65,9 +65,9 @@ A detached daemon owns one live program; each command connects over a localhost-
    `python skills/drive-tui/scripts/tui.py list`
    `python skills/drive-tui/scripts/tui.py close --id <SID>`   (always close when done)
 
-Subcommands: `start`, `snapshot`, `send-text`, `send-line`, `keys`, `wait`, `wait-regex`, `wait-change`, `wait-visual-change`, `wait-any`, `alive`, `close`, `list`. The `wait*` verbs print liveness + reason/index to stderr and the snapshot to stdout. `wait-change` blocks until the screen text changes from a baseline (the "did my action land?" primitive); `wait-visual-change` is the same but also counts attribute/cursor-only changes (see *Choosing the right wait*); `wait-any` races several `--pattern` regexes (pexpect `expect([...])` style) and reports WHICH matched first (index on stderr) — order patterns most-specific-first, since the earliest in the list wins a same-poll tie.
+Subcommands: `start`, `snapshot`, `send-text`, `send-line`, `keys`, `wait`, `wait-regex`, `wait-change`, `wait-visual-change`, `wait-any`, `alive`, `resize`, `close`, `list`. The `wait*` verbs print liveness + reason/index to stderr and the snapshot to stdout. `wait-change` blocks until the screen text changes from a baseline (the "did my action land?" primitive); `wait-visual-change` is the same but also counts attribute/cursor-only changes (see *Choosing the right wait*); `wait-any` races several `--pattern` regexes (pexpect `expect([...])` style) and reports WHICH matched first (index on stderr) — order patterns most-specific-first, since the earliest in the list wins a same-poll tie.
 
-Baseline workflow for the change waits: `snapshot` prints `# hash=<H> visual_hash=<V>` on stderr — record it BEFORE acting, then use `wait-change --baseline-hash <H>` or `wait-visual-change --baseline-hash <V>` after. The two hashes are separate primitives: never feed a `hash` to `wait-visual-change` or a `visual_hash` to `wait-change`. (Omit `--baseline-hash` to baseline on the screen at call time.)
+Baseline workflow for the change waits: `snapshot` prints `# hash=<H> visual_hash=<V> alive=<bool> alt_screen=<bool>` on stderr — record the hashes BEFORE acting, then use `wait-change --baseline-hash <H>` or `wait-visual-change --baseline-hash <V>` after. The two hashes are separate primitives: never feed a `hash` to `wait-visual-change` or a `visual_hash` to `wait-change`. (Omit `--baseline-hash` to baseline on the screen at call time.)
 
 `snapshot`, every `wait*` verb, `start`, `close`, and `list` accept `--json` for machine-readable output (`alive` reports via its exit code instead).
 
@@ -98,9 +98,7 @@ package and run it (stdio transport):
 Tools: `start`, `list_sessions`, `snapshot`, `send_text`, `send_line`,
 `send_keys`, `wait_regex`, `wait_change`, `wait_visual_change`, `wait_any`,
 `wait_ready`, `alive`, `resize`, `close` — a 1:1 map of the daemon verbs. The
-same perceive → decide → act loop applies. Note: `resize` is currently exposed
-only through MCP — the CLI has no resize subcommand, so pick the final size with
-`--cols`/`--rows` at `start` time.
+same perceive → decide → act loop applies.
 
 ## Silent / background operation — driving without disturbing the user
 
@@ -134,11 +132,12 @@ Never open a visible terminal window to "let the user watch" — that is the int
   0 | Python 3.14.6 ...
   3 | >>>
 ```
-- Header: `cursor=rNcM`, optional `selected=...`, `status="..."`, `title`, `errors=N`, `screen_reverse`.
+- Header: `cursor=rNcM`, optional `alt_screen`, `selected=...`, `status="..."`, `title`, `errors=N`, `screen_reverse`. `alt_screen` is inserted first among the flags — it changes what an action MEANS: a full-screen program (vim/less/htop) owns the screen, so keys are commands rather than text, the body is that program's frame rather than scrollback, and the token disappears when the primary screen is restored on exit.
 - Body: `<row><*>| text`. A `*` marks a selected/highlighted row. Blank runs collapse to `...`.
 - **`selected_line` is the key menu signal.** In an arrow-key menu the highlighted (reverse-video / colored) row is the current choice — the snapshot surfaces it as the `*` row and in the header `selected`. Use it to know where the cursor sits before pressing Up/Down.
 
 ## Deciding: classify the screen
+- Full-screen program (`alt_screen` in the header) → the body is that program's frame, not scrollback. Drive with keys (`keys q`, `keys Escape`), do not `send-line` text, and prefer `wait-visual-change` after navigation keys.
 - Prompt (`>>> `, `$ `, `Password:`, `Continue? [y/N]`) → send the answer with `send-line`, or a single key with `keys`.
 - Menu (a `*`/`selected` row, list of options) → move with `keys Up`/`keys Down`, choose with `keys Enter`. Do not type the option text.
 - Spinner / progress / still loading → do not act; call `wait` again (it caps at `--timeout-ms` and returns the last screen).
@@ -198,8 +197,10 @@ map of the 8 recipes below — [[list-menu-navigation]], [[fuzzy-search-filter]]
 [[pager-navigation]], [[confirm-yes-no-dialog]], [[progress-spinner-waiting]],
 [[form-field-input]], [[repl-session]], [[wizard-installer-flow]] — plus the sourced
 foundations behind every gotcha in this skill: [[application-cursor-mode]] (the exact
-arrow-keys-don't-move bug), [[quiescence-detection]] and [[snapshot-stability-hash]]
-(how `wait` decides "settled"), [[key-encoding-reference]] (key tokens → bytes),
+arrow-keys-don't-move bug), [[alternate-screen-detection]] (why `alt_screen` in the
+header means the body is a full-screen program's frame), [[quiescence-detection]] and
+[[snapshot-stability-hash]] (how `wait` decides "settled"), [[key-encoding-reference]]
+(key tokens → bytes),
 [[cursor-row-binding]] and [[verify-movement-step-by-step]] (why matches bind to the
 cursor row and every action re-snapshots). Read the relevant note before inventing a
 recipe from scratch.

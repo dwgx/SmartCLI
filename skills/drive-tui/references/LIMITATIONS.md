@@ -13,6 +13,26 @@ regression run (drive-probes + `_sandbox_posix_backend.py` on Linux).
 
 ## Fixed & verified
 
+### 2026-08-06 · pyte had no alternate-screen buffer, so full-screen programs corrupted the primary screen
+- **Symptom:** pyte implements no alternate-screen mode at all (1049/1047/47 just set an
+  unknown bit), so `vim`/`less`/`htop` — every full-screen program this skill exists to
+  drive — painted their alternate screen on top of the main one, and on exit the main
+  screen was never restored. An agent read a merged, impossible screen with nothing
+  reporting a problem.
+- **Fix:** implemented per xterm and verified against tmux: 1049 saves the cursor and
+  clears the alt buffer on entry, restores both on exit; 47/1047 switch without the
+  cursor save; the cursor is deliberately NOT homed on entry. Private mode 1048
+  (cursor save/restore only) is also supported, with a weaker evidence level: xterm
+  defines it, but neither tmux nor GNU screen implements it, so there is no ground
+  truth to check it against. The state now reaches every surface an agent reads —
+  `ScreenModel.alt_screen`, `Snapshot.alt_screen`, the `to_text()` header (leads the
+  flags, inserted before `selected`/`status`/`errors`), the JSON `hints`, and every
+  drive-tui daemon reply — rather than only being reachable by poking the pyte object.
+- **Verified:** sixteen alt-screen cases diffed against a real tmux pane, then a
+  three-way against tmux AND GNU screen (with `altscreen on`, which GNU screen
+  defaults off). On a live PTY: driving real `less` reports `alt_screen=True` in the
+  header while inside it and `False` after quitting.
+
 ### 2026-07-19 · Selection-only and cursor-only changes were invisible (formerly a "Still open" entry)
 - **Symptom:** after an arrow key, a menu could move its selection using only
   reverse video/background attributes while its text stayed identical;
@@ -64,5 +84,15 @@ regression run (drive-probes + `_sandbox_posix_backend.py` on Linux).
 - POSIX backend verified on Debian 13 / Python 3.13 (2026-07-13) and macOS on
   Apple Silicon / Python 3.14 (2026-07-19). The BSD PTY EOF path, persistent
   CLI, MCP adapter, resize, REPL drive, and zombie-free close all passed.
-- tmux launcher scripts (`skills/cmd-art/tmux/*.sh`) not verified on a real tmux
-  host.
+- tmux launcher scripts (`skills/cmd-art/tmux/*.sh`) VERIFIED 2026-07-27 on real
+  tmux 3.6b (macOS): `tests/_tmux_launcher_probe.py` drove both scripts through
+  all five states — 18/18. It found a real bug (`fx-popup` leaked tmux's raw
+  "no current client" with exit 1 when no client was attached); now guarded.
+- The core detects pyte's capabilities at import time (`_PYTE_HAS_ALT`,
+  `_PYTE_DCH_HANDLES_WIDE` in `smartcli_core/screen_model.py`) instead of pinning
+  a version range. So behaviour can change from a `pip install -U pyte` alone,
+  with no SmartCLI code change: once pyte ships its own alternate-screen support
+  or wide-glyph-aware DCH, this core's override switches off automatically. If a
+  screen or a delete-characters case looks wrong after a dependency upgrade,
+  check the installed pyte version and these two flags before assuming a
+  regression here.
