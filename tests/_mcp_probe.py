@@ -227,8 +227,21 @@ def main() -> int:
             check(r.get("alt_screen") is False,
                   "alt_screen is False again once the primary screen is restored",
                   detail=repr(r.get("alt_screen")))
-            close(sid=sid)
+            check(close(sid=sid).get("ok"), "close the less session")
             sid = ""
+            # Re-poll for zero leaks. The original assertion above USED TO BE the
+            # probe's last act; adding this block after it silently demoted it to a
+            # mid-test check, so a session leaked by `less` would have gone
+            # unreported. The whole point of that assertion is that it runs last.
+            n = -1
+            for _ in range(20):
+                r = list_sessions()
+                n = len(r.get("sessions", []))
+                if r.get("ok") and n == 0:
+                    break
+                time.sleep(0.25)
+            check(n == 0, "no leaked sessions after the less session too (polled)",
+                  detail=f"{n} listed")
         else:
             print("SKIP: less not on PATH — alt_screen True case not exercised")
     finally:

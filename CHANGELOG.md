@@ -80,8 +80,10 @@ more measured emulation fixes.
   that from the CLI side.
 
 ### Fixed after an adversarial self-review
-The release was reviewed by independent agents before tagging. Five real defects
-came back, all introduced by this release's own work, and all fixed here:
+The release was reviewed before tagging. Five real defects came back, all
+introduced by this release's own work, and all fixed here — **four found by
+independent adversarial agents, and the last (the version contradictions) found by
+reading back over the release commit rather than by any agent or gate**:
 - **The lint-gate fix would have re-broken the gate from the other direction.** The
   `type: ignore[misc]` on `super().alternate_screen` is correct only while pyte
   *lacks* the attribute; the day pyte ships it, `warn_unused_ignores` fails on an
