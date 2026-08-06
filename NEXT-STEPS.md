@@ -257,14 +257,14 @@ non-negotiable and overrides any shortcut that looks faster.
 - **Still open:** a GUI-terminal reference (kitty/Alacritty — neither is
   installed here; both would need `brew install`), and DCS/DECRQSS round-trips.
 
-### A0-PYTE-UPSTREAM. File the six confirmed-live pyte defects, mechanically ported  [M]
-- **Goal:** upstream port patches for the six pyte defects that were MEASURED (not
+### A0-PYTE-UPSTREAM. File the five confirmed-live pyte defects, mechanically ported  [M]
+- **Goal:** upstream port patches for the five pyte defects that were MEASURED (not
   assumed) to be both real on pyte master and independent of the unreviewed
   alternate-screen PR: half-overwriting a wide glyph, DCH on a wide glyph, NEL not
   returning to column 0, and DECSTBM region-escape in both `index()` and
   `cursor_up()`. Independence was proven by extracting the 130-line diff and
   applying it to an untouched `upstream/master` worktree — both files applied
-  cleanly and the suite stayed at 117 passed / 1 xfailed, so these six do not need
+  cleanly and the suite stayed at 117 passed / 1 xfailed, so these five do not need
   to wait on selectel/pyte#212.
 - **Why it matters:** `selectel/pyte#212` (the alternate-screen buffer, closing a
   9-year-old help-wanted issue) is `MERGEABLE` with 0 reviews and that upstream's
@@ -297,7 +297,7 @@ non-negotiable and overrides any shortcut that looks faster.
     is wasted work.
 - **First step:** read HANDOFF §10i in full (the independence-measurement
   paragraph and the two "corrected the upstream plan" paragraphs) before touching
-  anything; re-derive each of the six repros against current pyte master yourself
+  anything; re-derive each of the five repros against current pyte master yourself
   rather than trusting the prior session's numbers, since pyte master moves.
 - **Verify:** each patch applies cleanly to an untouched `upstream/master`
   worktree and pyte's own test suite stays green (no new failures) after

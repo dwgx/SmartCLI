@@ -1364,11 +1364,16 @@ UPSTREAM WORK IN FLIGHT (2026-08-06, see §10i):
   screen or eating a character. Verify any screen-model change under BOTH stock
   pyte and a patched checkout; a one-sided run cannot tell correct from
   happens-to-run-here.
-- Six MORE pyte defects are confirmed live on master and port mechanically
-  (IL/DL cursor column, half-overwrite of a wide glyph, DCH on a wide glyph, NEL,
-  DECSTBM escape in index() and cursor_up()). Two of the original seven did NOT
-  survive triage — read §10i before filing anything, and do not upstream IL/DL
-  from outside a scroll region or ZWJ cluster width.
+- FIVE pyte defects are confirmed live on master and port mechanically:
+  half-overwrite of a wide glyph, DCH on a wide glyph, NEL not returning to column
+  0, and DECSTBM region-escape in BOTH index() and cursor_up() (that last is two
+  fixes, which is why four names make five). **IL/DL cursor column is NOT among
+  them** — an independent re-check found pyte matches xterm/vte/the DEC reference
+  there and this project is the deviation, so filing it would rightly be rejected.
+  Do not upstream it, nor IL/DL from outside a scroll region (no ground truth), nor
+  ZWJ cluster width (master already picked tmux's side), nor SGR colon
+  sub-parameters (pyte #180 is already open and MERGEABLE for exactly that). Read
+  §10i in full before filing anything.
 
 OPEN OBJECTIVES (the §6 A-grade list #1–#7 is DONE through v0.1.8; what actually remains):
 1. [OWNER, the only thing blocking a leaderboard number] Supply a `decide_fn` (a model
