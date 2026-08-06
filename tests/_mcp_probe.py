@@ -13,6 +13,7 @@ closes the session in a finally block. Real ConPTY — SLOW; run serially.
 from __future__ import annotations
 
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -189,11 +190,26 @@ def main() -> int:
         if shutil.which("less"):
             fixture = REG_DIR / "altscreen_fixture.txt"
             fixture.write_text("\n".join(str(i) for i in range(1, 201)), encoding="utf-8")
-            r = start(cmd=f"less {fixture}", cols=80, rows=24)
+            # TERM must be set EXPLICITLY, not inherited. CI runners have no TERM,
+            # and without one `less` prints "WARNING: terminal is not fully
+            # functional / Press RETURN to continue" and never enters the alternate
+            # screen — so the feature under test simply does not happen and the
+            # check fails for an environmental reason. Reproduced locally with
+            # `env -u TERM`, which is the only reason this was not another
+            # passes-on-my-machine assertion.
+            r = start(cmd=f"less {fixture}", cols=80, rows=24,
+                      env={"TERM": "xterm-256color", "LESSSECURE": "1"})
             sid = r.get("sid", "")
             check(bool(sid), "start real less for the alt-screen check", detail=repr(r))
-            r = wait_regex(sid=sid, pattern="1", timeout_ms=15000)
-            check(r.get("ok") and r.get("matched"), "less painted its first page")
+            # Anchor on the fixture's NAME, which less draws in its status bar. A
+            # bare digit would also match the "terminal is not fully functional"
+            # warning screen, i.e. it would pass in exactly the environment where
+            # the alternate screen never happens. Measured first page on a 24-row
+            # screen: lines 1..23 plus the filename status bar — so the last line
+            # of the file is NOT a usable marker either.
+            r = wait_regex(sid=sid, pattern=re.escape(fixture.name), timeout_ms=15000)
+            check(r.get("ok") and r.get("matched"), "less painted its first page",
+                  detail=repr(snapshot(sid=sid).get("text", "")[:160]))
             r = snapshot(sid=sid)
             check(r.get("alt_screen") is True,
                   "alt_screen is True while a full-screen program owns the screen",
