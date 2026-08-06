@@ -309,7 +309,12 @@ def _handle(sess: PtySession, req: dict, expected_token: str) -> dict:
         try:
             cols, rows = _validate_size(int(req["cols"]), int(req["rows"]))
         except SystemExit as exc:
-            return {"ok": False, "error": str(exc)}
+            # Strip _validate_size's own "error: " prefix. Every other daemon
+            # reply stores a bare message and lets _call add the prefix once for
+            # the CLI caller, so keeping it here produced "error: error: ...".
+            msg = str(exc)
+            return {"ok": False, "error": msg[len("error: "):]
+                    if msg.startswith("error: ") else msg}
         sess.resize(cols, rows)
         return {"ok": True}
 
@@ -779,9 +784,12 @@ def build_parser() -> argparse.ArgumentParser:
                         "reported. Same as SMARTCLI_AUTO_INSTALL=1.")
     sub = p.add_subparsers(
         dest="command", required=True,
+        # Hand-maintained: argparse would otherwise list `_daemon` too, which is
+        # internal. ADD NEW VERBS HERE as well as registering the subparser —
+        # `resize` was invisible in --help for exactly that reason.
         metavar="{start,snapshot,send-text,send-line,keys,wait,wait-regex,"
-                "wait-change,wait-visual-change,wait-any,alive,close,list,"
-                "run,doctor}")
+                "wait-change,wait-visual-change,wait-any,alive,resize,close,"
+                "list,run,doctor}")
 
     sp = sub.add_parser("start", help="spawn a program in a detached persistent session")
     sp.add_argument("--cmd", required=True, help="command line to spawn, e.g. \"python\"")
