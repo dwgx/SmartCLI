@@ -40,6 +40,18 @@ CHILD_ENV["PYTHONUTF8"] = "1"
 PY = sys.executable
 
 
+def _as_text(raw) -> str:
+    """Decode captured child output. subprocess.run is called without text=True
+    (a child emitting invalid UTF-8 must not raise here), so this decodes with
+    replacement — which is also why box-drawing/CJK output survives a failure dump.
+    """
+    if raw is None:
+        return ""
+    if isinstance(raw, bytes):
+        return raw.decode("utf-8", "replace")
+    return str(raw)
+
+
 class Test:
     """One aggregated test: how to invoke it, where, and how long to wait."""
 
@@ -50,6 +62,7 @@ class Test:
         self.timeout = timeout
         self.optional = optional      # missing => skip-with-note, not fail
         self.rerun = rerun            # allow ONE automatic rerun on failure
+        self.output = ""              # last run's captured stdout+stderr
 
     def _target_path(self):
         """Best-effort path the invocation points at (for existence checks)."""
@@ -69,15 +82,26 @@ class Test:
         return tgt is None or tgt.exists()
 
     def run_once(self):
-        """Run once. Returns (rc, timed_out)."""
+        """Run once. Returns (rc, timed_out). Child output is kept on self.output.
+
+        The output used to be captured and DROPPED, so a failure in the suite was
+        reportable only as a return code and had to be re-run standalone to see
+        why — and a probe that fails inside the suite but passes in isolation is
+        exactly the case where the lost text was the evidence. It is retained now
+        and printed by the caller on failure. It also carries any internal
+        "SKIP:" line, which was previously invisible: a probe could skip the very
+        case it exists for and still report [PASS].
+        """
         try:
             proc = subprocess.run(
                 self.argv, cwd=str(self.cwd), env=CHILD_ENV,
                 timeout=self.timeout,
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             )
+            self.output = _as_text(proc.stdout)
             return proc.returncode, False
-        except subprocess.TimeoutExpired:
+        except subprocess.TimeoutExpired as exc:
+            self.output = _as_text(exc.stdout)
             return None, True
 
 
@@ -324,14 +348,44 @@ def main():
             notes.append(f"{t.label}: failed once then retried (known flake)")
             rc, timed_out = t.run_once()
 
+        def _dump(tail_lines: int = 40) -> None:
+            """Print the child's own output so a failure is diagnosable HERE.
+
+            Without this a suite failure was a bare return code, and the only way
+            to learn why was to re-run the test standalone — where an
+            order-dependent or load-dependent failure often does not reproduce.
+            """
+            text = (t.output or "").rstrip()
+            if not text:
+                print("       (child produced no output)")
+                return
+            lines = text.splitlines()
+            if len(lines) > tail_lines:
+                print(f"       ... {len(lines) - tail_lines} earlier line(s) omitted")
+                lines = lines[-tail_lines:]
+            for ln in lines:
+                print("       | " + ln)
+
         if timed_out:
             print(f"[FAIL] {t.label}  (TIMEOUT after {t.timeout}s)")
+            _dump()
             results.append((t.label, "TIMEOUT"))
         elif rc == 0:
             print(f"[PASS] {t.label}  (exit 0)")
+            # An internal skip can be a real reduction in coverage, so surface it
+            # even on a pass: a probe that skips the case it exists for otherwise
+            # reports an unqualified [PASS]. Matched on the "SKIP:" convention
+            # (with the colon) so a per-item "SKIP  <name> -- not applicable",
+            # which is normal reporting rather than lost coverage, stays quiet.
+            for ln in (t.output or "").splitlines():
+                s = ln.strip()
+                if s.startswith("SKIP:"):
+                    print(f"       | {s}")
+                    notes.append(f"{t.label}: internal skip — {s[:90]}")
             results.append((t.label, "PASS"))
         else:
             print(f"[FAIL] {t.label}  (exit {rc})")
+            _dump()
             results.append((t.label, "FAIL"))
 
     n_pass = sum(1 for _, s in results if s == "PASS")
