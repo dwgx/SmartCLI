@@ -177,8 +177,12 @@ WIDGET_RES = [
 #: two numbers that WERE tested, so it read as covered.
 RECIPE_RES = [
     re.compile(r"(\d+)\s*recipes\b", re.IGNORECASE),      # 8 recipes
-    re.compile(r"(\d+)\s*个\s*(?:recipe|配方)"),           # zh-Hans
-    re.compile(r"(\d+)\s*種\s*recipe", re.IGNORECASE),     # zh-Hant
+    # zh-Hans writes 种配方 (种, simplified), zh-Hant writes 種 recipe. An earlier
+    # version of this line used 个 for zh-Hans and matched NOTHING, leaving that
+    # locale's count ungated — the same vacuous-pattern shape this family was added
+    # to close. Every alternative below is verified to have a live hit on disk;
+    # a branch with zero hits is a branch that cannot fail.
+    re.compile(r"(\d+)\s*[种種個个]\s*(?:配方|recipe)", re.IGNORECASE),
     re.compile(r"(\d+)\s*種の\s*レシピ"),                  # ja
     re.compile(r"(\d+)\s*개\s*레시피"),                    # ko
 ]
