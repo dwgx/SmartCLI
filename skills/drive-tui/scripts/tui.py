@@ -367,7 +367,25 @@ def _run_daemon(
                 # this guard an unauthenticated peer could kill the session with a
                 # single garbage byte sequence.
                 try:
-                    conn.settimeout(60.0)
+                    # Two budgets, because everything up to the token check is
+                    # UNAUTHENTICATED and this accept loop is serial: one peer
+                    # sitting in recv() blocks every other caller. A single 60s
+                    # timeout here meant an unprivileged local process could open a
+                    # connection, send bytes with no newline, and head-of-line
+                    # block the owner for a minute per connection (listen(8), so
+                    # nine of them starve the owner outright).
+                    #
+                    # PRE_AUTH_TIMEOUT bounds an idle/silent peer. It is generous
+                    # for loopback, where even the 4 MiB cap below transfers in
+                    # milliseconds, but it is NOT a fix for the underlying serial
+                    # design — it cuts the blocking primitive from 60s to 2s per
+                    # connection rather than removing it. Handling each connection
+                    # in its own thread is the real fix and is deliberately not
+                    # done here: PtySession is not thread-safe, so that is a
+                    # concurrency-model change, filed rather than smuggled in.
+                    PRE_AUTH_TIMEOUT = 2.0
+                    POST_AUTH_TIMEOUT = 60.0
+                    conn.settimeout(PRE_AUTH_TIMEOUT)
                     buf = bytearray()
                     # Cap the pre-newline buffer: the transport runs before the
                     # token check, so an unauthenticated peer must not be able to
@@ -375,7 +393,15 @@ def _run_daemon(
                     # far above any legitimate request (send-text payloads, step
                     # lists) yet bounds the damage. Over the cap -> drop the conn.
                     MAX_REQ = 4 * 1024 * 1024
+                    deadline = time.monotonic() + PRE_AUTH_TIMEOUT
                     while b"\n" not in buf:
+                        # A peer that dribbles bytes must not renew its welcome:
+                        # re-arm the timeout against a FIXED deadline so the whole
+                        # pre-auth phase is bounded, not each individual recv.
+                        left = deadline - time.monotonic()
+                        if left <= 0:
+                            raise TimeoutError("pre-auth read budget exhausted")
+                        conn.settimeout(left)
                         chunk = conn.recv(65536)
                         if not chunk:
                             break
@@ -385,6 +411,10 @@ def _run_daemon(
                     if not buf:
                         continue
                     req = json.loads(bytes(buf).split(b"\n", 1)[0].decode("utf-8"))
+                    # The request is complete; _handle authenticates it. Restore the
+                    # generous timeout for the REPLY, which can be a large snapshot
+                    # and is only ever written to an authenticated caller.
+                    conn.settimeout(POST_AUTH_TIMEOUT)
                     resp = _handle(sess, req, token)
                     shutdown = bool(resp.get("_shutdown"))
                     conn.sendall((json.dumps(resp) + "\n").encode("utf-8"))
