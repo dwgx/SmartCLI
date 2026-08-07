@@ -116,14 +116,27 @@ EFFECT_CJK_RE = re.compile(r"(\d+)\s*(?:种效果|種效果|種のエフェク�
 # like "any doc still saying 18 effects is STALE") — those correctly mention the
 # wrong number as a negative example. Heuristic: the line also states the right
 # count or flags staleness.
+#: Explicit, per-line opt-out. A line carrying this marker is exempt from every
+#: count scan — used for prose that deliberately quotes a WRONG number while
+#: explaining a past drift.
+IGNORE_MARKER = "doc-counts:ignore"
+
+
 def _is_meta(line: str) -> bool:
-    low = line.lower()
-    if "stale" in low or "should be" in low:
-        return True
-    # a line that also states the correct count is explaining the discrepancy
-    if re.search(rf"\b{N_FX}\b", line) and re.search(r"older lines|why|still says|drift", low):
-        return True
-    return False
+    """Is this line exempt from the count scans?
+
+    Requires an EXPLICIT marker. It used to infer intent, exempting any line
+    containing "stale"/"should be", or containing the correct fx count together
+    with any of "older lines|why|still says|drift". That over-reached badly: it
+    exempted HANDOFF.md's "**Live counts (re-verified against code ...)**" line —
+    the line that document designates as its authoritative record — because the
+    same sentence mentions the anti-drift gates. So the one line most likely to be
+    consulted as ground truth was the one line never checked.
+
+    Mutation-proven before the change: rewriting that line to "18 effects /
+    1 widgets" left the gate reporting PASS.
+    """
+    return IGNORE_MARKER in line
 
 
 def _scan(text):
@@ -157,6 +170,32 @@ WIDGET_RES = [
     re.compile(r"Widget catalog \((\d+)\)", re.IGNORECASE),
 ]
 
+#: Recipe counts. This family exists because N_RECIPES was computed, printed in the
+#: PASS banner as if gated, and never asserted: `grep -rn N_RECIPES` found it only in
+#: two f-strings. The banner read "all shipping docs agree with the code (fx=30,
+#: recipes=8, widgets=17)" — asserting an agreement nothing had tested, sitting between
+#: two numbers that WERE tested, so it read as covered.
+RECIPE_RES = [
+    re.compile(r"(\d+)\s*recipes\b", re.IGNORECASE),      # 8 recipes
+    re.compile(r"(\d+)\s*个\s*(?:recipe|配方)"),           # zh-Hans
+    re.compile(r"(\d+)\s*種\s*recipe", re.IGNORECASE),     # zh-Hant
+    re.compile(r"(\d+)\s*種の\s*レシピ"),                  # ja
+    re.compile(r"(\d+)\s*개\s*레시피"),                    # ko
+]
+
+#: Docs that state a RECIPE count.
+RECIPE_DOCS = [
+    ROOT / "README.md",
+    ROOT / "README-USAGE.md",
+    ROOT / "CLAUDE.md",
+    ROOT / "HANDOFF.md",
+    ROOT / "skills" / "drive-tui" / "SKILL.md",
+    ROOT / "docs" / "i18n" / "README.zh-Hans.md",
+    ROOT / "docs" / "i18n" / "README.zh-Hant.md",
+    ROOT / "docs" / "i18n" / "README.ja.md",
+    ROOT / "docs" / "i18n" / "README.ko.md",
+]
+
 
 def _scan_widgets(text):
     bad = []
@@ -169,6 +208,20 @@ def _scan_widgets(text):
             if _is_meta(text.splitlines()[line_no - 1]):
                 continue
             bad.append(f"line {line_no}: '{claim}' (should be {N_WIDGETS})")
+    return bad
+
+
+def _scan_recipes(text):
+    bad = []
+    for rx in RECIPE_RES:
+        for m in rx.finditer(text):
+            if int(m.group(1)) == N_RECIPES:
+                continue
+            line_no = text.count("\n", 0, m.start()) + 1
+            claim = " ".join(m.group(0).split())
+            if _is_meta(text.splitlines()[line_no - 1]):
+                continue
+            bad.append(f"line {line_no}: '{claim}' (should be {N_RECIPES})")
     return bad
 
 
@@ -197,6 +250,15 @@ for doc in WIDGET_DOCS:
     rel = doc.relative_to(ROOT)
     bad = _scan_widgets(text)
     check(not bad, f"{rel}: widget counts all == {N_WIDGETS}"
+          + ("" if not bad else " -> " + "; ".join(bad)))
+
+for doc in RECIPE_DOCS:
+    if not doc.exists():
+        continue
+    text = doc.read_text(encoding="utf-8", errors="replace")
+    rel = doc.relative_to(ROOT)
+    bad = _scan_recipes(text)
+    check(not bad, f"{rel}: recipe counts all == {N_RECIPES}"
           + ("" if not bad else " -> " + "; ".join(bad)))
 
 # --- portable docs must not hard-code one machine's absolute paths -----------
