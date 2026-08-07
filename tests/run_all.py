@@ -81,6 +81,51 @@ class Test:
             return None, True
 
 
+_GIT_TRACKED: set[str] | None = None
+
+
+def _tracked_files() -> set[str]:
+    """Repo-relative paths git knows about, resolved once.
+
+    Returns an empty set when git is unavailable or this is not a checkout (a
+    tarball install, a vendored copy), which makes the caller fall back to the
+    hand-set `optional` flag rather than failing everything.
+    """
+    global _GIT_TRACKED
+    if _GIT_TRACKED is None:
+        try:
+            out = subprocess.run(["git", "-C", str(ROOT), "ls-files"],
+                                 capture_output=True, text=True, timeout=30)
+            _GIT_TRACKED = ({ln.strip() for ln in out.stdout.splitlines() if ln.strip()}
+                            if out.returncode == 0 else set())
+        except (OSError, subprocess.SubprocessError):
+            _GIT_TRACKED = set()
+    return _GIT_TRACKED
+
+
+def _is_tracked_by_git(t) -> bool:
+    """Is this entry's target file under version control?
+
+    If it is, its absence on disk is a deleted or renamed gate — a regression —
+    not an optional extra that happens not to be installed.
+    """
+    tracked = _tracked_files()
+    if not tracked:
+        return False
+    if "-m" in t.argv:
+        mod = t.argv[t.argv.index("-m") + 1]
+        rel = Path(*mod.split(".")).with_suffix(".py")
+        target = (Path(t.cwd) / rel)
+    else:
+        target = t._target_path()
+    if target is None:
+        return False
+    try:
+        return str(Path(target).resolve().relative_to(ROOT)).replace("\\", "/") in tracked
+    except ValueError:
+        return False
+
+
 def build_suite():
     """Assemble the ordered test list. Optional entries are included whether
     or not present; existence is checked at run time so 'skip-with-note' is a
@@ -246,14 +291,28 @@ def main():
 
     for t in suite:
         if not t.exists():
-            if t.optional:
+            # `optional` means "may legitimately be absent". It does NOT cover a
+            # file that is committed to git: that one vanishing is a deleted or
+            # renamed gate, i.e. exactly the regression this aggregator exists to
+            # notice. 20 committed deterministic gates were registered optional
+            # (several with the stale rationale "another agent may be adding it"),
+            # so removing any of them produced a green SKIP while CLAUDE.md
+            # advertises "exit 0 iff everything passes".
+            #
+            # Derived from git rather than hand-maintained, because a second
+            # hand-kept list of "which optionals are really required" would rot the
+            # same way. Absent git (a tarball install), fall back to the flag.
+            if t.optional and not _is_tracked_by_git(t):
                 print(f"[SKIP] {t.label}  (not present — optional)")
                 results.append((t.label, "SKIP"))
                 notes.append(f"{t.label}: optional, absent — skipped")
             else:
-                print(f"[FAIL] {t.label}  (MISSING required test file)")
+                why = ("MISSING required test file" if not t.optional
+                       else "MISSING — the file is tracked by git, so its absence "
+                            "is a deleted/renamed gate, not an optional extra")
+                print(f"[FAIL] {t.label}  ({why})")
                 results.append((t.label, "FAIL"))
-                notes.append(f"{t.label}: required file missing")
+                notes.append(f"{t.label}: {why}")
             continue
 
         rc, timed_out = t.run_once()

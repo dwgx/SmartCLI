@@ -34,7 +34,11 @@ Set `PYTHONIOENCODING=utf-8` before running anything (box-drawing/CJK glyphs cra
 on legacy codepages; CI sets it too).
 
 ```bash
-# Full self-test aggregator — exit 0 iff everything passes. SLOW: spawns real
+# Full self-test aggregator — exit 0 iff everything present passes, and a gate
+# that is tracked by git but missing on disk now FAILS rather than skipping
+# (renaming or deleting one used to be a green SKIP). Entries may still SKIP
+# themselves internally when an external binary is absent — tmux, vim, less — so
+# a green run on a host lacking those covers less than a green run here. SLOW: spawns real
 # PTY sessions serially. Per the red line above, get user consent before running.
 python tests/run_all.py
 
