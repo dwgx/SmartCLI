@@ -682,11 +682,63 @@ def cmd_resize(args) -> int:
     return 0
 
 
+def _pid_is_alive(pid: int) -> bool:
+    """Is a process with this pid still running?
+
+    Used before deleting a registry entry, because that file is the ONLY store of
+    the session's capability token AND its daemon pid: deleting it while the
+    daemon lives leaves a PTY child that cannot be reached by protocol and cannot
+    be found for a manual kill, while `list` cheerfully reports zero sessions.
+    """
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        # No signal 0 on Windows; ask the OS for a handle to the pid instead.
+        import ctypes
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        STILL_ACTIVE = 259
+        k = ctypes.windll.kernel32
+        h = k.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+        if not h:
+            return False
+        try:
+            code = ctypes.c_ulong()
+            if k.GetExitCodeProcess(h, ctypes.byref(code)):
+                return code.value == STILL_ACTIVE
+            return True  # handle opened but status unreadable: assume alive
+        finally:
+            k.CloseHandle(h)
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True  # exists, owned by someone else
+    return True
+
+
 def cmd_close(args) -> int:
     try:
         _call(args.id, {"action": "close"})
     except SystemExit:
-        # The documented stale-entry cleanup path must actually remove the file.
+        # The documented stale-entry cleanup path must actually remove the file —
+        # but ONLY once the daemon is known to be gone. A failed request is not
+        # proof of death: a timeout can mean the daemon is merely busy (its accept
+        # loop is serial), and unlinking then destroys the token and the pid that
+        # are the only ways left to reach or kill it, while `list` reports zero.
+        info = {}
+        try:
+            info = _read_reg(args.id)
+        except SystemExit:
+            pass  # entry already gone; nothing to clean up
+        pid = int(info.get("pid") or 0)
+        if pid and _pid_is_alive(pid) and not getattr(args, "force", False):
+            print(f"error: session '{args.id}' did not answer, but its daemon "
+                  f"(pid {pid}) is still running, so the registry entry was KEPT "
+                  f"— deleting it would orphan the child and lose the token. "
+                  f"Retry, or kill {pid} and re-run, or pass --force.",
+                  file=sys.stderr)
+            return 1
         try:
             _reg_path(args.id).unlink()
         except OSError:
@@ -902,6 +954,10 @@ def build_parser() -> argparse.ArgumentParser:
     sp = sub.add_parser("close", help="terminate the session and its daemon")
     sp.add_argument("--id", required=True)
     sp.add_argument("--json", action="store_true")
+    sp.add_argument("--force", action="store_true",
+                    help="delete the registry entry even if the daemon's pid is "
+                         "still alive (loses the token and the pid — the child "
+                         "becomes unreachable; kill the pid yourself first)")
     sp.set_defaults(func=cmd_close)
 
     sp = sub.add_parser("list", help="list active sessions")

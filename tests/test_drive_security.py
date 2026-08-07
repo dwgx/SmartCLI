@@ -138,6 +138,55 @@ def test_registry_symlink() -> None:
             tui.REG_DIR = old_dir
 
 
+def test_close_keeps_a_live_daemons_entry() -> None:
+    """A failed close request must NOT delete the registry entry of a LIVE daemon.
+
+    That file is the only store of the capability token AND the daemon pid, so
+    unlinking it while the daemon runs leaves a PTY child that can be reached by
+    neither protocol nor kill — while `list` reports zero sessions, inverting the
+    project's hardest operational invariant. A timeout is not proof of death: the
+    daemon's accept loop is serial, so a busy daemon looks exactly like a dead one.
+    """
+    old_dir = tui.REG_DIR
+    with tempfile.TemporaryDirectory(prefix="smartcli_close_") as tmp:
+        tui.REG_DIR = Path(tmp)
+
+        def entry(sid: str, pid: int) -> Path:
+            # port 1: nothing listens, so _call always fails -> the recovery path
+            tui._write_reg(sid, {"sid": sid, "port": 1, "pid": pid,
+                                 "token": "tok"})
+            return tui._reg_path(sid)
+
+        class Args:
+            def __init__(self, sid: str, force: bool = False) -> None:
+                self.id, self.json, self.force = sid, False, force
+
+        try:
+            live = entry("livepid", os.getpid())
+            rc = tui.cmd_close(Args("livepid"))
+            check(rc != 0 and live.exists(),
+                  f"close REFUSES to delete the entry of a live daemon "
+                  f"(rc={rc}, entry kept={live.exists()})")
+
+            dead = entry("deadpid", 999999)
+            rc = tui.cmd_close(Args("deadpid"))
+            check(rc == 0 and not dead.exists(),
+                  f"close DOES clean up a genuinely dead daemon's entry "
+                  f"(rc={rc}, entry gone={not dead.exists()})")
+
+            forced = entry("forced", os.getpid())
+            rc = tui.cmd_close(Args("forced", force=True))
+            check(rc == 0 and not forced.exists(),
+                  f"--force overrides the liveness guard "
+                  f"(rc={rc}, entry gone={not forced.exists()})")
+
+            check(tui._pid_is_alive(os.getpid()) and not tui._pid_is_alive(999999)
+                  and not tui._pid_is_alive(0),
+                  "_pid_is_alive: true for self, false for absent and for 0")
+        finally:
+            tui.REG_DIR = old_dir
+
+
 def main() -> int:
     test_session_ids()
     test_environment_parser()
@@ -145,6 +194,7 @@ def main() -> int:
     test_terminal_size_limit()
     test_daemon_resize_survives_bad_size()
     test_registry_symlink()
+    test_close_keeps_a_live_daemons_entry()
     print()
     if failures:
         print(f"{failures} FAILURE(S)")
