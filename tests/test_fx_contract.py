@@ -88,11 +88,42 @@ TINY = [(2, 2), (1, 1)]
 # a hard gate guards against any *new* effect regressing the same way.
 KNOWN_NARROW_OVERFLOW = {"decrypt", "typewriter"}
 
+#: Effects bound by C3 (exact-width), FROZEN rather than derived.
+#:
+#: This used to be computed by `_is_solid()`, which rendered at 80x24 and
+#: returned False the moment a row's width != 80 — i.e. the exact condition C3
+#: asserts. So any effect that VIOLATED C3 was reclassified "sparse" and handed a
+#: recorded PASS, and the contract could not fail for the defect class it was
+#: written for. Mutation-proven: shortening every row of a solid effect by one
+#: cell produced `PASS exact-width boids :: sparse effect (exact-width n/a)`.
+#:
+#: Frozen, a solid effect that stops filling its rows now FAILS. Adding a new
+#: full-fill effect means adding its name here — the same maintenance contract
+#: KNOWN_NARROW_OVERFLOW already carries, and the same staleness report if an
+#: entry no longer matches reality.
+SOLID_EFFECTS = {
+    "boids", "cbonsai", "cube", "donut", "fire", "fireworks", "flames",
+    "julia", "life", "mandelbrot", "nebula", "perlin", "plasma", "rain",
+    "solarsystem", "sparkle", "spectrum_bars", "sphere", "starfield",
+    "text_converge", "text_decrypt", "text_flyin", "tunnel", "water",
+}
+
 results: list[tuple[str, bool, str]] = []
 findings: list[str] = []
+skips: list[str] = []
 
 
-def record(name: str, ok: bool, detail: str = "") -> None:
+def record(name: str, ok: bool, detail: str = "", *, skipped: bool = False) -> None:
+    """Record one contract outcome.
+
+    ``skipped=True`` keeps the result OUT of ``results``: a contract that was
+    never evaluated must not be counted in "N/N checks passed". Recording skips
+    as passes is what let C3 report success for effects it had declined to check.
+    """
+    if skipped:
+        skips.append(name)
+        print(f"SKIP  {name}" + (f"  -- {detail}" if detail else ""))
+        return
     results.append((name, ok, detail))
     print(f"{'PASS' if ok else 'FAIL'}  {name}" + (f"  -- {detail}" if detail else ""))
 
@@ -134,11 +165,22 @@ def _rows(frame: str) -> list[str]:
 
 
 def _is_solid(cls) -> bool:
-    """A SOLID (full-fill) effect writes every cell, so every row is EXACTLY
-    ctx.width. Classified empirically at the canonical 80x24 across its frames:
-    if no row deviates from 80, it is a field/particle effect and must honour
-    the exact-width contract everywhere. Sparse text/banner/image effects (which
-    legitimately leave blank cells) are excluded from the exact-width gate."""
+    """Is this effect bound by the exact-width contract?
+
+    Reads the FROZEN SOLID_EFFECTS set. It is deliberately NOT measured from the
+    rendered output: the old empirical version asked "is every row exactly 80
+    wide at 80x24?", which is what C3 itself asserts, so a C3 violation
+    reclassified the effect out of C3's scope and scored a PASS.
+    """
+    return cls.name in SOLID_EFFECTS
+
+
+def _measures_as_solid(cls) -> bool:
+    """Does this effect ACTUALLY fill every cell at the canonical 80x24?
+
+    Used only to report SOLID_EFFECTS staleness in both directions, never to
+    decide whether C3 applies.
+    """
     for (t, fi) in frames_for(cls):
         for ln in _rows(render(cls, 80, 24, t, fi)):
             if visible_width(ln) != 80:
@@ -176,9 +218,11 @@ def check_no_overflow(cls) -> None:
 
 def check_exact_width(cls) -> None:
     """C3: SOLID effects fill every cell -> width == ctx.width, at realistic +
-    narrow + tiny sizes. Sparse effects are skipped (SOFT-reported elsewhere)."""
+    narrow + tiny sizes. Sparse effects are SKIPPED — recorded as a skip, not a
+    pass, so the summary line stops counting non-evaluations as passes."""
     if not _is_solid(cls):
-        record(f"exact-width {cls.name}", True, "sparse effect (exact-width n/a)")
+        record(f"exact-width {cls.name}", True, "SKIP: not a solid effect",
+               skipped=True)
         return
     for (w, h) in REALISTIC + NARROW + TINY:
         for (t, fi) in frames_for(cls):
@@ -189,6 +233,30 @@ def check_exact_width(cls) -> None:
                             f"{w}x{h} t={t} row {i}: width {cw} != {w}")
                     return
     record(f"exact-width {cls.name}", True, "every row == width (solid fill)")
+
+
+def check_solid_allowlist(cls) -> None:
+    """C6: SOLID_EFFECTS must match reality, in BOTH directions.
+
+    A frozen allowlist is only trustworthy if drift is reported. An effect on the
+    list that no longer fills its rows fails C3 above; this check catches the
+    other direction — an effect NOT on the list that does fill every cell, i.e. a
+    new full-fill effect whose author forgot to enrol it and which is therefore
+    silently exempt from the contract.
+    """
+    listed = cls.name in SOLID_EFFECTS
+    measured = _measures_as_solid(cls)
+    if measured and not listed:
+        record(f"solid-allowlist {cls.name}", False,
+               "fills every cell at 80x24 but is NOT in SOLID_EFFECTS -> "
+               "it is silently exempt from C3; add it")
+        return
+    if listed and not measured:
+        # C3 reports the substance of this; keep it as a finding so the list can
+        # be tightened rather than failing twice for one cause.
+        findings.append(
+            f"SOLID_EFFECTS stale: {cls.name} no longer fills every cell at 80x24")
+    record(f"solid-allowlist {cls.name}", True, "allowlist agrees with measurement")
 
 
 def check_narrow_allowlist(cls) -> None:
@@ -249,16 +317,18 @@ def main(argv: list[str]) -> int:
         check_exact_width(cls)
         check_narrow_allowlist(cls)
         check_tiny_no_crash(cls)
+        check_solid_allowlist(cls)
 
     failed = [r for r in results if not r[1]]
     if findings:
         print("\nFINDINGS (soft / documented):")
         for f in findings:
             print("  - " + f)
-    checks_per = 5
+    checks_per = 6
     print(f"\n{len(effects)} effects x {len(sizes)} sizes "
           f"({checks_per} contracts each)")
-    print(f"{len(results) - len(failed)}/{len(results)} checks passed")
+    print(f"{len(results) - len(failed)}/{len(results)} checks passed"
+          + (f", {len(skips)} skipped (not counted)" if skips else ""))
     return 1 if failed else 0
 
 
