@@ -160,7 +160,18 @@ def test_happy_path() -> None:
         ok_json = payload.get("ok") is True and payload.get("cols") == 90 and payload.get("rows") == 28
     except json.JSONDecodeError:
         pass
-    check(ok_json, "resize --json reports ok/cols/rows", detail=repr(cp.stdout.strip()[:90]))
+    check(ok_json, "resize --json serializes ok/cols/rows", detail=repr(cp.stdout.strip()[:90]))
+    # ...and observe it on the GRID, because the line above cannot fail for a
+    # resize that did not happen: cmd_resize builds its --json payload from `args`,
+    # never from the daemon reply (the daemon answers a bare {"ok": True}), and
+    # _call raises SystemExit on any error reply — so `ok` is unconditionally True
+    # and cols/rows are unconditionally the numbers argparse just parsed. Stubbing
+    # _call with a daemon that never resizes produces byte-identical output. Only
+    # the snapshot makes the second resize observable.
+    cp = run_cli("snapshot", "--id", sid)
+    check("[screen 28x90]" in cp.stdout,
+          "the 90x28 resize really moved the grid",
+          detail=repr(cp.stdout.splitlines()[0][:70] if cp.stdout else ""))
 
     cp = run_cli("resize", "--id", sid, "--cols", "99999", "--rows", "99999")
     check(cp.returncode != 0, "out-of-range resize exits non-zero",

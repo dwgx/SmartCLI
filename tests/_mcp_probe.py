@@ -204,7 +204,15 @@ def main() -> int:
             # would empty the wait marker and fail this block for a reason that
             # has nothing to do with the alternate screen. Secure mode also
             # disables the history file, so the probe leaves no ~/.lesshst behind.
-            r = start(cmd=f"less {fixture}", cols=80, rows=24,
+            # Pass the fixture by BASENAME with cwd set, rather than interpolating
+            # an absolute path into a command string. PosixPtyBackend runs a str
+            # command as ["/bin/sh", "-c", cmd], so an unquoted TMPDIR-derived path
+            # would be word-split and glob-expanded by sh — and every other command
+            # in this file is built with shlex.join for exactly that reason. It also
+            # keeps less's status bar short, so the wait marker cannot be pushed off
+            # an 80-column screen by a long temp path.
+            r = start(cmd=f"less {shlex.quote(fixture.name)}", cols=80, rows=24,
+                      cwd=str(fixture.parent),
                       env={"TERM": "xterm-256color", "LESSSECURE": "1"})
             sid = r.get("sid", "")
             check(bool(sid), "start real less for the alt-screen check", detail=repr(r))
@@ -222,11 +230,22 @@ def main() -> int:
                   "alt_screen is True while a full-screen program owns the screen",
                   detail=repr(r.get("alt_screen")))
             check(send_keys(sid=sid, keys=["q"]).get("ok"), "send q to quit less")
-            time.sleep(1.0)
-            r = snapshot(sid=sid)
-            check(r.get("alt_screen") is False,
+            # Poll for the CONDITION, do not sleep on a guess. A flat sleep(1.0)
+            # here made the check depend on one second being enough on every
+            # runner, ten lines above a comment saying "a marker/condition is a
+            # fact, a bare timing guess is not" — and in a file whose leak check
+            # was deliberately converted to a bounded poll for that exact reason.
+            # A real regression still fails after the whole budget; a slow teardown
+            # no longer does.
+            alt_after = None
+            for polls in range(20):  # up to ~5s
+                alt_after = snapshot(sid=sid).get("alt_screen")
+                if alt_after is False:
+                    break
+                time.sleep(0.25)
+            check(alt_after is False,
                   "alt_screen is False again once the primary screen is restored",
-                  detail=repr(r.get("alt_screen")))
+                  detail=f"{alt_after!r} after {polls + 1} poll(s)")
             check(close(sid=sid).get("ok"), "close the less session")
             sid = ""
             # Re-poll for zero leaks. The original assertion above USED TO BE the
@@ -243,7 +262,23 @@ def main() -> int:
             check(n == 0, "no leaked sessions after the less session too (polled)",
                   detail=f"{n} listed")
         else:
-            print("SKIP: less not on PATH — alt_screen True case not exercised")
+            # A skip nobody can see is not a reported outcome. run_all captures this
+            # child's stdout into a PIPE and prints only the return code, so a bare
+            # "SKIP" line here would vanish and the host would read as full coverage.
+            #
+            # On POSIX `less` is always present, so its absence means the rig is
+            # wrong, not that the platform lacks the feature — fail loudly. On
+            # Windows it genuinely may not be on PATH (Git for Windows ships
+            # less.exe under usr\bin, which the runner image does not export), so
+            # skip there, but say so on stderr where run_all's capture still shows
+            # it in a failure dump.
+            if os.name == "nt":
+                print("SKIP: less.exe not on PATH (Windows) — the alt_screen=True "
+                      "case is NOT covered on this host", file=sys.stderr)
+            else:
+                check(False, "less is present so the alt_screen=True case can run",
+                      detail="less not found on PATH; on POSIX that is a broken rig, "
+                             "not an absent feature")
     finally:
         if sid:
             try:
