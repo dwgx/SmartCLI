@@ -160,22 +160,67 @@ if not capped:
 else:
     print(f"    upper-bounded in pyproject: {capped}")
 
-for rel in ("packaging/conda-forge/recipe/meta.yaml",
-            "packaging/homebrew/smartcli-toolkit.rb"):
-    path = ROOT / rel
-    if not path.exists():
-        continue
+# Each draft is parsed in ITS OWN syntax. A single pip-shaped regex used to be run
+# over both, which meant the Homebrew half could never fail: a Ruby formula declares
+# dependencies as `resource "<name>" do ... url ".../<name>-<ver>.tar.gz" ... end`,
+# never as `name >= 1.0`. Worse, its entry guard (`if name not in text`) did not skip
+# the file either, because the bare word "mcp" appears in the formula's comments and
+# in its `desc`. So the branch was always entered, always passed, and printed a PASS
+# that read as if the formula respected pyproject's cap.
+CONDA_RECIPE = "packaging/conda-forge/recipe/meta.yaml"
+HOMEBREW_FORMULA = "packaging/homebrew/smartcli-toolkit.rb"
+
+path = ROOT / CONDA_RECIPE
+if path.exists() and capped:
     text = path.read_text(encoding="utf-8").lower()
     for name, spec in capped.items():
-        if name not in text:
-            continue  # draft does not list it at all — fine
-        # If the draft mentions the dep, it must not state a bare lower bound
-        # that would let the broken major through.
-        bare = re.search(rf"{re.escape(name)}\s*>=\s*[\d.]+\s*$",
-                         text, re.MULTILINE)
+        # conda/pip syntax: a requirement line ending in a bare lower bound.
+        if not re.search(rf"^\s*-\s*{re.escape(name)}\b", text, re.MULTILINE):
+            continue  # recipe does not list it at all — fine
+        bare = re.search(rf"{re.escape(name)}\s*>=\s*[\d.]+\s*$", text, re.MULTILINE)
         check(bare is None,
-              f"{rel}: '{name}' is not left unbounded (pyproject caps it {spec})",
-              detail="draft states a bare >= lower bound; add the same upper cap")
+              f"{CONDA_RECIPE}: '{name}' is not left unbounded "
+              f"(pyproject caps it {spec})",
+              detail="recipe states a bare >= lower bound; add the same upper cap")
+
+path = ROOT / HOMEBREW_FORMULA
+if path.exists() and capped:
+    text = path.read_text(encoding="utf-8")
+    low = text.lower()
+    # A Homebrew python formula pins each dependency by the VERSION IN ITS RESOURCE
+    # URL, so that is what has to respect the cap. Parse the stanzas.
+    stanzas = dict(re.findall(
+        r'resource\s+"([^"]+)"\s+do(.*?)\n\s*end', text, re.S))
+    is_draft = ("DRAFT" in text and "TODO" in text)
+    for name, spec in capped.items():
+        body = next((b for n, b in stanzas.items() if n.lower() == name), None)
+        if body is None:
+            # No stanza. Legitimate ONLY while the file still advertises itself as
+            # an unfinished draft — its header says it "only vendors pyte" and tells
+            # the publisher to run `brew update-python-resources` first. Once those
+            # markers are gone the formula is publishable, and a capped runtime
+            # dependency with no resource stanza would install a broken venv.
+            check(is_draft,
+                  f"{HOMEBREW_FORMULA}: '{name}' has no resource stanza",
+                  detail="the formula no longer marks itself DRAFT/TODO, so a "
+                         "missing stanza for a required dependency would ship")
+            continue
+        m = re.search(rf"{re.escape(name)}[-_](\d[\d.]*)\.tar\.gz", body, re.I)
+        check(m is not None,
+              f"{HOMEBREW_FORMULA}: '{name}' resource url states a version",
+              detail="cannot tell which version the stanza pins")
+        if m:
+            pinned = m.group(1)
+            upper = re.search(r"<\s*([\d.]+)", spec)
+            ok = True
+            if upper:
+                def _key(v: str) -> tuple[int, ...]:
+                    return tuple(int(x) for x in v.split(".") if x.isdigit())
+                ok = _key(pinned) < _key(upper.group(1))
+            check(ok,
+                  f"{HOMEBREW_FORMULA}: '{name}' pins {pinned}, respecting "
+                  f"pyproject's {spec}",
+                  detail=f"pinned {pinned} violates the cap {spec}")
 
 
 if FAILURES:
