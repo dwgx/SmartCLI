@@ -95,6 +95,16 @@ def _max_sessions() -> int:
     return value
 
 
+#: Environment variables the CLI itself reads. `--env` may not set any of them:
+#: they are the control plane, not payload for the driven child.
+_RESERVED_ENV_PREFIXES = ("SMARTCLI_TUI_",)
+_RESERVED_ENV_KEYS = frozenset({
+    "SMARTCLI_ROOT",           # smartcli_bootstrap uses it to locate the core
+    "SMARTCLI_MAX_SESSIONS",   # the session cap
+    "SMARTCLI_AUTO_INSTALL",   # doctor's dependency installer
+})
+
+
 def _parse_env_items(items: list[str]) -> dict[str, str]:
     """Parse repeated KEY=VALUE values without invoking a shell."""
     result: dict[str, str] = {}
@@ -102,7 +112,16 @@ def _parse_env_items(items: list[str]) -> dict[str, str]:
         key, sep, value = item.partition("=")
         if not sep or not _ENV_KEY_RE.fullmatch(key):
             raise SystemExit(f"error: invalid --env {item!r}; expected KEY=VALUE")
-        if key.startswith("SMARTCLI_TUI_"):
+        # Compare UPPERCASED, unconditionally. Windows environment names are
+        # case-insensitive and CPython upcases them on assignment (os.py's
+        # `encodekey` under `if name == 'nt'` returns `encode(key).upper()`), so an
+        # exact-case check let `--env smartcli_tui_token=...` through and
+        # `os.environ.update()` then installed it AS SMARTCLI_TUI_TOKEN — handing
+        # the driven child the capability that line ~854 deliberately pops so it
+        # cannot control its own daemon. Uppercasing everywhere costs nothing on
+        # POSIX and closes the bypass on the historical primary dev target.
+        upper = key.upper()
+        if upper.startswith(_RESERVED_ENV_PREFIXES) or upper in _RESERVED_ENV_KEYS:
             raise SystemExit(f"error: --env may not override SmartCLI control variable {key!r}")
         result[key] = value
     return result
@@ -411,6 +430,17 @@ def _run_daemon(
                     if not buf:
                         continue
                     req = json.loads(bytes(buf).split(b"\n", 1)[0].decode("utf-8"))
+                    # Enforce the shape BEFORE _handle touches it. A non-dict
+                    # payload (`[1,2,3]`, `"hi"`, `null`) used to reach _handle and
+                    # die on `req.get(...)` with AttributeError — which is NOT in
+                    # the narrow tuple below, so it fell to the generic handler and
+                    # replied `{"error": "AttributeError: 'list' object has no
+                    # attribute 'get'"}`: no `ok` field, unlike every other reply on
+                    # this socket, and an interpreter exception echoed to a peer that
+                    # has not authenticated. The old comment claimed ValueError
+                    # covered "non-dict .get()"; it never did.
+                    if not isinstance(req, dict):
+                        raise ValueError("request must be a JSON object")
                     # The request is complete; _handle authenticates it. Restore the
                     # generous timeout for the REPLY, which can be a large snapshot
                     # and is only ever written to an authenticated caller.
@@ -419,8 +449,9 @@ def _run_daemon(
                     shutdown = bool(resp.get("_shutdown"))
                     conn.sendall((json.dumps(resp) + "\n").encode("utf-8"))
                 except (TimeoutError, OSError, ValueError, UnicodeDecodeError) as exc:
-                    # ValueError covers json.JSONDecodeError and non-dict .get();
-                    # OSError/timeout cover a slow/rude client. Best-effort error
+                    # ValueError covers json.JSONDecodeError and the explicit
+                    # non-dict rejection above; OSError/timeout cover a slow/rude
+                    # client. Best-effort error
                     # reply, then close — the daemon keeps serving.
                     try:
                         conn.sendall((json.dumps(

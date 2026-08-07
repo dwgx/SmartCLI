@@ -56,6 +56,51 @@ def test_environment_parser() -> None:
     check(raises_system_exit(
         lambda: tui._parse_env_items(["SMARTCLI_TUI_TOKEN=stolen"])
     ), "control-plane environment cannot be overridden")
+    # Case variants: Windows env names are case-insensitive and CPython upcases
+    # keys on assignment, so `smartcli_tui_token` BECOMES SMARTCLI_TUI_TOKEN in the
+    # child — re-injecting the capability the daemon deliberately pops. An
+    # exact-case guard let all of these through.
+    for variant in ("smartcli_tui_token=stolen", "SmartCli_Tui_Token=stolen",
+                    "sMaRtCli_TUI_dir=/tmp/evil"):
+        check(raises_system_exit(lambda v=variant: tui._parse_env_items([v])),
+              f"case variant is rejected too: {variant.split('=')[0]}")
+    # The other variables the CLI itself reads are control plane as well.
+    for reserved in ("SMARTCLI_ROOT=/tmp/evil", "SMARTCLI_MAX_SESSIONS=999",
+                     "SMARTCLI_AUTO_INSTALL=1", "smartcli_root=/tmp/evil"):
+        check(raises_system_exit(lambda v=reserved: tui._parse_env_items([v])),
+              f"reserved control variable is rejected: {reserved.split('=')[0]}")
+    # A name that merely starts with the same letters is NOT reserved — the guard
+    # must not become a blanket ban on the user's own SMARTCLI-ish names.
+    check(tui._parse_env_items(["SMARTCLI_USER_THING=ok"]) ==
+          {"SMARTCLI_USER_THING": "ok"},
+          "an unreserved SMARTCLI_* name is still allowed")
+
+
+def test_non_dict_request_is_rejected_cleanly() -> None:
+    """A non-dict JSON payload must get the standard error shape, pre-auth.
+
+    `[1,2,3]` used to reach `_handle` and raise AttributeError on `req.get(...)`,
+    which is not in the connection guard's narrow tuple, so the generic handler
+    replied `{"error": "AttributeError: 'list' object has no attribute 'get'"}` —
+    missing the `ok` field every other reply carries, and echoing an interpreter
+    exception to a peer that had not authenticated.
+    """
+    for payload in ([1, 2, 3], "hi", None, 42, True):
+        raised = False
+        try:
+            tui._handle(object(), payload, "tok")  # type: ignore[arg-type]
+        except AttributeError:
+            raised = True
+        except Exception:
+            raised = False
+        check(raised,
+              f"_handle still cannot digest a non-dict itself ({type(payload).__name__})"
+              " -> the caller must reject it first")
+    # And the daemon loop's guard is what does the rejecting: assert the isinstance
+    # check exists on the request path, since the loop itself needs a socket to run.
+    src = (ROOT / "skills/drive-tui/scripts/tui.py").read_text(encoding="utf-8")
+    check("if not isinstance(req, dict):" in src,
+          "the daemon rejects a non-dict request before _handle sees it")
 
 
 def test_session_limit() -> None:
@@ -195,6 +240,7 @@ def main() -> int:
     test_daemon_resize_survives_bad_size()
     test_registry_symlink()
     test_close_keeps_a_live_daemons_entry()
+    test_non_dict_request_is_rejected_cleanly()
     print()
     if failures:
         print(f"{failures} FAILURE(S)")
