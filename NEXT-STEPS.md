@@ -312,6 +312,34 @@ non-negotiable and overrides any shortcut that looks faster.
   never both).
 - **Effort:** M
 
+### A0-DAEMON-CONCURRENCY. Stop one connection from blocking the daemon  [M]
+- **Goal:** the session daemon's accept loop is serial (`conn, _ = srv.accept()`, no
+  threading, `srv.listen(8)`), so ONE peer inside `recv()` blocks every other caller —
+  including an unauthenticated one, since the transport runs before the token check.
+- **What is already done, and what is not:** `beb7583` split the timeout into a 2s
+  pre-auth budget (re-armed against a fixed deadline, so a dribbling peer cannot renew
+  it) and a 60s post-auth reply budget. **Measured: nine held connections went from a
+  worst case of 9x60 = 540s down to 18s.** That is a 30x reduction and NOT a fix — an
+  attacker who keeps reconnecting still degrades service, because the loop is still
+  serial.
+- **Why it was not finished there:** the real answer is handling each connection in its
+  own thread, and `PtySession` is not thread-safe. Doing that inside a security patch
+  would have been a concurrency-model change smuggled in under a different heading.
+- **First step:** decide the model before writing code. Either (a) one accept thread
+  handing connections to a single-threaded session worker over a queue, which keeps all
+  PtySession access on one thread and makes the accept loop non-blocking, or (b) a lock
+  around the session with per-connection threads, which is simpler but serialises the
+  expensive part anyway and risks a slow verb holding the lock. (a) is likely right:
+  the wait verbs block for many seconds by design, and under (b) a wait would hold the
+  lock for its whole timeout.
+- **Verify:** a pure test (no PTY) that opens `listen` backlog + 1 connections which
+  never send a newline and asserts an authenticated request still gets a reply within a
+  small bound — the rig in `beb7583`'s commit message drives the loop with a fake
+  session and is a working starting point. Also confirm a legitimate large payload
+  (200 KB send-text, which spans several `recv()` calls) still succeeds, and that a
+  blocking `wait-regex` on one connection no longer prevents a `snapshot` on another.
+- **Effort:** M
+
 ### A0-I18N-ONBOARD. Port the English onboarding flow to the four locales  [S]
 - **Goal:** the English README now opens with a copy-pasteable "Drive something in 30
   seconds" block and the runnable `examples/drive_vim.py` comparison (0.1.8 fails to save
