@@ -155,8 +155,48 @@ check(isinstance(m.visual_hash(), int), "visual_hash survives a resize")
 # --------------------------------------------------------------------------
 # 2. Ceilings — orders of magnitude, not percentages.
 # --------------------------------------------------------------------------
+# A TIMING assertion is meaningless under a tracer. `tools/coverage_run.py`
+# includes this file in its deterministic subset and runs it with coverage's
+# process-startup hook installed, which bills a Python-level callback against
+# every call — so the number measured there describes the tracer, not this code.
+# Measured: `content_hash` at 300x100 is ~5 ms bare on the dev box and hit
+# 30.0132 ms against a 30 ms ceiling on a CI coverage run, i.e. a 0.04% "failure"
+# that says nothing about the product.
+#
+# The right response is to DECLINE to measure, not to raise the ceiling: a
+# ceiling loose enough to survive instrumentation could no longer catch the
+# regression this file exists for (per-cell hashing, 16.6 ms idle where the
+# incremental version is 0.008 ms — a 2000x window). Coverage still gets its line
+# data from section 1's correctness checks above, which run either way.
+#
+# Detected via sys.gettrace()/sys.monitoring rather than an env var, so it is true
+# whenever a tracer is actually attached, including under a debugger.
+def _tracer_attached() -> tuple[bool, str]:
+    if sys.gettrace() is not None:
+        return True, f"sys.gettrace() -> {type(sys.gettrace()).__name__}"
+    # 3.12+ can trace via sys.monitoring without setting gettrace.
+    mon = getattr(sys, "monitoring", None)
+    if mon is not None:
+        try:
+            for tool_id in range(6):
+                name = mon.get_tool(tool_id)
+                if name:
+                    return True, f"sys.monitoring tool {tool_id}={name!r}"
+        except Exception:
+            pass
+    if "coverage" in sys.modules:
+        return True, "coverage is imported in this process"
+    return False, ""
+
+
+TRACED, TRACE_WHY = _tracer_attached()
+
 print("\n--- per-call cost stays within the polling budget ---")
 print("    (wait_visual_change polls every 30 ms by default)")
+if TRACED:
+    print(f"SKIP: timing ceilings not measured — a tracer is attached ({TRACE_WHY}); "
+          f"under instrumentation these numbers describe the tracer, not the code. "
+          f"The correctness assertions above still ran.")
 
 # Measured 2026-07-27 on an M-series mac AFTER the incremental fix:
 #   idle 300x100 ~0.008 ms, one-row-changed 300x100 ~0.23 ms.
@@ -165,30 +205,31 @@ print("    (wait_visual_change polls every 30 ms by default)")
 IDLE_CEILING_MS = {(80, 24): 0.5, (200, 50): 1.0, (300, 100): 2.0}
 DIRTY_CEILING_MS = {(80, 24): 2.0, (200, 50): 4.0, (300, 100): 8.0}
 
-for size, ceiling in IDLE_CEILING_MS.items():
-    m = fill(*size)
-    ms = per_call_ms(m.visual_hash, 200)
-    check(ms < ceiling, f"idle poll {size[0]}x{size[1]}: {ms:.4f} ms < {ceiling} ms",
-          detail=f"({ms / 30 * 100:.2f}% of a 30 ms poll)")
+if not TRACED:
+    for size, ceiling in IDLE_CEILING_MS.items():
+        m = fill(*size)
+        ms = per_call_ms(m.visual_hash, 200)
+        check(ms < ceiling, f"idle poll {size[0]}x{size[1]}: {ms:.4f} ms < {ceiling} ms",
+              detail=f"({ms / 30 * 100:.2f}% of a 30 ms poll)")
 
-for size, ceiling in DIRTY_CEILING_MS.items():
-    m = fill(*size)
-    m.visual_hash()
+    for size, ceiling in DIRTY_CEILING_MS.items():
+        m = fill(*size)
+        m.visual_hash()
 
-    def poll_one_row(model=m):
-        model.feed(b"\x1b[1;1Hq")
-        model.visual_hash()
+        def poll_one_row(model=m):
+            model.feed(b"\x1b[1;1Hq")
+            model.visual_hash()
 
-    ms = per_call_ms(poll_one_row, 200)
-    check(ms < ceiling, f"one row changed {size[0]}x{size[1]}: {ms:.4f} ms < {ceiling} ms",
-          detail=f"({ms / 30 * 100:.2f}% of a 30 ms poll)")
+        ms = per_call_ms(poll_one_row, 200)
+        check(ms < ceiling, f"one row changed {size[0]}x{size[1]}: {ms:.4f} ms < {ceiling} ms",
+              detail=f"({ms / 30 * 100:.2f}% of a 30 ms poll)")
 
-# content_hash is the text-only primitive the readiness layer polls; it has no
-# incremental path, so this records its real cost rather than optimizing it.
-for size, ceiling in {(80, 24): 3.0, (300, 100): 30.0}.items():
-    m = fill(*size)
-    ms = per_call_ms(m.content_hash, 100)
-    check(ms < ceiling, f"content_hash {size[0]}x{size[1]}: {ms:.4f} ms < {ceiling} ms")
+    # content_hash is the text-only primitive the readiness layer polls; it has no
+    # incremental path, so this records its real cost rather than optimizing it.
+    for size, ceiling in {(80, 24): 3.0, (300, 100): 30.0}.items():
+        m = fill(*size)
+        ms = per_call_ms(m.content_hash, 100)
+        check(ms < ceiling, f"content_hash {size[0]}x{size[1]}: {ms:.4f} ms < {ceiling} ms")
 
 if FAILURES:
     print(f"\ntest_perf_contract FAIL -- {len(FAILURES)} check(s):")
