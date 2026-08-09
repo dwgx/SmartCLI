@@ -20,6 +20,7 @@ running this same file against `smartcli-toolkit==0.1.8`.
 """
 from __future__ import annotations
 
+import os
 import shutil
 import sys
 import tempfile
@@ -53,6 +54,20 @@ def step(label: str, ok: bool, detail: str = "") -> None:
 
 
 def main() -> int:
+    # TERM must be SET, not inherited. Without one, vim falls back to a dumb
+    # terminal: it never issues `ESC[?1049h`, so the alternate-screen step fails,
+    # and it does not process the `:wq` the way a screen-oriented editor would, so
+    # the file never changes on disk. Both are the FEATURES this example exists to
+    # demonstrate, failing for the absence of an environment variable rather than
+    # for anything in the code. Measured: with TERM absent 2 of 6 steps fail, with
+    # `TERM=xterm-256color` all 6 pass. This is the fourth time in this project's
+    # history that a rig has suppressed the very feature it was aimed at (`less -X`,
+    # GNU screen's `altscreen` default, a missing TERM for `less` — HANDOFF 10j),
+    # which is why it is set here instead of documented as a prerequisite. CI
+    # runners have no TERM either, so inheriting it would fail there too.
+    if not os.environ.get("TERM"):
+        os.environ["TERM"] = "xterm-256color"
+
     workdir = Path(tempfile.mkdtemp(prefix="drive_vim_"))
     target = workdir / "hello.txt"
     target.write_text("first line\nsecond line\n", encoding="utf-8")
@@ -83,9 +98,24 @@ def main() -> int:
              if alt is None else repr(alt))
 
         # 3. Edit: go to end of file, open a new line, type, leave insert mode.
+        #
+        # CONFIRM each mode change before typing into it. These five calls used to
+        # be issued back to back with nothing between them, which is the blind
+        # send this project exists to argue against: `o` only means "open a line"
+        # to a vim that has already processed `G`, and under load it does not
+        # process them in the gap between two write() calls. Observed failing on a
+        # busy machine at "typed text appears on screen" — the keystrokes were
+        # swallowed and vim was still in normal mode, so nothing was inserted.
+        # `-u NONE` gives no visible cue for `G`, so the confirmable fact is
+        # INSERT mode: vim's `showmode` prints `-- INSERT --` on the last row, and
+        # waiting for it proves `o` landed, which in turn proves `G` did.
         session.send_keys(["Escape"])
+        session.wait_stable(max_wait_ms=1500, quiet_ms=80)
         session.send_text("G")            # last line
+        session.wait_stable(max_wait_ms=1500, quiet_ms=80)
         session.send_text("o")            # open a line below, enter insert mode
+        in_insert, _ = session.wait_for(r"-- INSERT --", timeout_ms=8000)
+        step("vim entered insert mode (so G and o both landed)", in_insert)
         session.send_text("third line from an agent")
         session.send_keys(["Escape"])
         matched, _ = session.wait_for(r"third line from an agent", timeout_ms=8000)

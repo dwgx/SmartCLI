@@ -55,6 +55,29 @@ def tm(*args: str) -> subprocess.CompletedProcess:
                           capture_output=True, text=True, timeout=30)
 
 
+def wait_pane_paints(target: str, timeout: float = 8.0) -> str:
+    """Poll `capture-pane` until the pane has painted something, then return it.
+
+    The single-effect branch of fx-split ends in `exec tmux split-window`, which
+    returns as soon as the new pane EXISTS — the interpreter inside it has not
+    imported fx, let alone produced a frame. So reading the pane the instant
+    `RC=` appears in the log samples a legitimately blank screen: measured here,
+    RC lands by ~0.5s and the first frame at ~1.0s. This is precisely the
+    "a bare timing guess is not a fact" failure this repo keeps re-learning
+    (HANDOFF 10j lists three earlier instances), and it is why this returns on a
+    CONDITION with a bound rather than after a sleep. A pane that genuinely never
+    renders still fails, just 8s later.
+    """
+    deadline = time.time() + timeout
+    text = ""
+    while time.time() < deadline:
+        text = tm("capture-pane", "-p", "-t", target).stdout
+        if text.strip():
+            return text
+        time.sleep(0.2)
+    return text
+
+
 def kill_server() -> None:
     subprocess.run(["tmux", "-f", "/dev/null", "kill-server"],
                    capture_output=True, text=True, timeout=30)
@@ -82,6 +105,16 @@ def main() -> int:
     if subprocess.run(["which", "tmux"], capture_output=True).returncode != 0:
         print("SKIP: tmux not on PATH (this probe needs a real tmux host)")
         return 0
+    # TERM must be SET, not inherited. tmux refuses to attach a client with an
+    # empty/absent TERM ("open terminal failed: missing or unsuitable terminal"),
+    # so the attached-client case silently degraded to "no client" and reported a
+    # working feature as broken — measured on a login shell where TERM was unset,
+    # and on CI runners, which have no TERM at all. Same class as `less` never
+    # entering the alternate screen without one (HANDOFF 10j): the rig suppressing
+    # the very feature under test. Set it here so the probe does not depend on how
+    # it was launched.
+    if not os.environ.get("TERM"):
+        os.environ["TERM"] = "xterm-256color"
     ver = subprocess.run(["tmux", "-V"], capture_output=True, text=True).stdout.strip()
     print("=" * 68)
     print(f"cmd-art tmux launchers on a real tmux  |  {ver}")
@@ -125,7 +158,7 @@ def main() -> int:
         check(rc == 0, "fx-split: exit 0 inside a session", detail=f"rc={rc} {text[:120]!r}")
         check(after == before + 1, "fx-split: pane count grew by one",
               detail=f"before={before} after={after}")
-        pane1 = tm("capture-pane", "-p", "-t", "fxprobe.1").stdout
+        pane1 = wait_pane_paints("fxprobe.1")
         check(bool(pane1.strip()), "fx-split: the new pane is rendering an effect",
               detail=repr(pane1[:80]))
         kill_server()
