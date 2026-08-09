@@ -65,10 +65,17 @@ python examples/drive_vim.py
 #   [OK ] vim painted its screen
 #   [OK ] file contents visible on screen
 #   [OK ] alternate screen is active
+#   [OK ] vim entered insert mode (so G and o both landed)
 #   [OK ] typed text appears on screen
 #   [OK ] vim restored the main screen on exit
 #   [OK ] file on disk really changed
 ```
+
+Note the fourth step. It is there because the example itself once sent five
+keystrokes back to back with nothing between them, and under load `vim` had not
+processed `G` by the time `o` arrived, so nothing was inserted and the run failed
+with no useful diagnosis. Confirming insert mode proves both keys landed — the
+same discipline the tool exists to provide, applied to its own demo.
 
 Run the same file against `smartcli-toolkit==0.1.8` and two steps fail — and the
 file is *never saved*, because a driver that cannot see the alternate screen

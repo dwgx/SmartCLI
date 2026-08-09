@@ -15,6 +15,9 @@ on:
       - "skills/**"
       - "requirements.txt"
       - ".github/workflows/docker.yml"
+      # The smoke test itself gates the image, so a change to it must
+      # re-run this workflow — otherwise the gate can be broken silently.
+      - "tools/mcp_stdio_smoke.py"
   pull_request:
     # Mirror the push paths so a PR that breaks the image via a core/skill change
     # (e.g. a bad import the fx/ui/drive entrypoint hits) gets caught by the
@@ -26,6 +29,9 @@ on:
       - "skills/**"
       - "requirements.txt"
       - ".github/workflows/docker.yml"
+      # The smoke test itself gates the image, so a change to it must
+      # re-run this workflow — otherwise the gate can be broken silently.
+      - "tools/mcp_stdio_smoke.py"
   workflow_dispatch:
 
 env:
@@ -66,11 +72,56 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build and push
+      # Build a local, single-arch image FIRST and run it. `load: true` is what
+      # makes the result runnable: a pushed manifest cannot be `docker run`, so a
+      # smoke step against the pushed tag would have to pull it back, and on a
+      # pull_request there is nothing pushed at all. Building twice is cheap here
+      # because both steps share the same gha cache.
+      - name: Build image locally (loadable, for the smoke test)
         uses: docker/build-push-action@v6
         with:
           context: .
-          push: ${{ github.event_name != 'pull_request' }}
+          load: true
+          tags: smartcli:smoke
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # THE CHECK THAT WAS MISSING. This workflow built and pushed the image but
+      # never STARTED it, so `CMD ["mcp"]` shipped in three releases with no test
+      # ever running it — while starting the image with no arguments and speaking
+      # JSON-RPC is precisely how an MCP directory validates a server. Two real
+      # bugs this catches, both of which this project has actually had:
+      #   * the image defaulting to `fx gallery`, so a directory received an
+      #     animation on stdout and would have scored the server broken;
+      #   * `serverInfo` reporting the MCP SDK's version instead of ours, which is
+      #     the value directory pages display.
+      # Mutation-verified locally against both, plus a third (the `snapshot` reply
+      # dropping `alt_screen`) — see tools/mcp_stdio_smoke.py.
+      - name: Run the image and speak JSON-RPC to it (MCP directory check)
+        # `python3`, not `python`: this job has no setup-python step, and the
+        # runner image does not guarantee a bare `python` on PATH — the same
+        # assumption CLAUDE.md warns about for the drive-tui target command. The
+        # script itself needs no third-party packages (stdlib only) precisely so
+        # this step does not need a Python setup or a pip install.
+        run: python3 tools/mcp_stdio_smoke.py -- docker run -i --rm smartcli:smoke
+
+      # Also assert the documented human entrypoints still work, since the same
+      # dispatcher serves them and a broken `fx`/`ui` branch would only surface
+      # for a user. One frame, non-TTY, so it degrades to a single static frame.
+      - name: Entrypoint dispatch still serves the demo verbs
+        run: |
+          docker run --rm smartcli:smoke fx list | head -3
+          docker run --rm smartcli:smoke ui widgets | head -3
+
+      - name: Push
+        # Same build, now pushed with the real tags. Skipped on pull_request,
+        # where the token is read-only — the smoke above still ran, so a fork PR
+        # that breaks the image is caught without needing push rights.
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha

@@ -265,6 +265,33 @@ for doc in RECIPE_DOCS:
     check(not bad, f"{rel}: recipe counts all == {N_RECIPES}"
           + ("" if not bad else " -> " + "; ".join(bad)))
 
+# --- a quoted program output must match what the program actually prints ------
+# README shows drive_vim.py's step list as evidence, which is the strongest claim
+# in the onboarding path — and it went stale the moment the example gained a
+# seventh step (a confirmation of insert mode, added because the example was
+# sending keystrokes blind). Nothing was watching, so the doc quietly advertised
+# six steps for output that has seven.
+#
+# This compares the QUOTED lines against the step labels in the source, purely
+# statically: it parses `step("...")` calls out of examples/drive_vim.py rather
+# than running it. Running it would spawn a real PTY and vim, which this gate is
+# forbidden to do (CLAUDE.md's red line) and does not need to do — the labels are
+# literals in the source.
+STEP_CALL_RE = re.compile(r'^\s*step\(\s*"([^"]+)"', re.M)
+QUOTED_OK_RE = re.compile(r"^#\s+\[OK \]\s*(.+?)\s*$", re.M)
+
+example = ROOT / "examples" / "drive_vim.py"
+readme = ROOT / "README.md"
+if example.exists() and readme.exists():
+    src_steps = STEP_CALL_RE.findall(example.read_text(encoding="utf-8"))
+    doc_steps = QUOTED_OK_RE.findall(readme.read_text(encoding="utf-8"))
+    if doc_steps:  # only enforce while README actually quotes the output
+        check(doc_steps == src_steps,
+              f"README's drive_vim output matches the example's {len(src_steps)} steps"
+              + ("" if doc_steps == src_steps else
+                 f" -> README quotes {len(doc_steps)}: {doc_steps!r}; "
+                 f"source declares {len(src_steps)}: {src_steps!r}"))
+
 # --- portable docs must not hard-code one machine's absolute paths -----------
 portable = []
 for pattern in PORTABLE_DOC_GLOBS:
