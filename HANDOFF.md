@@ -17,6 +17,14 @@
 > registry entry**, stranding a real PTY child while `list` — the command this
 > project's red line tells you to trust — reported zero sessions. See §10l.
 >
+> **⚠️ PRODUCT CODE SITS UNRELEASED ON `main` AGAIN.** The daemon concurrency fix
+> (§10n) changes `smartcli_core` and the drive-tui control plane, and it is NOT in
+> v0.2.2 — so PyPI users still have the serial accept loop and its ~18s
+> head-of-line denial of service. That is a security fix, which makes cutting
+> v0.2.3 a real decision rather than housekeeping; it is the owner's call
+> (A0-REL-023 in NEXT-STEPS). The CHANGELOG's `[Unreleased]` section lists what
+> would ship.
+>
 > **Read the release state off git, never off this file:** `git describe --tags` and
 > `git rev-list --count $(git describe --tags --abbrev=0)..HEAD`. A banner sat here
 > for three days saying 18 commits were unreleased; the count is the kind of fact

@@ -124,6 +124,26 @@ non-negotiable and overrides any shortcut that looks faster.
 
 ## A0. NEW since v0.2.0 (added 2026-07-27)
 
+### A0-REL-023. Decide whether to release the daemon concurrency fix  [S] (OWNER decision)
+- **Goal:** `main` carries a SECURITY fix that v0.2.2 does not — the serial accept loop
+  let any local process deny service for ~18s with no credential. Either cut v0.2.3 or
+  record a decision not to.
+- **Why it is a real decision, not housekeeping:** it modifies `smartcli_core` (a new
+  optional `on_poll` parameter on six wait methods — additive, default `None`, so no
+  caller breaks) and rewrites the daemon's concurrency model. The three-condition core
+  policy was satisfied (real-run-path, adversarial review, no regression — HANDOFF
+  §10n), and CI is green on all 11 jobs including the three-OS real-PTY smoke, so the
+  evidence is there. What remains is the judgement that a published version number can
+  never be reused.
+- **The work if you say yes:** bump the ten version sites, `python tools/sync_vendor.py`,
+  `test_version_sync` + `test_vendor_sync`, move the CHANGELOG's `[Unreleased]` section
+  under a dated `[0.2.3]` heading, then `git tag v0.2.3 && git push origin v0.2.3`.
+- **Verify:** all three publish.yml jobs green, then install from PyPI with
+  `--index-url https://pypi.org/simple` (this box's pip uses a mirror whose lag looks
+  exactly like a failed publish) and delete the duplicate draft release
+  `release-drafter.yml` leaves behind.
+- **Effort:** S
+
 ### ~~A0-REL-022. Release the 18 unreleased commits~~  [DONE 2026-08-09 — v0.2.2 is live]
 - **Result:** v0.2.2 shipped from `cf76575` with the owner's go-ahead. All three
   publish.yml jobs green including `publish-mcp`. Verified at the endpoints rather than
@@ -253,7 +273,11 @@ non-negotiable and overrides any shortcut that looks faster.
   guarded. `tests/_tmux_launcher_probe.py` locks all five states (18/18, zero
   residue) and SKIPs itself where tmux is absent.
 
-### A0-DIFF2. Extend differential testing beyond tmux  [M]
+### ~~A0-DIFF2-orig~~. Extend differential testing beyond tmux  [SUPERSEDED — see the DONE entry below]
+> Kept for its case list only. The premise ("the only evidence perception is correct")
+> was acted on: tmux + GNU screen differential, generative fuzz, alt-screen and DECCKM
+> cases all shipped 2026-07-27. What is genuinely left is a GUI-terminal reference
+> (kitty/Alacritty, neither installed) and DCS/DECRQSS round-trips.
 - **Goal:** `tests/_diff_tmux_pyte.py` proves our grid matches real tmux on 26
   cases. Extend the same technique: (a) more cases — alt-screen enter/exit,
   DECCKM arrows, mouse-mode sequences, OSC title, bracketed paste, SGR
@@ -272,7 +296,12 @@ non-negotiable and overrides any shortcut that looks faster.
   is triaged as rig-vs-real before touching the core.
 - **Effort:** M
 
-### A0-PERF. Performance contract for the wait primitives  [M]
+### ~~A0-PERF-orig~~. Performance contract for the wait primitives  [DONE — see below]
+> **Its opening line is no longer true** and was misleading a fresh reader: a perf
+> contract DOES exist (`tests/test_perf_contract.py`) and `visual_hash` IS incremental
+> (16.566 ms -> 0.008 ms idle at 300x100). Shipped 2026-07-27; on 2026-08-09 it also
+> learned to decline measuring under a coverage tracer. Kept only for the measurements
+> that motivated it.
 - **Goal:** no perf test exists anywhere in the suite. Measured 2026-07-27 on
   this machine: `content_hash` 0.34 ms and `visual_hash` 1.16 ms at 80x24, but
   **5.35 / 16.85 ms at 300x100** — at the default `poll_ms=30`, `visual_hash`

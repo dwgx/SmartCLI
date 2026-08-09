@@ -5,6 +5,57 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Product changes sitting on `main` and NOT in v0.2.2. `pip install smartcli-toolkit`
+does not contain them.
+
+### Fixed
+- **One connection could stall the daemon for every other caller.** The accept loop
+  was serial with the UNAUTHENTICATED transport read inline, so any local process
+  could connect, send bytes with no newline, and head-of-line block every other
+  caller — measured at ~18s of denial from nine held connections, repeatable and
+  needing no credential. Now the accept thread only accepts, a per-connection reader
+  performs the unauthenticated work (read, parse, constant-time token check) so a
+  silent peer burns only its own 2s budget, and a single worker thread is the only
+  thread that touches the session. Measured after: an authenticated request is served
+  in 0.00s under the same attack. A previous release note described this as bounded
+  30x but not fixed; it is now fixed.
+- **A long wait blocked unrelated fast verbs.** A `wait-regex --timeout-ms 60000`
+  occupied the session worker, so a concurrent `snapshot` waited behind it (8.00s,
+  measured). `smartcli_core`'s four wait loops and `PtySession`'s six wait methods
+  gained an optional `on_poll` hook, invoked in the idle gap **on the waiting
+  thread**, so a fast verb is answered without a second thread ever entering the
+  session — `PtySession` is not thread-safe (`visual_hash()` clears `screen.dirty`
+  as a side effect, `pump()` is read-modify-write, `resize()` mutates four fields in
+  sequence). Default `None`, so every existing caller behaves identically. On a live
+  PTY: `snapshot` in 0.13s during a 20s `wait-regex`. A second LONG wait still queues
+  behind the first — one session owns one PTY child, so that is inherent.
+  `resize` is deliberately NOT answered mid-wait: it re-dimensions the pyte screen and
+  therefore changes the content hash, which would make a caller blocked in
+  `wait-change` conclude its own keystroke had landed.
+
+### Added
+- `tests/test_daemon_concurrency.py` — drives the real accept loop against a fake
+  session (no PTY, no child process) and locks: an authenticated request is served
+  while `listen` backlog + 1 silent peers hold connections; a 200 KB request spanning
+  many `recv()` calls still succeeds; auth is still enforced with no screen leak; a
+  fast verb is answered during a long wait; and session access provably stays on one
+  thread. Suite is 44 entries.
+- `tools/mcp_stdio_smoke.py`, run by `docker.yml` against the built image — the check
+  an MCP directory performs (start the container with no arguments, speak JSON-RPC).
+  The image had shipped with `CMD ["mcp"]` for three releases with no test ever
+  running it.
+
+### Changed
+- `test_perf_contract` declines to measure timing ceilings when a tracer is attached
+  (coverage runs it under one), because the number measured there describes the
+  tracer. Raising the ceiling instead would have destroyed the 2000x regression window
+  the gate exists to protect.
+- `test_doc_counts` gates README's quoted `drive_vim` output against the example's
+  `step()` literals, and the four localized READMEs gained the 30-second quickstart
+  and the `drive_vim` comparison.
+
 ## [0.2.2] - 2026-08-09
 
 A control-plane correctness release. The headline is that **`close` could delete a
