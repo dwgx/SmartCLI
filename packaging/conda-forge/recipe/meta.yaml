@@ -1,5 +1,5 @@
 {% set name = "smartcli-toolkit" %}
-{% set version = "0.2.0" %}
+{% set version = "0.2.3" %}
 
 # conda-forge recipe DRAFT for smartcli-toolkit.
 #
@@ -24,7 +24,7 @@ package:
 
 source:
   url: https://pypi.io/packages/source/{{ name[0] }}/{{ name }}/smartcli_toolkit-{{ version }}.tar.gz
-  sha256: 0000000000000000000000000000000000000000000000000000000000000000  # TODO: fill in (see header)
+  sha256: a9edfa4b55c480e5549d4436fed26dabaf8793ecc63a4c59a0fd3750e0d3a355
 
 build:
   noarch: python

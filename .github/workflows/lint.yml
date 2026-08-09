@@ -40,3 +40,23 @@ jobs:
       - name: ruff format report (advisory)
         continue-on-error: true
         run: ruff format --check .
+
+  # The Read the Docs site (https://smartcli.readthedocs.io/) is assembled by
+  # tools/build_docs.py and built by mkdocs. Nothing verified that build on a PR,
+  # so a broken cross-doc link or a page dropped from the nav could only be found
+  # by noticing the live site had rotted. `--strict` turns those into failures.
+  # BLOCKING on purpose: the failure mode is silent, so an advisory gate here
+  # would just be noise nobody reads.
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install the docs toolchain
+        run: pip install -r docs/requirements.txt
+      - name: Assemble docs/*.md from the canonical sources
+        run: python tools/build_docs.py
+      - name: mkdocs build --strict (fails on broken links / nav drift)
+        run: python -m mkdocs build --strict

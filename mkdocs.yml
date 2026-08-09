@@ -58,6 +58,13 @@ exclude_docs: |
   PACKAGING-NOTES.md
   MACOS-VERIFY.md
   LAUNCH-COPY.md
+  # Internal strategy, not user documentation: it records each channel's real
+  # acceptance rules (including the ones that forbid automated submissions) and
+  # links to LAUNCH-COPY.md, which is excluded above. Leaving it IN the build
+  # produced two warnings on every run — not in nav, and linking to an excluded
+  # page — which is exactly the kind of noise that trains you to ignore the
+  # docs build. Excluded deliberately rather than silenced.
+  DISTRIBUTION-CHANNELS.md
 
 # The nav maps existing repo docs into a site. mkdocs reads Markdown from docs_dir
 # (default: docs/), so these use paths relative to the repo via the include below.

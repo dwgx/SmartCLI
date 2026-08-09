@@ -2,6 +2,16 @@
 # Python virtualenv helper). This installs the shared `smartcli_core` and its
 # `pyte` dependency into an isolated libexec venv.
 #
+# ⚠ 2026-08-09 VERDICT: not worth publishing to homebrew-core.
+# The `mcp` SDK (a required dep since 0.2.0) pulls a ~30-package transitive
+# closure that is Rust-compiled (pydantic-core, rpds-py) and Homebrew forces
+# `--no-binary=:all:`, so every install would compile them from source.
+# Publishing would make users wait minutes to install what `pip install
+# smartcli-toolkit` does in seconds. Keep this as the tap-only draft (path A);
+# do NOT open a homebrew-core PR.
+# The sha256 values below are VERIFIED against the published 0.2.3 sdist (not
+# placeholders): sdist a9edfa4b… and pyte 5af970e8….
+#
 # TO PUBLISH (the step only you can do), pick one:
 #   A) Your own tap (fastest, no external review):
 #        1. Create a repo named `homebrew-tap` under your GitHub account.
@@ -29,8 +39,8 @@ class SmartcliToolkit < Formula
   desc "Pluggable-PTY core, TUI driver and stdio MCP server for the terminal"
   homepage "https://github.com/dwgx/SmartCLI"
   # TODO (stale placeholder): bump to the release being packaged, e.g. 0.2.0.
-  url "https://files.pythonhosted.org/packages/source/s/smartcli-toolkit/smartcli_toolkit-0.1.2.tar.gz"
-  sha256 "0000000000000000000000000000000000000000000000000000000000000000" # TODO: sdist sha256
+  url "https://files.pythonhosted.org/packages/source/s/smartcli-toolkit/smartcli_toolkit-0.2.3.tar.gz"
+  sha256 "a9edfa4b55c480e5549d4436fed26dabaf8793ecc63a4c59a0fd3750e0d3a355"
   license "MIT"
 
   depends_on "python@3.12"

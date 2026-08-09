@@ -88,15 +88,34 @@ Action (composes server.json + publishes via OIDC), matching our existing
 tag-push release flow.
 
 ### conda-forge — `packaging/conda-forge/recipe/meta.yaml`
-Draft ready. Fill the sdist `sha256` (command in the file header), copy into a fork
-of `conda-forge/staged-recipes` under `recipes/smartcli-toolkit/`, open a PR. A
-conda-forge maintainer reviews; on merge a feedstock is auto-created and their bot
-bumps future versions.
+**Calibrated to 0.2.3 and the sha256 is FILLED and verified** (2026-08-09) — it
+matches PyPI's own recorded digest for the 0.2.3 sdist, and the recipe's three
+`test:` commands were run against a real install of that version and pass. The
+dependency list, `requires-python` floor and `noarch: python` all agree with
+`pyproject.toml`.
+
+Two things remain, and both are yours:
+1. **A second `recipe-maintainers` entry.** conda-forge wants more than one
+   maintainer per feedstock; the recipe currently lists only `dwgx`. Either add
+   someone who agrees to it, or submit with one and expect a reviewer to ask.
+2. Copy into a fork of `conda-forge/staged-recipes` under
+   `recipes/smartcli-toolkit/` and open a PR. A maintainer reviews; on merge a
+   feedstock is auto-created and their bot bumps future versions.
 
 ### Homebrew — `packaging/homebrew/smartcli-toolkit.rb`
-Draft ready. Fastest path is your own tap: create `dwgx/homebrew-tap`, put the file
-at `Formula/smartcli-toolkit.rb`, fill the two `sha256` values (commands in header),
-then `brew install dwgx/tap/smartcli-toolkit`.
+**Do not open a homebrew-core PR.** Verdict recorded 2026-08-09 in the formula
+header: `mcp` has been a required dependency since 0.2.0, and its transitive
+closure is ~30 packages including Rust-compiled `pydantic-core` and `rpds-py`.
+Homebrew forces `--no-binary=:all:`, so every `brew install` would compile those
+from source — minutes of build for something `pip install smartcli-toolkit` does
+in seconds. That is a worse experience than the channel we already ship on, and a
+formula nobody can maintain cheaply.
+
+The sdist and `pyte` sha256 values in the draft are now **real and verified**
+against the published 0.2.3 sdist (previously all-zero placeholders), so if you
+ever do want a personal tap the file is honest: create `dwgx/homebrew-tap`, put it
+at `Formula/smartcli-toolkit.rb`, and regenerate the remaining `resource` stanzas
+with `brew update-python-resources` — the draft only vendors `pyte` today.
 
 ## macOS verification
 See `docs/MACOS-VERIFY.md` — the runbook for the one unverified platform (BSD pty
