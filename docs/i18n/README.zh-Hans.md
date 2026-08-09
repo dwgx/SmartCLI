@@ -100,6 +100,48 @@ set PYTHONIOENCODING=utf-8
 和依赖版本。`smartcli-tui doctor` 报告内核是从哪里加载的，以及 drive 相关依赖
 是否齐全。提交与终端环境相关的 bug 时，请附上这两条命令的输出。
 
+### 30 秒驱动一个程序
+
+直接复制粘贴。它会在 PTY 下启动一个真实的 Python REPL，等待提示符出现（绝不用
+盲目的 `sleep`），向它输入，再把屏幕读回来：
+
+```bash
+pip install smartcli-toolkit
+SID=$(smartcli-tui start --cmd "python3 -i -q" --cols 80 --rows 24 --json | python3 -c "import json,sys;print(json.load(sys.stdin)['sid'])")
+smartcli-tui wait-regex --id $SID ">>> " --timeout-ms 15000
+smartcli-tui send-line --id $SID "print(6*7)"
+smartcli-tui wait-regex --id $SID "42"          # prints the cell grid it sees
+smartcli-tui close --id $SID
+```
+
+Windows 上请改用 `--cmd "py -i -q"`。把命令换成 `vim`、`htop` 或 `lazygit`，同样这
+五个动词也能驱动它们 —— 这正是重点所在：**`wait-regex` 这一类原语是对屏幕真正显示
+的内容做出反应**，所以 agent 永远不必猜自己的按键到底有没有生效。
+
+想看同样的流程作用在一个真实编辑器上，端到端而且可验证？
+[`examples/drive_vim.py`](../../examples/drive_vim.py) 驱动的是真正的 `vim`
+二进制 —— 打开文件、追加一行、保存，然后检查**文件系统**，而不是屏幕：
+
+```bash
+python examples/drive_vim.py
+#   [OK ] vim painted its screen
+#   [OK ] file contents visible on screen
+#   [OK ] alternate screen is active
+#   [OK ] vim entered insert mode (so G and o both landed)
+#   [OK ] typed text appears on screen
+#   [OK ] vim restored the main screen on exit
+#   [OK ] file on disk really changed
+```
+
+留意第四步。它之所以存在，是因为这个示例自己曾经把五次按键背靠背地连发出去，中间
+不做任何确认；机器一忙，`vim` 还没处理完 `G`，`o` 就已经到了，于是什么都没插入，而
+这次失败也没留下任何有用的诊断。确认进入了 insert 模式，就同时证明两个按键都生效
+了 —— 这正是这个工具存在的意义所在的那套纪律，只不过用在了它自己的演示上。
+
+把同一个文件跑在 `smartcli-toolkit==0.1.8` 上，会有两步失败 —— 而且文件*根本没被保存*，
+因为一个看不见交替屏幕的驱动器会把 `:wq` 的时机搞错。这就是上面那些仿真工作为什么
+重要：错误的屏幕模型不会报错，它只会静默地什么都没做成。
+
 ## 快速上手
 
 ### cmd-art —— 终端视觉效果

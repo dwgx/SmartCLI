@@ -106,6 +106,53 @@ set PYTHONIOENCODING=utf-8
 의존성이 갖춰졌는지를 알려줍니다. 터미널 환경에 민감한 버그를 신고할 때는 두
 출력을 모두 첨부해 주세요.
 
+### 30초 만에 무언가를 조작해 보기
+
+그대로 복사해 붙여 넣으세요. PTY 아래에서 실제 Python REPL 을 띄우고, 프롬프트가
+나타날 때까지 기다린 뒤(무턱대고 `sleep` 하는 일은 결코 없습니다) 입력을 보내고,
+화면을 다시 읽어 옵니다:
+
+```bash
+pip install smartcli-toolkit
+SID=$(smartcli-tui start --cmd "python3 -i -q" --cols 80 --rows 24 --json | python3 -c "import json,sys;print(json.load(sys.stdin)['sid'])")
+smartcli-tui wait-regex --id $SID ">>> " --timeout-ms 15000
+smartcli-tui send-line --id $SID "print(6*7)"
+smartcli-tui wait-regex --id $SID "42"          # prints the cell grid it sees
+smartcli-tui close --id $SID
+```
+
+Windows 에서는 `--cmd "py -i -q"` 를 사용하세요. 명령을 `vim`, `htop`, `lazygit` 으로
+바꿔도 같은 다섯 개의 동사로 조작할 수 있습니다 — 바로 그것이 핵심입니다:
+**`wait-regex` 와 그 동료들은 화면이 실제로 보여 주는 것에 반응하므로**, 에이전트는
+자신의 키 입력이 전달되었는지 추측할 필요가 없습니다.
+
+같은 흐름을 실제 편집기에 대해, 처음부터 끝까지 검증 가능한 형태로 보고 싶다면
+[`examples/drive_vim.py`](../../examples/drive_vim.py) 를 보세요. 실제 `vim` 바이너리를
+조작해 파일을 열고 한 줄을 덧붙이고 저장한 다음, 화면이 아니라 **파일 시스템**을
+확인합니다:
+
+```bash
+python examples/drive_vim.py
+#   [OK ] vim painted its screen
+#   [OK ] file contents visible on screen
+#   [OK ] alternate screen is active
+#   [OK ] vim entered insert mode (so G and o both landed)
+#   [OK ] typed text appears on screen
+#   [OK ] vim restored the main screen on exit
+#   [OK ] file on disk really changed
+```
+
+네 번째 단계를 주목하세요. 이 단계가 있는 이유는, 이 예제 자신이 한때 다섯 번의 키
+입력을 아무 확인 없이 연달아 보냈기 때문입니다. 부하가 걸리면 `o` 가 도착한 시점에
+`vim` 은 아직 `G` 를 처리하지 못했고, 결국 아무것도 삽입되지 않은 채 쓸모 있는 진단도
+남기지 못하고 실패했습니다. insert 모드에 들어갔음을 확인하면 두 키가 모두 전달되었음이
+증명됩니다 — 이 도구가 제공하려고 존재하는 그 규율을, 자신의 데모에 적용한 것입니다.
+
+같은 파일을 `smartcli-toolkit==0.1.8` 에 대해 실행하면 두 단계가 실패하고, 게다가
+파일은 *결코 저장되지 않습니다*. 대체 화면을 보지 못하는 드라이버는 `:wq` 의 타이밍을
+놓치기 때문입니다. 위에서 이야기한 에뮬레이션 작업이 중요한 이유가 바로 이것입니다:
+잘못된 화면 모델은 오류를 내지 않고, 아무것도 이루지 못한 채 조용히 성공합니다.
+
 ## 빠른 시작
 
 ### cmd-art — 터미널 비주얼 이펙트
