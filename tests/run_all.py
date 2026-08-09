@@ -232,6 +232,12 @@ def build_suite():
     suite.append(Test("test_drive_security (control-plane boundaries)",
                       [PY, str(TESTS / "test_drive_security.py")], ROOT, 60,
                       optional=True))
+    # Drives the REAL accept loop against a fake session — no PTY, no child process,
+    # so it is safe under the red line. 90s because one assertion deliberately
+    # waits out a bound to prove a serial loop would have blocked.
+    suite.append(Test("test_daemon_concurrency (one peer cannot stall the others)",
+                      [PY, str(TESTS / "test_daemon_concurrency.py")], ROOT, 90,
+                      optional=True))
     suite.append(Test("test_dependency_sync (one dependency fact, one value)",
                       [PY, str(TESTS / "test_dependency_sync.py")], ROOT, 60,
                       optional=True))

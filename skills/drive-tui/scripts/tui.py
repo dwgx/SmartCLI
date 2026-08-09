@@ -20,6 +20,7 @@ import argparse
 import hmac
 import json
 import os
+import queue
 import re
 import secrets
 import socket
@@ -27,7 +28,9 @@ import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 # --- locate smartcli_core wherever this skill folder ended up ----------------
@@ -253,7 +256,20 @@ def _snapshot_response(sess: PtySession, snap, **fields) -> dict:
     }
 
 
-def _handle(sess: PtySession, req: dict, expected_token: str) -> dict:
+def _token_ok(req: dict, expected_token: str) -> bool:
+    """Constant-time capability check. ONE implementation, two call sites.
+
+    The reader thread calls this so an unauthenticated request never reaches the
+    worker queue; `_handle` calls it again because it is the authoritative gate for
+    any direct caller. Two copies of this logic would be a way for them to drift.
+    """
+    supplied = req.get("token")
+    return (isinstance(supplied, str)
+            and hmac.compare_digest(supplied, expected_token))
+
+
+def _handle(sess: PtySession, req: dict, expected_token: str,
+            on_poll: Callable[[], None] | None = None) -> dict:
     """Dispatch one request against the live session. Returns a JSON-able dict.
 
     Every request MUST carry a ``token`` field matching the per-session
@@ -262,8 +278,11 @@ def _handle(sess: PtySession, req: dict, expected_token: str) -> dict:
     unauthenticated local process on the loopback port cannot inject keystrokes,
     read the screen, or close the session.
     """
-    supplied = req.get("token")
-    if not isinstance(supplied, str) or not hmac.compare_digest(supplied, expected_token):
+    # Kept here as well as on the reader thread. The reader rejects unauthenticated
+    # requests before they can occupy the worker queue, but this check stays as the
+    # authoritative one: _handle must be safe to call directly (tests do), and a
+    # single guard that some future caller can bypass is how auth holes appear.
+    if not _token_ok(req, expected_token):
         return {"ok": False, "error": "auth: bad or missing token"}
 
     action = req.get("action")
@@ -290,30 +309,35 @@ def _handle(sess: PtySession, req: dict, expected_token: str) -> dict:
             marker=req.get("marker"),
             max_wait_ms=int(req.get("max_wait_ms", 10000)),
             quiet_ms=int(req.get("quiet_ms", 200)),
+            on_poll=on_poll,
         )
         return _snapshot_response(sess, snap, reason=reason)
 
     if action == "wait_regex":
         matched, snap = sess.wait_for(
-            req["pattern"], timeout_ms=int(req.get("timeout_ms", 10000)))
+            req["pattern"], timeout_ms=int(req.get("timeout_ms", 10000)),
+            on_poll=on_poll)
         return _snapshot_response(sess, snap, matched=matched)
 
     if action == "wait_change":
         changed, snap = sess.wait_change(
             baseline_hash=req.get("baseline_hash"),
-            timeout_ms=int(req.get("timeout_ms", 10000)))
+            timeout_ms=int(req.get("timeout_ms", 10000)),
+            on_poll=on_poll)
         return _snapshot_response(sess, snap, changed=changed)
 
     if action == "wait_visual_change":
         changed, snap = sess.wait_visual_change(
             baseline_hash=req.get("baseline_hash"),
-            timeout_ms=int(req.get("timeout_ms", 10000)))
+            timeout_ms=int(req.get("timeout_ms", 10000)),
+            on_poll=on_poll)
         return _snapshot_response(sess, snap, changed=changed)
 
     if action == "wait_any":
         index, snap = sess.wait_any(
             list(req.get("patterns", [])),
-            timeout_ms=int(req.get("timeout_ms", 10000)))
+            timeout_ms=int(req.get("timeout_ms", 10000)),
+            on_poll=on_poll)
         return _snapshot_response(sess, snap, index=index, matched=index >= 0)
 
     if action == "alive":
@@ -341,6 +365,246 @@ def _handle(sess: PtySession, req: dict, expected_token: str) -> dict:
         return {"ok": True, "_shutdown": True}
 
     return {"ok": False, "error": f"unknown action '{action}'"}
+
+
+#: Everything up to and including the token check is UNAUTHENTICATED, so it runs on
+#: a short budget. 2s is generous for loopback — even the 4 MiB cap below transfers
+#: in milliseconds — and it is re-armed against a FIXED deadline so a peer dribbling
+#: bytes cannot renew its welcome.
+PRE_AUTH_TIMEOUT = 2.0
+#: Only ever applied to writing a reply back to a caller that already authenticated.
+POST_AUTH_TIMEOUT = 60.0
+#: Cap the pre-newline buffer: an unauthenticated peer must not be able to exhaust
+#: memory by streaming bytes with no newline. Far above any legitimate request.
+MAX_REQ = 4 * 1024 * 1024
+
+
+def _read_request(conn: socket.socket) -> dict:
+    """Read one newline-terminated JSON object. Raises on anything malformed.
+
+    Runs on the READER thread, never on the worker, because this is the
+    unauthenticated part: a peer that connects and never sends a newline must not
+    be able to stall anyone else. It used to run inline in the accept loop, which
+    made the read timeout itself the denial-of-service primitive rather than the
+    mitigation.
+    """
+    conn.settimeout(PRE_AUTH_TIMEOUT)
+    buf = bytearray()
+    deadline = time.monotonic() + PRE_AUTH_TIMEOUT
+    while b"\n" not in buf:
+        left = deadline - time.monotonic()
+        if left <= 0:
+            raise TimeoutError("pre-auth read budget exhausted")
+        conn.settimeout(left)
+        chunk = conn.recv(65536)
+        if not chunk:
+            break
+        buf.extend(chunk)
+        if len(buf) > MAX_REQ:
+            raise ValueError("request exceeds max size")
+    if not buf:
+        raise ValueError("empty request")
+    req = json.loads(bytes(buf).split(b"\n", 1)[0].decode("utf-8"))
+    # Enforce the SHAPE before anything touches it. A non-dict payload
+    # (`[1,2,3]`, `"hi"`, `null`) used to reach _handle and die on `req.get(...)`
+    # with AttributeError, which fell through to the generic handler and replied
+    # with an interpreter exception — no `ok` field, unlike every other reply on
+    # this socket, to a peer that had not authenticated.
+    if not isinstance(req, dict):
+        raise ValueError("request must be a JSON object")
+    return req
+
+
+def _reply(conn: socket.socket, payload: dict) -> None:
+    """Best-effort single-line JSON reply. A dead peer must not raise."""
+    try:
+        conn.settimeout(POST_AUTH_TIMEOUT)
+        conn.sendall((json.dumps(payload) + "\n").encode("utf-8"))
+    except OSError:
+        pass
+
+
+def _serve_forever(srv: socket.socket, sess, token: str,
+                   stop: threading.Event) -> None:
+    """Serve requests until a `close` arrives, the child dies, or `stop` is set.
+
+    CONCURRENCY MODEL, and why it is this one
+    -----------------------------------------
+    Three roles, deliberately separated:
+
+      accept thread (here)  accept a connection, hand it to a reader. Never blocks
+                            on a peer, so no client can delay another's ACCEPT.
+      reader thread (per    do the UNAUTHENTICATED work — read the line, parse it,
+      connection)           check the token — then enqueue the authenticated job.
+                            One silent peer burns only its own 2s budget.
+      worker thread (one)   the ONLY thread that touches `sess`.
+
+    The single worker is not timidity, it is required. `PtySession` is not
+    thread-safe in three concrete ways, all of which corrupt perception SILENTLY
+    rather than raising:
+
+      * `ScreenModel.visual_hash()` recomputes only the rows pyte marks dirty and
+        then CLEARS `screen.dirty`. Two callers racing means one of them clears
+        rows the other has not consumed yet, so a real screen change is lost — the
+        exact blindness this project exists to remove.
+      * `PtySession.pump()` is read-modify-write: `read_nonblocking` -> `feed` ->
+        `drain_replies` -> `write`. Interleaving two of those reorders the bytes
+        fed to the emulator and can interleave two DSR-CPR answers on the wire.
+      * `PtySession.resize()` mutates `cols`, `rows`, the backend, the pyte screen
+        and `_blank_hash` as four separate steps; observing it midway yields a
+        screen whose dimensions disagree with its buffer.
+
+    Putting a lock around the session instead would serialise the expensive part
+    anyway AND let a `wait-regex --timeout-ms 60000` hold the lock for its entire
+    timeout, which is most of what this daemon does. Hence: fast verbs and long
+    waits are separated below rather than fighting over a mutex.
+
+    HONEST LIMIT: a long `wait*` occupies the worker, so a second LONG wait queues
+    behind the first. That is inherent to one PTY child having one screen, and it
+    is not what the head-of-line defect was about — what mattered was that an
+    unauthenticated stranger, or an unrelated fast verb, could be blocked. Fast
+    verbs are answered during a long wait via the interleave hook; see
+    `_WORKER_FAST_VERBS`.
+    """
+    jobs: queue.Queue = queue.Queue()
+    shutdown = threading.Event()
+
+    #: Verbs answered DURING a long wait, via the readiness poll hook. They are all
+    #: cheap and non-blocking, so servicing them in a poll gap costs the wait one
+    #: extra sub-millisecond step.
+    #:
+    #: The exclusions are the load-bearing part of this set:
+    #:   * every `wait_*` verb — a second wait entered from the first one's poll gap
+    #:     would reenter the session and could recurse without bound;
+    #:   * `close` — it tears down the session the wait is still using;
+    #:   * `resize` — it is cheap, but `PtySession.resize` re-dimensions the pyte
+    #:     screen, which necessarily changes the content hash. A caller blocked in
+    #:     `wait_change` would then read "the screen changed" and conclude its own
+    #:     keystroke had landed, when all that happened was a concurrent resize.
+    #:     Answering it a few milliseconds later, in queue order, costs nothing and
+    #:     keeps the change primitives honest.
+    INTERLEAVE_OK = frozenset({
+        "snapshot", "alive", "list", "send_text", "send_line", "send_keys",
+    })
+
+    def _drain_interleavable() -> None:
+        """Run pending fast verbs. Called from the WAITING thread's poll gap.
+
+        This is what makes the fix real rather than a relocation of the queue. The
+        worker owns the session, so a long `wait-regex` would otherwise hold it for
+        its entire timeout and a concurrent `snapshot` would sit behind it —
+        exactly the head-of-line symptom, just moved one layer in. Because the hook
+        fires on the worker's own thread, the single-threaded-session invariant is
+        preserved: nothing else ever touches `sess`.
+
+        Requests that are NOT interleavable are put back for normal ordering.
+        """
+        deferred = []
+        try:
+            while True:
+                try:
+                    item = jobs.get_nowait()
+                except queue.Empty:
+                    break
+                if item is None:          # shutdown sentinel: preserve it
+                    deferred.append(item)
+                    shutdown.set()
+                    break
+                conn, req = item
+                if req.get("action") in INTERLEAVE_OK:
+                    try:
+                        _reply(conn, _handle(sess, req, token))
+                    except Exception as exc:  # noqa: BLE001
+                        _reply(conn, {"ok": False,
+                                      "error": f"{type(exc).__name__}: {exc}"})
+                    finally:
+                        try:
+                            conn.close()
+                        except OSError:
+                            pass
+                    jobs.task_done()
+                else:
+                    deferred.append(item)
+                    jobs.task_done()
+        finally:
+            for item in deferred:
+                jobs.put(item)
+
+    def worker() -> None:
+        while not shutdown.is_set():
+            try:
+                item = jobs.get(timeout=0.2)
+            except queue.Empty:
+                continue
+            if item is None:
+                break
+            conn, req = item
+            try:
+                resp = _handle(sess, req, token,
+                               on_poll=_drain_interleavable)
+                if resp.get("_shutdown"):
+                    shutdown.set()
+                _reply(conn, resp)
+            except Exception as exc:  # never let one request kill the daemon
+                _reply(conn, {"ok": False,
+                              "error": f"{type(exc).__name__}: {exc}"})
+            finally:
+                try:
+                    conn.close()
+                except OSError:
+                    pass
+                jobs.task_done()
+
+    def reader(conn: socket.socket) -> None:
+        """Unauthenticated work happens HERE, off the accept path."""
+        try:
+            req = _read_request(conn)
+        except (TimeoutError, OSError, ValueError, UnicodeDecodeError) as exc:
+            _reply(conn, {"ok": False, "error": f"bad request: {type(exc).__name__}"})
+            try:
+                conn.close()
+            except OSError:
+                pass
+            return
+        except Exception as exc:  # noqa: BLE001 - a reply is better than a silent drop
+            _reply(conn, {"ok": False, "error": f"{type(exc).__name__}: {exc}"})
+            try:
+                conn.close()
+            except OSError:
+                pass
+            return
+        # Authenticate BEFORE the request can occupy the worker queue, so an
+        # unauthenticated peer cannot make the owner wait behind it.
+        if not _token_ok(req, token):
+            _reply(conn, {"ok": False, "error": "unauthorized"})
+            try:
+                conn.close()
+            except OSError:
+                pass
+            return
+        jobs.put((conn, req))
+
+    wt = threading.Thread(target=worker, name="session-worker", daemon=True)
+    wt.start()
+    readers: list[threading.Thread] = []
+    try:
+        srv.settimeout(0.2)
+        while not shutdown.is_set() and not stop.is_set():
+            try:
+                conn, _ = srv.accept()
+            except (TimeoutError, OSError):
+                readers = [t for t in readers if t.is_alive()]
+                continue
+            t = threading.Thread(target=reader, args=(conn,),
+                                 name="conn-reader", daemon=True)
+            t.start()
+            readers.append(t)
+            if len(readers) > 64:  # bound the thread count; finished ones drop out
+                readers = [x for x in readers if x.is_alive()]
+    finally:
+        shutdown.set()
+        jobs.put(None)
+        wt.join(timeout=5.0)
 
 
 def _run_daemon(
@@ -373,104 +637,7 @@ def _run_daemon(
                      "env_keys": sorted((child_env or {}).keys()),
                      "token": token, "started": time.time()})
     try:
-        while True:
-            conn, _ = srv.accept()
-            shutdown = False
-            try:
-                # The ENTIRE per-connection body is guarded: a malformed request
-                # (non-JSON bytes, a truncated line, an idle client that trips the
-                # 60s recv timeout, or a non-dict payload) must only drop THAT
-                # connection — it must never propagate to the outer `finally` and
-                # tear down the whole daemon + live session. Note the transport /
-                # parse steps run BEFORE the token check in _handle, so without
-                # this guard an unauthenticated peer could kill the session with a
-                # single garbage byte sequence.
-                try:
-                    # Two budgets, because everything up to the token check is
-                    # UNAUTHENTICATED and this accept loop is serial: one peer
-                    # sitting in recv() blocks every other caller. A single 60s
-                    # timeout here meant an unprivileged local process could open a
-                    # connection, send bytes with no newline, and head-of-line
-                    # block the owner for a minute per connection (listen(8), so
-                    # nine of them starve the owner outright).
-                    #
-                    # PRE_AUTH_TIMEOUT bounds an idle/silent peer. It is generous
-                    # for loopback, where even the 4 MiB cap below transfers in
-                    # milliseconds, but it is NOT a fix for the underlying serial
-                    # design — it cuts the blocking primitive from 60s to 2s per
-                    # connection rather than removing it. Handling each connection
-                    # in its own thread is the real fix and is deliberately not
-                    # done here: PtySession is not thread-safe, so that is a
-                    # concurrency-model change, filed rather than smuggled in.
-                    PRE_AUTH_TIMEOUT = 2.0
-                    POST_AUTH_TIMEOUT = 60.0
-                    conn.settimeout(PRE_AUTH_TIMEOUT)
-                    buf = bytearray()
-                    # Cap the pre-newline buffer: the transport runs before the
-                    # token check, so an unauthenticated peer must not be able to
-                    # exhaust memory by streaming bytes with no newline. 4 MiB is
-                    # far above any legitimate request (send-text payloads, step
-                    # lists) yet bounds the damage. Over the cap -> drop the conn.
-                    MAX_REQ = 4 * 1024 * 1024
-                    deadline = time.monotonic() + PRE_AUTH_TIMEOUT
-                    while b"\n" not in buf:
-                        # A peer that dribbles bytes must not renew its welcome:
-                        # re-arm the timeout against a FIXED deadline so the whole
-                        # pre-auth phase is bounded, not each individual recv.
-                        left = deadline - time.monotonic()
-                        if left <= 0:
-                            raise TimeoutError("pre-auth read budget exhausted")
-                        conn.settimeout(left)
-                        chunk = conn.recv(65536)
-                        if not chunk:
-                            break
-                        buf.extend(chunk)
-                        if len(buf) > MAX_REQ:
-                            raise ValueError("request exceeds max size")
-                    if not buf:
-                        continue
-                    req = json.loads(bytes(buf).split(b"\n", 1)[0].decode("utf-8"))
-                    # Enforce the shape BEFORE _handle touches it. A non-dict
-                    # payload (`[1,2,3]`, `"hi"`, `null`) used to reach _handle and
-                    # die on `req.get(...)` with AttributeError — which is NOT in
-                    # the narrow tuple below, so it fell to the generic handler and
-                    # replied `{"error": "AttributeError: 'list' object has no
-                    # attribute 'get'"}`: no `ok` field, unlike every other reply on
-                    # this socket, and an interpreter exception echoed to a peer that
-                    # has not authenticated. The old comment claimed ValueError
-                    # covered "non-dict .get()"; it never did.
-                    if not isinstance(req, dict):
-                        raise ValueError("request must be a JSON object")
-                    # The request is complete; _handle authenticates it. Restore the
-                    # generous timeout for the REPLY, which can be a large snapshot
-                    # and is only ever written to an authenticated caller.
-                    conn.settimeout(POST_AUTH_TIMEOUT)
-                    resp = _handle(sess, req, token)
-                    shutdown = bool(resp.get("_shutdown"))
-                    conn.sendall((json.dumps(resp) + "\n").encode("utf-8"))
-                except (TimeoutError, OSError, ValueError, UnicodeDecodeError) as exc:
-                    # ValueError covers json.JSONDecodeError and the explicit
-                    # non-dict rejection above; OSError/timeout cover a slow/rude
-                    # client. Best-effort error
-                    # reply, then close — the daemon keeps serving.
-                    try:
-                        conn.sendall((json.dumps(
-                            {"ok": False,
-                             "error": f"bad request: {type(exc).__name__}"})
-                            + "\n").encode("utf-8"))
-                    except OSError:
-                        pass
-                except Exception as exc:  # never let one bad request kill the daemon
-                    try:
-                        conn.sendall((json.dumps(
-                            {"error": f"{type(exc).__name__}: {exc}"})
-                            + "\n").encode("utf-8"))
-                    except OSError:
-                        pass
-            finally:
-                conn.close()
-            if shutdown:
-                break
+        _serve_forever(srv, sess, token, threading.Event())
     finally:
         sess.close()
         srv.close()
@@ -558,8 +725,7 @@ def cmd_start(args) -> int:
     if active_count >= max_sessions:
         raise SystemExit(
             f"error: session limit reached ({active_count}/{max_sessions}); "
-            "close an existing session or raise SMARTCLI_MAX_SESSIONS"
-        )
+            "close an existing session or raise SMARTCLI_MAX_SESSIONS")
     cwd = _resolve_cwd(args.cwd)
     child_env = _parse_env_items(list(args.env or []))
     # Mint a per-session capability token: only holders of this token (the

@@ -24,7 +24,7 @@ import time
 from collections.abc import Callable, Sequence
 
 from .pty_backend import PtyBackend, get_default_backend
-from .readiness import wait_any, wait_for_regex, wait_ready, wait_until_stable
+from .readiness import PollHook, wait_any, wait_for_regex, wait_ready, wait_until_stable
 from .screen_model import ScreenModel
 from .snapshot import Snapshot, build_snapshot
 
@@ -235,6 +235,7 @@ class PtySession:
         min_wait_ms: int = 50,
         grace_ms: int = 40,
         flags: int = 0,
+        on_poll: PollHook = None,
     ) -> tuple[str, Snapshot]:
         """Wait for ``marker`` OR screen stability. See :func:`readiness.wait_ready`.
 
@@ -253,6 +254,7 @@ class PtySession:
             grace_ms=grace_ms,
             flags=flags,
             blank_hash=self._blank_hash,
+            on_poll=on_poll,
         )
         return reason, snap  # type: ignore[return-value]
 
@@ -263,6 +265,7 @@ class PtySession:
         max_wait_ms: int = 8000,
         grace_ms: int = 40,
         min_wait_ms: int = 0,
+        on_poll: PollHook = None,
     ) -> bool:
         """Wait until the screen settles. See :func:`readiness.wait_until_stable`."""
         return wait_until_stable(
@@ -274,6 +277,7 @@ class PtySession:
             grace_ms=grace_ms,
             min_wait_ms=min_wait_ms,
             blank_hash=self._blank_hash,
+            on_poll=on_poll,
         )
 
     def wait_for(
@@ -283,6 +287,7 @@ class PtySession:
         poll_ms: int = 30,
         min_wait_ms: int = 0,
         flags: int = 0,
+        on_poll: PollHook = None,
     ) -> tuple[bool, Snapshot]:
         """Wait for ``pattern`` on the screen. See :func:`readiness.wait_for_regex`."""
         matched, snap = wait_for_regex(
@@ -294,6 +299,7 @@ class PtySession:
             poll_ms=poll_ms,
             min_wait_ms=min_wait_ms,
             flags=flags,
+            on_poll=on_poll,
         )
         return matched, snap  # type: ignore[return-value]
 
@@ -304,6 +310,7 @@ class PtySession:
         poll_ms: int = 30,
         min_wait_ms: int = 0,
         flags: int = 0,
+        on_poll: PollHook = None,
     ) -> tuple[int, Snapshot]:
         """Wait for ANY of ``patterns`` (pexpect ``expect([...])`` style).
 
@@ -321,6 +328,7 @@ class PtySession:
             poll_ms=poll_ms,
             min_wait_ms=min_wait_ms,
             flags=flags,
+            on_poll=on_poll,
         )
         return index, snap  # type: ignore[return-value]
 
@@ -329,6 +337,7 @@ class PtySession:
         baseline_hash: int | None = None,
         timeout_ms: int = 10000,
         poll_ms: int = 30,
+        on_poll: PollHook = None,
     ) -> tuple[bool, Snapshot]:
         """Wait until the screen content changes away from ``baseline_hash``.
 
@@ -349,6 +358,7 @@ class PtySession:
             baseline_hash=baseline_hash,
             timeout_ms=timeout_ms,
             poll_ms=poll_ms,
+            on_poll=on_poll,
         )
 
     def wait_visual_change(
@@ -356,6 +366,7 @@ class PtySession:
         baseline_hash: int | None = None,
         timeout_ms: int = 10000,
         poll_ms: int = 30,
+        on_poll: PollHook = None,
     ) -> tuple[bool, Snapshot]:
         """Wait for text, styling, selection, or cursor state to change.
 
@@ -369,6 +380,7 @@ class PtySession:
             baseline_hash=baseline_hash,
             timeout_ms=timeout_ms,
             poll_ms=poll_ms,
+            on_poll=on_poll,
         )
 
     def _wait_hash_change(
@@ -377,6 +389,7 @@ class PtySession:
         baseline_hash: int | None,
         timeout_ms: int,
         poll_ms: int,
+        on_poll: PollHook = None,
     ) -> tuple[bool, Snapshot]:
         if baseline_hash is None:
             # Baseline = the screen as it stands NOW, WITHOUT draining pending

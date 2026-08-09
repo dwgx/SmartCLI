@@ -33,6 +33,26 @@ def _ms(seconds: float) -> float:
     return seconds
 
 
+#: Optional callback invoked in the gap between polls of every wait primitive.
+#:
+#: WHY THIS EXISTS: a wait blocks for as long as its timeout, and the drive-tui
+#: daemon has exactly one thread allowed to touch a session (``PtySession`` is not
+#: thread-safe — ``visual_hash()`` clears ``screen.dirty`` as a side effect,
+#: ``pump()`` is read-modify-write, ``resize()`` mutates four fields in sequence).
+#: Without a hook, a 60s ``wait-regex`` makes an unrelated ``snapshot`` on another
+#: connection wait 60s behind it. The callback runs ON THE WAITING THREAD, in the
+#: idle gap, so that single-threaded-session invariant is preserved rather than
+#: traded away.
+#:
+#: Contract: called with no arguments, return value ignored, and it MUST be quick —
+#: it delays the next poll by however long it runs. Exceptions propagate, because a
+#: silently swallowed callback error is worse than a loud one. Default ``None``
+#: keeps every existing caller byte-identical in behaviour.
+#: PEP 604 union, matching the rest of this package (the 3.10 floor allows it, and
+#: `from __future__ import annotations` above makes it safe in annotations).
+PollHook = Callable[[], None] | None
+
+
 def wait_until_stable(
     read_fn: ReadFn,
     get_screen_hash_fn: HashFn,
@@ -42,6 +62,7 @@ def wait_until_stable(
     grace_ms: int = 40,
     min_wait_ms: int = 0,
     blank_hash: int | None = None,
+    on_poll: PollHook = None,
 ) -> bool:
     """Pump reads until the screen hash is unchanged for ``quiet_ms``.
 
@@ -108,6 +129,8 @@ def wait_until_stable(
 
         if now >= deadline:
             return False
+        if on_poll is not None:
+            on_poll()
         time.sleep(poll)
 
 
@@ -120,6 +143,7 @@ def wait_for_regex(
     poll_ms: int = 30,
     min_wait_ms: int = 0,
     flags: int = 0,
+    on_poll: PollHook = None,
 ) -> tuple[bool, object]:
     """Pump reads until ``pattern`` matches the rendered screen, or timeout.
 
@@ -152,6 +176,8 @@ def wait_for_regex(
             return True, get_snapshot_fn()
         if now >= deadline:
             return False, get_snapshot_fn()
+        if on_poll is not None:
+            on_poll()
         time.sleep(poll)
 
 
@@ -164,6 +190,7 @@ def wait_any(
     poll_ms: int = 30,
     min_wait_ms: int = 0,
     flags: int = 0,
+    on_poll: PollHook = None,
 ) -> tuple[int, object]:
     """Pump reads until ANY of ``patterns`` matches the screen, or timeout.
 
@@ -213,6 +240,8 @@ def wait_any(
                     return i, get_snapshot_fn()
         if now >= deadline:
             return -1, get_snapshot_fn()
+        if on_poll is not None:
+            on_poll()
         time.sleep(poll)
 
 
@@ -229,6 +258,7 @@ def wait_ready(
     grace_ms: int = 40,
     flags: int = 0,
     blank_hash: int | None = None,
+    on_poll: PollHook = None,
 ) -> tuple[str, object]:
     """Unified wait: satisfy on ``marker`` OR screen stability, capped by max_wait.
 
@@ -288,4 +318,6 @@ def wait_ready(
 
         if now >= deadline:
             return "TIMEOUT", get_snapshot_fn()
+        if on_poll is not None:
+            on_poll()
         time.sleep(poll)
