@@ -23,6 +23,16 @@ kiro-cli 全屏 TUI + 反复起关 daemon + mutation 来回 git checkout + verif
 5. 需要用户自己跑重活时,建议用 `! python tests/verify_fx.py`(前缀 `!` 在会话里
    直接跑),而不是我又开一批子进程。
 
+## Tool priorities
+
+本仓库已建 CodeGraph 索引。优先用配好的工具:
+
+- **查代码用 CodeGraph**:搞清符号、调用链、改动影响面时先 `codegraph explore`，
+  再决定要不要读文件。别一上来就 grep。
+- **搜文件用 `rg` 不用 `grep`**;找文件用 `fd` 不用 `find`。
+- **读文件用 Read 工具**,不用 `cat`/`head` 读代码。
+- 本仓库是 Python:`ruff`/`mypy` 已装,pyproject.toml 已配好,直接用。
+
 ## Git commits
 
 - 不加任何 AI 署名(遵循用户全局 CLAUDE.md)。
