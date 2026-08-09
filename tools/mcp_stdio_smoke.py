@@ -40,6 +40,7 @@ import json
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -105,27 +106,71 @@ def main() -> int:
     print(f"server command : {' '.join(cmd)}")
     print(f"expected version: {want_version}")
 
-    # The three messages, in order. The middle one is NOT optional.
-    payload = "\n".join([
-        json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize",
-                    "params": {"protocolVersion": "2024-11-05", "capabilities": {},
-                               "clientInfo": {"name": "smartcli-smoke", "version": "0"}}}),
-        json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"}),
-        json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}),
-    ]) + "\n"
-
+    # Speak like a REAL client: send, wait for the reply, then send the next.
+    #
+    # The first version of this wrote all three messages at once via
+    # `subprocess.run(input=...)`, which closes stdin immediately. The server then
+    # races its own reply against EOF, and loses: measured 5/5 locally with
+    # `tools/list` never answered while stderr showed "Processing request of type
+    # ListToolsRequest" — it had started the work and the process was torn down
+    # underneath it. The three CI runs that passed before were timing luck, which
+    # is worse than a red gate: it published a green check for an exchange that had
+    # not completed. An MCP directory holds the pipe open, so matching that is also
+    # the more faithful test.
     try:
-        proc = subprocess.run(cmd, input=payload.encode("utf-8"),
-                              stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                              timeout=args.timeout)
+        proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE)
     except FileNotFoundError:
         raise SystemExit(f"error: cannot execute {cmd[0]!r} — is it installed and on PATH?")
-    except subprocess.TimeoutExpired:
-        raise SystemExit(f"FAIL: the server did not answer within {args.timeout}s. "
-                         "A missing `notifications/initialized` hangs exactly like this.")
 
-    out = proc.stdout.decode("utf-8", errors="replace")
-    err = proc.stderr.decode("utf-8", errors="replace")
+    out_lines: list[str] = []
+    err_text = ""
+
+    def send(obj: dict) -> None:
+        assert proc.stdin is not None
+        proc.stdin.write((json.dumps(obj) + "\n").encode("utf-8"))
+        proc.stdin.flush()
+
+    def read_reply(deadline: float) -> str:
+        """One line from stdout, or '' if the server died / ran out of time."""
+        assert proc.stdout is not None
+        while time.monotonic() < deadline:
+            line = proc.stdout.readline()
+            if not line:
+                return ""
+            text = line.decode("utf-8", errors="replace").strip()
+            if text:
+                out_lines.append(text)
+                return text
+        return ""
+
+    deadline = time.monotonic() + args.timeout
+    try:
+        send({"jsonrpc": "2.0", "id": 1, "method": "initialize",
+              "params": {"protocolVersion": "2024-11-05", "capabilities": {},
+                         "clientInfo": {"name": "smartcli-smoke", "version": "0"}}})
+        read_reply(deadline)
+        # NOT optional: without it the server never answers `tools/list`.
+        send({"jsonrpc": "2.0", "method": "notifications/initialized"})
+        send({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}})
+        read_reply(deadline)
+    except (BrokenPipeError, OSError):
+        pass  # the checks below report it against what did arrive
+    finally:
+        try:
+            if proc.stdin is not None:
+                proc.stdin.close()
+        except OSError:
+            pass
+        try:
+            proc.terminate()
+            _, err_bytes = proc.communicate(timeout=10)
+            err_text = err_bytes.decode("utf-8", errors="replace") if err_bytes else ""
+        except Exception:  # noqa: BLE001
+            proc.kill()
+
+    out = "\n".join(out_lines)
+    err = err_text
 
     replies: dict[int, dict] = {}
     for line in out.splitlines():
