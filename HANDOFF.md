@@ -6,7 +6,23 @@
 
 ## 0. Release & current state — READ THIS FIRST
 
-> **2026-08-06 — v0.2.1 IS RELEASED AND LIVE.** Tagged from `main` at `9454f05`;
+> **2026-08-09 — v0.2.2 IS RELEASED AND LIVE. This is the current release.**
+> Tagged from `main` at `cf76575`; all three `publish.yml` jobs green including
+> `publish-mcp`. Verified at the endpoints rather than from workflow status: PyPI
+> serves 0.2.2 as wheel + sdist, the MCP Registry lists 0.2.2 `active`, the GitHub
+> Release is Latest, and installing `smartcli-toolkit==0.2.2` from PyPI into a clean
+> venv confirms both security fixes reached users — `--env smartcli_tui_token=…` is
+> refused (the lowercase spelling that bypassed the guard on Windows) and
+> `close --force` is present. **What it fixed: `close` could delete a LIVE daemon's
+> registry entry**, stranding a real PTY child while `list` — the command this
+> project's red line tells you to trust — reported zero sessions. See §10l.
+>
+> **Read the release state off git, never off this file:** `git describe --tags` and
+> `git rev-list --count $(git describe --tags --abbrev=0)..HEAD`. A banner sat here
+> for three days saying 18 commits were unreleased; the count is the kind of fact
+> prose gets wrong.
+>
+> *Historical, kept for the pyte-timebomb record:* **2026-08-06 — v0.2.1.** Tagged from `main` at `9454f05`;
 > all three `publish.yml` jobs green (build → PyPI OIDC → MCP Registry OIDC),
 > including `publish-mcp`, which only ever runs on a real tag push and had
 > therefore never executed with the bumped action pins. Verified end to end rather
@@ -27,22 +43,15 @@
 > workflow is the source of truth, not the index, exactly as this section has always
 > said.
 >
-> **UNRELEASED WORK SITS ON `main`.** As of 2026-08-09 the tag `v0.2.1` is **18
-> commits behind `main`**, which is fully synced with `origin/main` (0 ahead / 0
-> behind) and green on CI / Lint / CodeQL / Docker at `9b3b562`. Thirteen of those
-> commits are the 2026-08-07 session (§10k): three real drive-tui control-plane
-> defects — one of which let `close` delete a **live** daemon's registry entry —
-> and six gates that were structurally incapable of failing. **So `pip install
-> smartcli-toolkit` does NOT contain them.** Whether to cut v0.2.2 is the owner's
-> call; the fixes are behaviour changes to a security surface, not doc edits. Count
-> the gap with `git rev-list --count v0.2.1..HEAD`, never from this line.
+> *(The banner that used to sit here — "18 commits unreleased, cutting v0.2.2 is the
+> owner's call" — was resolved on 2026-08-09 by releasing them. §10l.)*
 
-SmartCLI is **published and public**; latest RELEASED version **v0.2.1** (2026-08-06, live on PyPI + GitHub + MCP Registry). The previous release was **v0.2.0** (2026-07-27). v0.2.0 shipped from branch `codex/cross-platform-mcp-hardening`, merged to `main` and tagged; `publish.yml` published to PyPI and re-published `server.json` to the MCP Registry via OIDC — all three jobs green, verified by installing `smartcli-toolkit==0.2.0` from PyPI in a clean venv. This section is the authoritative current-state record; anything older in this doc that contradicts it is stale. See §10 for the whole 0.2.0 arc: drive-tui control-plane security hardening, `visual_hash` + `wait_visual_change` (closes old known-#3), the wheel now shipping `smartcli_drive` + three console scripts, `mcp` as a required dependency, Python floor 3.10, CI drive-smoke/package jobs, and **twelve screen-emulation bugs** found by differential testing against real terminals — including the alternate screen buffer, which pyte does not implement at all, so every full-screen TUI was previously unreadable. **BREAKING in 0.2.0:** Python 3.9 dropped; the MCP SDK is a required dependency. v0.1.8 added `wait_any`, **Sixel graphics output**, and a **Terminal-Bench agent adapter** (§9h). v0.1.7 shipped `spectrum_bars` + `cbonsai` (catalog 30) and the **MCP Registry** listing (`io.github.dwgx/smartcli`, active — §9g).
+SmartCLI is **published and public**; latest RELEASED version **v0.2.2** (2026-08-09, live on PyPI + GitHub + MCP Registry — §10l). The previous releases were **v0.2.1** (2026-08-06) and **v0.2.0** (2026-07-27). v0.2.0 shipped from branch `codex/cross-platform-mcp-hardening`, merged to `main` and tagged; `publish.yml` published to PyPI and re-published `server.json` to the MCP Registry via OIDC — all three jobs green, verified by installing `smartcli-toolkit==0.2.0` from PyPI in a clean venv. This section is the authoritative current-state record; anything older in this doc that contradicts it is stale. See §10 for the whole 0.2.0 arc: drive-tui control-plane security hardening, `visual_hash` + `wait_visual_change` (closes old known-#3), the wheel now shipping `smartcli_drive` + three console scripts, `mcp` as a required dependency, Python floor 3.10, CI drive-smoke/package jobs, and **twelve screen-emulation bugs** found by differential testing against real terminals — including the alternate screen buffer, which pyte does not implement at all, so every full-screen TUI was previously unreadable. **BREAKING in 0.2.0:** Python 3.9 dropped; the MCP SDK is a required dependency. v0.1.8 added `wait_any`, **Sixel graphics output**, and a **Terminal-Bench agent adapter** (§9h). v0.1.7 shipped `spectrum_bars` + `cbonsai` (catalog 30) and the **MCP Registry** listing (`io.github.dwgx/smartcli`, active — §9g).
 
 **Where it lives:**
-- **PyPI:** `pip install smartcli-toolkit` → https://pypi.org/project/smartcli-toolkit/ . The dist name is **`smartcli-toolkit`**; the **import package stays `smartcli_core`** (`from smartcli_core import PtySession`). Latest on PyPI = **0.2.1** (the JSON index can lag a few minutes after a release — the `Publish to PyPI` workflow going green is the source of truth, not the index; measured again on the 0.2.1 release, where the index still served 0.2.0 for several minutes after all three jobs were green).
+- **PyPI:** `pip install smartcli-toolkit` → https://pypi.org/project/smartcli-toolkit/ . The dist name is **`smartcli-toolkit`**; the **import package stays `smartcli_core`** (`from smartcli_core import PtySession`). Latest on PyPI = **0.2.2** (the index can lag after a release — the `Publish to PyPI` workflow going green is the source of truth; measured on both the 0.2.1 and 0.2.2 releases). **A trap measured on 0.2.2:** `pip install` failed for ~4 minutes with "no matching distribution" while pypi.org's own simple index already listed the files. The cause was not PyPI — this machine's pip is configured for the Tsinghua mirror, which had not synced yet. Verify a release with `--index-url https://pypi.org/simple`, or you will read a mirror's lag as a broken publish.
 - **MCP Registry:** **LIVE** — `io.github.dwgx/smartcli` on `registry.modelcontextprotocol.io` (published 2026-07-15 via `mcp-publisher`; ownership verified by the `mcp-name` marker in the PyPI README). MCP clients (Claude/Cursor/VS Code) + aggregators (Smithery/Glama/MCP.so) auto-discover it.
-- **GitHub:** public repo **github.com/dwgx/SmartCLI**, branch `main`, tags **v0.1.0 … v0.2.1** each with a matching GitHub Release.
+- **GitHub:** public repo **github.com/dwgx/SmartCLI**, branch `main`, tags **v0.1.0 … v0.2.2** each with a matching GitHub Release. Note `release-drafter.yml` also auto-creates a DRAFT release for the upcoming tag; after publishing, delete the leftover same-named draft or the releases page shows the version twice (it did on 0.2.2).
 - **Claude plugin marketplace:** `.claude-plugin/marketplace.json` is present → users run **`/plugin marketplace add dwgx/SmartCLI`**.
 - **skillhu.bz:** all 3 skills published — skillhu.bz/skill/cmd-art, skillhu.bz/skill/drive-tui, skillhu.bz/skill/tui-ui.
 - **Codecov:** live (badge in README, ~50% on the deterministic subset). **Read the Docs:** live at https://smartcli.readthedocs.io/ (mkdocs, separate from the hand-written showcase site on GitHub Pages).
@@ -1496,6 +1505,78 @@ session's own work is the likely cause. `rerun=True` was deliberately **not** ad
 with `9b3b562` in place, the next occurrence prints the child's own FAIL line, which is
 what will identify it. Do not paper over it; the next full-suite run is the evidence.
 
+### 10l. v0.2.2 released, and the suite was 41/43 until two rigs were fixed (2026-08-09)
+
+**The 18 commits §10k describes are now released.** v0.2.2 shipped from `cf76575`
+with all three `publish.yml` jobs green, and was verified at the endpoints rather
+than from workflow status: PyPI serves wheel + sdist, the MCP Registry lists 0.2.2
+`active`, the GitHub Release is Latest, and a clean-venv install **from PyPI**
+confirms both security fixes reached users — the lowercase `--env
+smartcli_tui_token=…` that used to bypass the guard on Windows is refused, and
+`close --force` is present. The headline is `81a41ad`: `close` could delete a **live**
+daemon's registry entry, stranding a real PTY child while `list` reported zero
+sessions, which is the command this project's own red line says to trust.
+
+**Releasing exposed that `run_all.py` was 41/43 on this host, and neither failure was
+a product defect.** Both were the rig suppressing the feature under test — the fourth
+and fifth recorded instances of that shape (§10j lists `less -X`, GNU screen's
+`altscreen` default, and a missing TERM for `less`):
+
+- **`TERM` must be SET, not inherited.** With an empty `TERM`, `vim` never issues
+  `ESC[?1049h` and does not save the file, so `examples/drive_vim.py` failed
+  "alternate screen is active" and "file on disk really changed" — two of six steps,
+  for the absence of an environment variable. Measured both directions: `env -u TERM`
+  fails exactly those two, `TERM=xterm-256color` passes all six. The tmux probe had it
+  worse: **tmux refuses to attach a client without a usable TERM**, so the
+  attached-client case silently degraded to "no client" and reported a *working*
+  `fx-popup` as broken. CI runners have no TERM either. Both now set it explicitly
+  instead of documenting a prerequisite.
+- **`_tmux_launcher_probe` read the new pane the instant the launcher returned.**
+  `fx-split`'s single-effect branch ends in `exec tmux split-window`, which returns
+  when the pane *exists* — the interpreter inside it has not imported fx yet.
+  Measured: `RC=` lands by ~0.5s, the first frame at ~1.0s, so the check sampled a
+  legitimately blank screen. Now polls the condition with an 8s bound, and
+  mutation-verified that it is not merely permissive: aimed at a nonexistent effect it
+  still FAILS after the whole budget.
+- **A third defect found while there, and this one is the project's own thesis
+  violated in its own showcase.** `drive_vim.py` sent `Escape`, `G`, `o`, the text and
+  `Escape` back to back with nothing between them — the blind send this project exists
+  to argue against. `o` only means "open a line" to a vim that has already processed
+  `G`, and under load it does not process them in the gap between two `write()` calls;
+  observed on a busy machine as "typed text appears on screen" failing with nothing
+  inserted. It now waits for `-- INSERT --` before typing, which proves both `G` and
+  `o` landed, and that is a seventh reported step rather than a hidden wait. `-u NONE`
+  leaves no visible cue for `G` alone, so insert mode is the confirmable fact.
+  Verified 7/7 three times with TERM unset, then twice more under four CPU burners —
+  the failure was load-dependent, so an idle-box run would have proved nothing.
+
+**`tests/run_all.py` is now 43/43 with no FAIL, no SKIP and no rerun** (the previous
+green runs carried an internal SKIP for `hypothesis`, which is simply not installed
+here; CI installs it before running that gate). Pre-tag verification also covered:
+20 deterministic gates individually, `python -m build` + `twine check` on both
+artifacts, the wheel carrying `py.typed` and `smartcli_drive`, all three console
+scripts, and a real REPL driven end to end through the installed CLI.
+
+**Three verification failures of my own, recorded because each is a recurring shape.**
+
+1. **A bad mutation is indistinguishable from a working gate.** Testing whether
+   `drive_vim` could still catch an alt-screen regression, I mutated
+   `ScreenModel.alt_screen` — the *forwarding* property at the bottom of
+   `screen_model.py` — while the example reads `_Screen.alt_screen` several hundred
+   lines above. The probe reported `[OK]` and I was one step from recording that as
+   evidence the check was blind. An earlier attempt was worse: a regex-based injection
+   matched nothing at all and still printed `exit=0`. **Always confirm the mutation
+   landed on the code path under test, not merely that a file changed.**
+2. **The zero-leak check raced the daemon.** `list` immediately after `close` showed
+   the entry still present; the daemon unlinks it in its own `finally`. Polling gave
+   zero on the first poll. §10h records this exact lesson — an assertion that passes
+   on the machine that wrote it is the classic flake — and it still caught me.
+3. **A mirror's lag reads exactly like a failed publish.** `pip install
+   smartcli-toolkit==0.2.2` failed for ~4 minutes with "no matching distribution"
+   while pypi.org's simple index already listed both files. This machine's pip points
+   at the Tsinghua mirror. Verify a release with
+   `--index-url https://pypi.org/simple`.
+
 ---
 
 ## CONTINUATION PROMPT (paste to next AI)
@@ -1514,9 +1595,10 @@ FIRST, TWO THINGS THAT WILL WASTE YOUR TIME IF YOU SKIP THEM:
   Use a venv with requirements.txt installed; `python -m smartcli_core` reports what an
   interpreter can see. Take exit codes DIRECTLY — `python tests/x.py 2>&1 | tail` gives
   you tail's status, so an import crash reads as a pass.
-- `main` carries UNRELEASED work. As of 2026-08-09 the v0.2.1 tag is 18 commits behind
-  it, including three real drive-tui security fixes. `git rev-list --count v0.2.1..HEAD`
-  is the live number; a released-version claim is not a claim about this tree.
+- Read the release state off git, not off prose. `git describe --tags` and
+  `git rev-list --count $(git describe --tags --abbrev=0)..HEAD`. A banner in this file
+  claimed "18 commits unreleased" for three days after that stopped being the plan, and
+  then for a few hours after they were released. v0.2.2 is current as of 2026-08-09.
 
 STANDING DIRECTIVES (non-negotiable):
 - Token budget is UNLIMITED. Optimize for MAX QUALITY, never for brevity or cost.
@@ -1579,17 +1661,20 @@ is QUOTA-EXHAUSTED / DEAD — do live research with built-in WebSearch / WebFetc
 Pace multi-agent fan-outs to API health: an 8-wide fan-out died to 529 storms on
 2026-07-27; batches of 2 completed fine.
 
-RELEASE STATE: latest RELEASED = **v0.2.1** (2026-08-06) — live on PyPI (wheel + sdist),
-the MCP Registry (0.2.1 `active`), and a published GitHub Release marked Latest; all three
-publish.yml jobs green including publish-mcp. Verified by installing
-`smartcli-toolkit==0.2.1` from PyPI into a clean venv. **But that tag is 18 commits
-behind `main` as of 2026-08-09** (re-count: `git rev-list --count v0.2.1..HEAD`), and
-those commits include three drive-tui control-plane fixes — see §10k. So users on PyPI
-do NOT have them, and an unreleased-vs-released distinction matters in anything you
-write. `main` is synced with origin (0/0) and CI-green at 9b3b562. Whether to cut
-v0.2.2 is the OWNER's call. Standing rule for releases: a
+RELEASE STATE: latest RELEASED = **v0.2.2** (2026-08-09, from cf76575) — live on PyPI
+(wheel + sdist), the MCP Registry (0.2.2 `active`), and a GitHub Release marked Latest;
+all three publish.yml jobs green including publish-mcp. Verified at the endpoints, not
+from workflow status: a clean-venv install FROM PyPI refuses
+`--env smartcli_tui_token=…` and carries `close --force`. It fixed `close` deleting a
+LIVE daemon's registry entry (§10l, §10k). Verify the gap yourself —
+`git rev-list --count $(git describe --tags --abbrev=0)..HEAD` — because a hand-written
+count in this file has been wrong twice. Standing rule for releases: a
 published version number can never be reused, so confirm with the owner before tagging
-unless they have said to. Previous RELEASED = **v0.2.0** (2026-07-27; PyPI + GitHub tags v0.1.0…v0.2.1
+unless they have said to. Release-day gotchas both measured on 0.2.2: verify the install
+with `--index-url https://pypi.org/simple` (this box's pip uses a mirror that lags, and
+its lag is indistinguishable from a failed publish), and delete the duplicate DRAFT
+release that `release-drafter.yml` leaves behind. Earlier RELEASED = **v0.2.1**
+(2026-08-06) and **v0.2.0** (2026-07-27; PyPI + GitHub tags v0.1.0…v0.2.2
 + a GitHub Release). It merged the codex/cross-platform-mcp-hardening branch — see HANDOFF
 §10 for the whole arc — and was BREAKING: dropped Python 3.9, made the MCP SDK a required
 dependency. All three publish.yml jobs went green (build → PyPI OIDC → MCP Registry OIDC),
@@ -1675,7 +1760,9 @@ VERIFY WHAT YOU SHIP (all should exit 0; paths POSIX-style, swap \ on Windows).
 Use an interpreter that has pyte; take exit codes directly, never through a pipe.
 Heavy PTY spawners (run_all, verify_fx, probes) need user consent first — red line:
   python tests/run_all.py                # unified runner (43 entries; consent first)
-    # 43/43 on macOS as of 2026-08-06. If you see 39/43 you are on an older
+    # 43/43 on macOS as of 2026-08-09, no FAIL/SKIP/rerun. It was 41/43 until the
+    # two TERM rigs were fixed (10l), and it needs `pip install hypothesis` or one
+    # gate reports an internal SKIP. If you see 39/43 you are on an older
     # checkout: the four platform-gap failures (msvcrt fixtures, drive_vim
     # import) were fixed — see HANDOFF 10i. Since 38c05cc a gate that is tracked
     # by git but missing on disk FAILS instead of skipping, so a green run means

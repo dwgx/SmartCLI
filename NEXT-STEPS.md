@@ -24,30 +24,25 @@ non-negotiable and overrides any shortcut that looks faster.
 
 ## Verified ground-truth snapshot (checked against disk 2026-08-09)
 
-- **`main` carries 18 unreleased commits.** The v0.2.1 tag is 18 behind `main`, which is
-  synced with `origin/main` (0 ahead / 0 behind) and green on CI / Lint / CodeQL / Docker
-  at `9b3b562`. Thirteen are the 2026-08-07 session (HANDOFF §10k): three drive-tui
-  control-plane defects — `close` deleting a **live** daemon's registry entry, a
-  case-sensitive `--env` guard the Windows target bypassed, an unauthenticated
-  head-of-line block bounded 30× but not fixed — plus six gates that could not fail.
-  **PyPI users do not have any of it.** Cutting v0.2.2 is the owner's call; these are
-  behaviour changes to a security surface, not doc edits. Re-count with
-  `git rev-list --count v0.2.1..HEAD` rather than trusting this line.
+- **v0.2.2 IS RELEASED (2026-08-09), and `main` is clean at the tag.** It carries the
+  2026-08-07 control-plane fixes (HANDOFF §10k) plus the two rig fixes releasing it
+  exposed (§10l). Verified at the endpoints: PyPI wheel + sdist, MCP Registry 0.2.2
+  `active`, GitHub Release Latest, and a clean-venv install from PyPI showing both
+  security fixes live. **Never take the release gap from prose** — two hand-written
+  counts in these files have been wrong. Use
+  `git describe --tags` and `git rev-list --count $(git describe --tags --abbrev=0)..HEAD`.
 - **The interpreter, before anything else:** tests import `smartcli_core`, so they need
   `pyte` installed. A bare version-manager `python3` fails with
   `ModuleNotFoundError: No module named 'pyte'`, which reads like a broken test. Take
   exit codes directly — piping through `tail` reports `tail`'s status, so an import
   crash reads as a pass. `ruff`/`mypy` are not installed on the current macOS box, so
   `lint.yml`'s blocking gates are CI-only here.
-- **v0.2.1 IS RELEASED (2026-08-06).** Tagged from `main` at `9454f05`; all three
-  publish.yml jobs green including `publish-mcp` (which only runs on a real tag push, so
-  the bumped action pins executed there for the first time). Live and verified: PyPI
-  serves 0.2.1 as wheel + sdist, the MCP Registry lists 0.2.1 `active`, the GitHub
-  Release is published and Latest, GHCR image built. A clean-venv
-  `pip install smartcli-toolkit==0.2.1` confirms the fixes reached users. This closes
-  the pyte-upgrade timebomb exposure for new installs (HANDOFF §10j). The PyPI JSON
-  index lagged a few minutes behind the green publish — the workflow is the truth,
-  not the index.
+- *Prior release, kept for the pyte-timebomb record:* **v0.2.1** (2026-08-06) from
+  `9454f05`; all three publish.yml jobs green including `publish-mcp` (which only runs
+  on a real tag push, so the bumped action pins executed there for the first time),
+  verified by a clean-venv install. It closed the pyte-upgrade timebomb exposure for new
+  installs (HANDOFF §10j). The PyPI index lagged behind the green publish — the workflow
+  is the truth, not the index.
 - Previous release: **v0.2.0** on PyPI as dist `smartcli-toolkit` (import
   stays `smartcli_core`). Repo github.com/dwgx/SmartCLI, tags v0.1.0…v0.2.0 with
   GitHub Releases (`git tag | tail -3` → v0.1.8, v0.2.0; `git log --oneline -1
@@ -63,8 +58,9 @@ non-negotiable and overrides any shortcut that looks faster.
   cursor_down DECSTBM fix — none of these bumped the version. 3 skills also on
   skillhu.bz. `.claude-plugin/marketplace.json` present. Codecov + Read the Docs
   (smartcli.readthedocs.io) live.
-- Version **0.2.1** (in-tree, re-checked 2026-08-09; this line said 0.2.0 for three
-  days after the release) is consistent across **TEN** sites: pyproject.toml,
+- Version **0.2.2** (in-tree and released; `test_version_sync` is the check, and this
+  line said 0.2.0 for three days after a release once) is consistent across **TEN**
+  sites: pyproject.toml,
   smartcli_core/__init__.py, skills/cmd-art/fx/__init__.py, all 3 skills/*/SKILL.md,
   marketplace.json, **plugin.json**, _vendor/smartcli_core/__init__.py, server.json
   (2 fields). After a bump run tools/sync_vendor.py + tests/test_vendor_sync.py +
@@ -77,18 +73,20 @@ non-negotiable and overrides any shortcut that looks faster.
   docs — the recipe family was added 2026-08-07 after the PASS banner was found
   printing an untested number between two tested ones.
 - Suite size: `tests/run_all.py` `build_suite()` is **43 entries**, **43/43 green on
-  macOS as of 2026-08-07**. It was 39/43 for a while; the
-  four earlier failures were platform gaps in test fixtures (`_menu_app.py` and three
-  siblings opening with `import sys, msvcrt` and dying on POSIX before drawing
-  anything; `examples/drive_vim.py` unable to import `smartcli_core` from a checkout),
-  not product bugs. See HANDOFF §10i. Registration is unconditional — tmux probes SKIP
-  themselves rather than deregistering — so 43 does not vary by host. **A green run
+  macOS as of 2026-08-09 with no FAIL, no SKIP and no rerun** — the SKIP-free part is
+  new; install `hypothesis` or one gate reports an internal skip. It was **41/43** until
+  the same day: two probes relied on an inherited `TERM` (HANDOFF §10l), which is a rig
+  defect, not a product bug. Before that it was 39/43 on platform gaps in fixtures
+  (`msvcrt` imports dying on POSIX; `examples/drive_vim.py` unable to import
+  `smartcli_core` from a checkout — §10i). Registration is unconditional — tmux probes
+  SKIP themselves rather than deregistering — so 43 does not vary by host. **A green run
   means more than it did before 2026-08-07:** a gate tracked by git but missing on disk
   now FAILS instead of skipping, so deleting or renaming one is no longer invisible.
   **Known flake:** `_mcp_probe` failed in 2 of 5 full-suite runs on 2026-08-07 and did
   not reproduce serially; `rerun=True` was deliberately not added, and run_all now
-  prints the child's output so the next occurrence is diagnosable. Deterministic gates
-  re-run individually on 2026-08-09: 14/14 exit 0.
+  prints the child's output so the next occurrence is diagnosable. **It did NOT recur in
+  the two full runs on 2026-08-09**, which is not evidence it is gone — it was 2-in-5.
+  Deterministic gates re-run individually on 2026-08-09: 20/20 exit 0.
 - CI (updated 2026-07-27): **9 workflows**. `ci.yml` is a **3-OS matrix**
   (windows/ubuntu/macos × **py3.10/3.14**) running the deterministic gates incl.
   `test_doc_counts` + `test_version_sync` (anti-drift), `test_visual_change`,
@@ -122,26 +120,25 @@ non-negotiable and overrides any shortcut that looks faster.
 
 ## A0. NEW since v0.2.0 (added 2026-07-27)
 
-### A0-REL-022. Decide whether to release the 18 unreleased commits  [S] (OWNER decision)
-- **Goal:** the v0.2.1 tag is 18 commits behind `main`. Either cut v0.2.2 or record a
-  decision not to; right now the state is undeclared, which is the worst of the three.
-- **Why it matters:** three of those commits are drive-tui control-plane fixes, and one
-  of them (`81a41ad`) is an operational-invariant defect — `close` after a timeout
-  deleted a **live** daemon's registry entry, stranding a PTY child while `list`
-  reported zero sessions. Anyone on `pip install smartcli-toolkit` still has that
-  behaviour. The rest raise the floor on test honesty (a deleted gate used to be a green
-  SKIP) but do not affect users.
-- **Nothing is blocking it technically:** ten version sites at 0.2.1, CI green at
-  `9b3b562`, `main` synced with origin, publish.yml does PyPI + MCP Registry on a tag
-  push via OIDC. So the work is: bump the ten sites, `python tools/sync_vendor.py`,
-  `test_version_sync` + `test_vendor_sync`, write the CHANGELOG entry with the release
-  day's date, then `git tag v0.2.2 && git push origin v0.2.2`.
-- **Why the owner and not an agent:** a published version number can never be reused,
-  and this project's standing rule is to confirm before tagging.
-- **Verify:** all three publish.yml jobs green; `pip install smartcli-toolkit==0.2.2`
-  into a clean venv and confirm `close` refuses to delete a live daemon's entry (the
-  headline fix) rather than trusting the workflow status.
-- **Effort:** S
+### ~~A0-REL-022. Release the 18 unreleased commits~~  [DONE 2026-08-09 — v0.2.2 is live]
+- **Result:** v0.2.2 shipped from `cf76575` with the owner's go-ahead. All three
+  publish.yml jobs green including `publish-mcp`. Verified at the endpoints rather than
+  from workflow status: PyPI serves wheel + sdist, the MCP Registry lists 0.2.2
+  `active`, the GitHub Release is Latest, and a clean-venv install **from PyPI** refuses
+  `--env smartcli_tui_token=…` and carries `close --force` — i.e. both security fixes
+  demonstrably reached users. See HANDOFF §10l.
+- **It also exposed two rig defects that had been failing the suite at 41/43**, neither
+  a product bug: `examples/drive_vim.py` and `tests/_tmux_launcher_probe.py` both relied
+  on an inherited `TERM`, without which vim never enters the alternate screen and tmux
+  refuses to attach a client — the rig suppressing the feature under test, for the
+  fourth and fifth time in this project's history. Fixed, plus a third defect found in
+  passing: `drive_vim` sent five keystrokes blind, which is the anti-pattern this
+  project exists to argue against, in its own showcase example.
+- **Two release-day gotchas worth keeping:** verify the install with
+  `--index-url https://pypi.org/simple` (this box's pip uses a mirror whose lag is
+  indistinguishable from a failed publish — it cost 4 minutes of false alarm), and
+  delete the duplicate DRAFT release `release-drafter.yml` leaves behind, or the
+  releases page lists the version twice.
 
 ### ~~A0-GLAMA. List on Glama to unblock the 91k-star awesome-mcp-servers PR~~  [DONE 2026-08-03 — owner]
 - **Goal:** submit SmartCLI at <https://glama.ai/mcp/servers> ("Add Server"), then

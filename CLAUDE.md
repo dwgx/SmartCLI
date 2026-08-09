@@ -50,6 +50,12 @@ And **take the exit code directly** — `python tests/x.py 2>&1 | tail` yields
 # PTY sessions serially. Per the red line above, get user consent before running.
 python tests/run_all.py
 
+# One gate needs a test-only dependency, or it reports an internal SKIP (which
+# run_all now surfaces even on a PASS). It is NOT in requirements-optional.txt —
+# that file is runtime extras with guarded imports; this is test-only, and CI
+# installs it inline before running the gate.
+pip install hypothesis                    # test_readiness_properties
+
 # Run a single test (each test file is a standalone script, exit 0 = pass):
 python tests/test_fx_contract.py          # deterministic, pure-memory — safe
 python tests/test_readiness.py
