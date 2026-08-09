@@ -20,6 +20,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import time
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -155,7 +156,33 @@ def main() -> int:
 
         # --- close ---
         check(close(sid=sid).get("ok"), "close ok")
-        check(close(sid=sid).get("ok"), "close is idempotent")
+
+        # A SECOND close is idempotent only once the daemon is actually GONE, and
+        # that is the whole point of the fix in 81a41ad rather than an accident.
+        # `close` returns as soon as the daemon has SENT its reply; the daemon then
+        # exits through its own finally block. A second close landing inside that
+        # window finds the request failing while the pid is still alive, and now
+        # correctly REFUSES — deleting the entry there would destroy the token and
+        # pid that are the only remaining handles on a live child.
+        #
+        # This is the load-dependent flake seen in 2 of 5 full-suite runs on
+        # 2026-08-07 and caught in CI on macOS on 2026-08-09: the assertion encoded
+        # the PRE-fix semantics (`ok` unconditionally), so it failed exactly when
+        # the second call was fast enough to race the teardown. The earlier guess
+        # that the probe's own edits caused it was wrong; the real cause is a
+        # semantic conflict with a security fix, which only a real failure — not
+        # static reading — was going to settle.
+        #
+        # So: poll until the second close reports ok. A genuine regression (close
+        # never becoming idempotent) still fails, just after the budget.
+        idem = False
+        for _ in range(25):  # up to ~5s
+            if close(sid=sid).get("ok"):
+                idem = True
+                break
+            time.sleep(0.2)
+        check(idem, "close on an already-closed session is idempotent once the "
+                    "daemon has exited (refusal while its pid is alive is correct)")
         sid = ""
 
         # --- no leaked sessions in the isolated dir ---
