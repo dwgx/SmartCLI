@@ -14,9 +14,7 @@ regression run (drive-probes + `_sandbox_posix_backend.py` on Linux).
 ## Fixed & verified
 
 ### 2026-08-09 · One connection could stall the daemon for every other caller
-- **⚠️ UNRELEASED as of this writing.** The fix is on `main` but NOT in v0.2.2, so a
-  `pip install smartcli-toolkit` still has the serial loop. Check with
-  `git rev-list --count $(git describe --tags --abbrev=0)..HEAD`.
+- **Shipped in v0.2.3** (2026-08-09).
 - **Symptom:** any local process — with no credential at all — could connect to the
   session port, send bytes with no newline, and block every other caller. With
   `listen(8)`, nine such connections denied service for ~18s at a time, repeatable.

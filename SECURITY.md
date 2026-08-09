@@ -25,8 +25,7 @@ surface is narrow but real:
   (`hmac.compare_digest`) before any action runs. The token is passed to the
   daemon via an environment variable (never argv, which is world-visible in
   `ps`/Task Manager) and persisted in a `0600` per-session registry file.
-  **Head-of-line denial of service: FIXED (2026-08-09, unreleased at time of
-  writing).** The accept loop used to be serial with the unauthenticated transport
+  **Head-of-line denial of service: FIXED in v0.2.3 (2026-08-09).** The accept loop used to be serial with the unauthenticated transport
   read inline, so any local process could connect, send no newline, and block every
   other caller — measured at ~18s of denial from nine held connections, repeatable.
   An earlier version of this paragraph claimed the pre-token transport was bounded
@@ -71,8 +70,8 @@ surface is narrow but real:
   session owner (they can read the `0600` token file by definition). Note the
   limit of this clause: it does **not** cover an unprivileged local account that
   cannot read the token file, and the loopback port is discoverable with `netstat`
-  and no privilege — which is why the head-of-line residual above is listed as a
-  known issue rather than dismissed as out of scope.
+  and no privilege — which is why the head-of-line denial of service above was
+  treated as in scope and fixed rather than dismissed under this clause.
 - `research/cc-decompiled/` and `research/real-frames/` are gitignored and not
   part of any release.
 

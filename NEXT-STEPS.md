@@ -124,25 +124,16 @@ non-negotiable and overrides any shortcut that looks faster.
 
 ## A0. NEW since v0.2.0 (added 2026-07-27)
 
-### A0-REL-023. Decide whether to release the daemon concurrency fix  [S] (OWNER decision)
-- **Goal:** `main` carries a SECURITY fix that v0.2.2 does not — the serial accept loop
-  let any local process deny service for ~18s with no credential. Either cut v0.2.3 or
-  record a decision not to.
-- **Why it is a real decision, not housekeeping:** it modifies `smartcli_core` (a new
-  optional `on_poll` parameter on six wait methods — additive, default `None`, so no
-  caller breaks) and rewrites the daemon's concurrency model. The three-condition core
-  policy was satisfied (real-run-path, adversarial review, no regression — HANDOFF
-  §10n), and CI is green on all 11 jobs including the three-OS real-PTY smoke, so the
-  evidence is there. What remains is the judgement that a published version number can
-  never be reused.
-- **The work if you say yes:** bump the ten version sites, `python tools/sync_vendor.py`,
-  `test_version_sync` + `test_vendor_sync`, move the CHANGELOG's `[Unreleased]` section
-  under a dated `[0.2.3]` heading, then `git tag v0.2.3 && git push origin v0.2.3`.
-- **Verify:** all three publish.yml jobs green, then install from PyPI with
-  `--index-url https://pypi.org/simple` (this box's pip uses a mirror whose lag looks
-  exactly like a failed publish) and delete the duplicate draft release
-  `release-drafter.yml` leaves behind.
-- **Effort:** S
+### ~~A0-REL-023. Release the daemon concurrency fix~~  [DONE 2026-08-09 — v0.2.3]
+- **Result:** v0.2.3 tagged with the owner's go-ahead. It carries the security fix v0.2.2
+  did not: the serial accept loop let any local process deny service for ~18s with no
+  credential. Also ships the `on_poll` hook so a long wait no longer blocks a fast verb.
+- **Pre-tag verification:** run_all 44/44 with zero SKIP; ten version sites at 0.2.3;
+  vendored core re-synced; CI green on all 11 jobs at the parent commit including mypy
+  (the gate that cannot run on this box and the one most exposed by a core typing change).
+- **The `smartcli_core` change is additive** — a new optional `on_poll` parameter,
+  default `None`, on six wait methods — so no existing caller changes behaviour. Verified
+  by the readiness gates and the 7 Hypothesis invariants staying green.
 
 ### ~~A0-REL-022. Release the 18 unreleased commits~~  [DONE 2026-08-09 — v0.2.2 is live]
 - **Result:** v0.2.2 shipped from `cf76575` with the owner's go-ahead. All three

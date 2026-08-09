@@ -5,10 +5,13 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.3] - 2026-08-09
 
-Product changes sitting on `main` and NOT in v0.2.2. `pip install smartcli-toolkit`
-does not contain them.
+A control-plane concurrency release. The headline is a security fix that v0.2.2
+**did not** carry: the daemon's serial accept loop let any local process — with no
+credential at all — deny service for ~18s at a time, and `pip install smartcli-toolkit`
+still had that. It also removes a second block that was one layer in: a long `wait`
+kept a concurrent `snapshot` waiting behind it.
 
 ### Fixed
 - **One connection could stall the daemon for every other caller.** The accept loop

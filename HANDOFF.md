@@ -6,7 +6,8 @@
 
 ## 0. Release & current state — READ THIS FIRST
 
-> **2026-08-09 — v0.2.2 IS RELEASED AND LIVE. This is the current release.**
+> **2026-08-09 — v0.2.3 IS RELEASED. This is the current release** (v0.2.2 shipped
+> earlier the same day; its notes follow below).
 > Tagged from `main` at `cf76575`; all three `publish.yml` jobs green including
 > `publish-mcp`. Verified at the endpoints rather than from workflow status: PyPI
 > serves 0.2.2 as wheel + sdist, the MCP Registry lists 0.2.2 `active`, the GitHub
@@ -17,13 +18,11 @@
 > registry entry**, stranding a real PTY child while `list` — the command this
 > project's red line tells you to trust — reported zero sessions. See §10l.
 >
-> **⚠️ PRODUCT CODE SITS UNRELEASED ON `main` AGAIN.** The daemon concurrency fix
-> (§10n) changes `smartcli_core` and the drive-tui control plane, and it is NOT in
-> v0.2.2 — so PyPI users still have the serial accept loop and its ~18s
-> head-of-line denial of service. That is a security fix, which makes cutting
-> v0.2.3 a real decision rather than housekeeping; it is the owner's call
-> (A0-REL-023 in NEXT-STEPS). The CHANGELOG's `[Unreleased]` section lists what
-> would ship.
+> **v0.2.3 (2026-08-09) ships the daemon concurrency fix** — see §10n. It was
+> unreleased for a few hours and that gap is why the banner that used to sit here
+> existed: the fix changes `smartcli_core` and the control plane, so PyPI users on
+> 0.2.2 still had the serial accept loop and its ~18s head-of-line denial of
+> service. They now do not.
 >
 > **Read the release state off git, never off this file:** `git describe --tags` and
 > `git rev-list --count $(git describe --tags --abbrev=0)..HEAD`. A banner sat here
@@ -54,7 +53,7 @@
 > *(The banner that used to sit here — "18 commits unreleased, cutting v0.2.2 is the
 > owner's call" — was resolved on 2026-08-09 by releasing them. §10l.)*
 
-SmartCLI is **published and public**; latest RELEASED version **v0.2.2** (2026-08-09, live on PyPI + GitHub + MCP Registry — §10l). The previous releases were **v0.2.1** (2026-08-06) and **v0.2.0** (2026-07-27). v0.2.0 shipped from branch `codex/cross-platform-mcp-hardening`, merged to `main` and tagged; `publish.yml` published to PyPI and re-published `server.json` to the MCP Registry via OIDC — all three jobs green, verified by installing `smartcli-toolkit==0.2.0` from PyPI in a clean venv. This section is the authoritative current-state record; anything older in this doc that contradicts it is stale. See §10 for the whole 0.2.0 arc: drive-tui control-plane security hardening, `visual_hash` + `wait_visual_change` (closes old known-#3), the wheel now shipping `smartcli_drive` + three console scripts, `mcp` as a required dependency, Python floor 3.10, CI drive-smoke/package jobs, and **twelve screen-emulation bugs** found by differential testing against real terminals — including the alternate screen buffer, which pyte does not implement at all, so every full-screen TUI was previously unreadable. **BREAKING in 0.2.0:** Python 3.9 dropped; the MCP SDK is a required dependency. v0.1.8 added `wait_any`, **Sixel graphics output**, and a **Terminal-Bench agent adapter** (§9h). v0.1.7 shipped `spectrum_bars` + `cbonsai` (catalog 30) and the **MCP Registry** listing (`io.github.dwgx/smartcli`, active — §9g).
+SmartCLI is **published and public**; latest RELEASED version **v0.2.3** (2026-08-09, the daemon concurrency fix — §10n; v0.2.2 shipped earlier the same day — §10l). The previous releases were **v0.2.1** (2026-08-06) and **v0.2.0** (2026-07-27). v0.2.0 shipped from branch `codex/cross-platform-mcp-hardening`, merged to `main` and tagged; `publish.yml` published to PyPI and re-published `server.json` to the MCP Registry via OIDC — all three jobs green, verified by installing `smartcli-toolkit==0.2.0` from PyPI in a clean venv. This section is the authoritative current-state record; anything older in this doc that contradicts it is stale. See §10 for the whole 0.2.0 arc: drive-tui control-plane security hardening, `visual_hash` + `wait_visual_change` (closes old known-#3), the wheel now shipping `smartcli_drive` + three console scripts, `mcp` as a required dependency, Python floor 3.10, CI drive-smoke/package jobs, and **twelve screen-emulation bugs** found by differential testing against real terminals — including the alternate screen buffer, which pyte does not implement at all, so every full-screen TUI was previously unreadable. **BREAKING in 0.2.0:** Python 3.9 dropped; the MCP SDK is a required dependency. v0.1.8 added `wait_any`, **Sixel graphics output**, and a **Terminal-Bench agent adapter** (§9h). v0.1.7 shipped `spectrum_bars` + `cbonsai` (catalog 30) and the **MCP Registry** listing (`io.github.dwgx/smartcli`, active — §9g).
 
 **Where it lives:**
 - **PyPI:** `pip install smartcli-toolkit` → https://pypi.org/project/smartcli-toolkit/ . The dist name is **`smartcli-toolkit`**; the **import package stays `smartcli_core`** (`from smartcli_core import PtySession`). Latest on PyPI = **0.2.2** (the index can lag after a release — the `Publish to PyPI` workflow going green is the source of truth; measured on both the 0.2.1 and 0.2.2 releases). **A trap measured on 0.2.2:** `pip install` failed for ~4 minutes with "no matching distribution" while pypi.org's own simple index already listed the files. The cause was not PyPI — this machine's pip is configured for the Tsinghua mirror, which had not synced yet. Verify a release with `--index-url https://pypi.org/simple`, or you will read a mirror's lag as a broken publish.
