@@ -1,6 +1,6 @@
 # SmartCLI — Handoff (承上启下)
 
-*Written 2026-07-08, last updated **2026-08-09**. This is the single document a fresh AI reads first to pick up SmartCLI without re-deriving anything. It records the **current release state**, what the project IS, what already WORKS (with the exact commands to see it), the brain (`knowledge/`), the hard-won rules that must never be re-lost, the environment, and the open tasks framed so you can start in one move. Baked-in truths (re-verified against code 2026-07-27, counts re-confirmed 2026-08-09): there are **THREE** skills, the live `fx` registry has **30** effects, `tui-ui` has **17** widgets, drive-tui has **8** recipes, and `knowledge/` has **143** `.md` files. **Read §0 then §10k (2026-08-07, the most recent work: `close` deleting a live daemon's registry entry, a case-sensitive control-plane guard the historical Windows target bypassed, an unauthenticated DoS bound that was only a 30× reduction, and six gates that could not fail) — then §10j (2026-08-06: the lint gate that measured a state that did not exist, the MCP surface dropping `alt_screen`, the CLI resize verb, and the v0.2.1 release itself), §10i (upstream pyte + the two dependency timebombs), §10h (Harbor adapter), §10a–g (the v0.2.0 arc, since RELEASED), and §9/§8/§7 for history.***
+*Written 2026-07-08, last updated **2026-08-09**. This is the single document a fresh AI reads first to pick up SmartCLI without re-deriving anything. It records the **current release state**, what the project IS, what already WORKS (with the exact commands to see it), the brain (`knowledge/`), the hard-won rules that must never be re-lost, the environment, and the open tasks framed so you can start in one move. Baked-in truths (re-verified against code 2026-07-27, counts re-confirmed 2026-08-09): there are **THREE** skills, the live `fx` registry has **30** effects, `tui-ui` has **17** widgets, drive-tui has **8** recipes, and `knowledge/` has **143** `.md` files. **Read §0 then §10m (2026-08-09, the most recent work: the Docker image finally RUN in CI the way an MCP directory validates it, the `_mcp_probe` flake solved as a security fix colliding with a stale assertion, a perf ceiling that was measuring a coverage tracer, and the i18n onboarding port) — then §10k (2026-08-07: `close` deleting a live daemon's registry entry, a case-sensitive control-plane guard the historical Windows target bypassed, an unauthenticated DoS bound that was only a 30× reduction, and six gates that could not fail) — then §10j (2026-08-06: the lint gate that measured a state that did not exist, the MCP surface dropping `alt_screen`, the CLI resize verb, and the v0.2.1 release itself), §10i (upstream pyte + the two dependency timebombs), §10h (Harbor adapter), §10a–g (the v0.2.0 arc, since RELEASED), and §9/§8/§7 for history.***
 
 ---
 
@@ -1576,6 +1576,89 @@ scripts, and a real REPL driven end to end through the installed CLI.
    while pypi.org's simple index already listed both files. This machine's pip points
    at the Tsinghua mirror. Verify a release with
    `--index-url https://pypi.org/simple`.
+
+### 10m. The image is finally RUN, and the flake was a fix colliding with a stale assertion (2026-08-09)
+
+**A0-DOCKER-RUN is closed, and it is the most valuable item here because it removed a
+blind spot rather than a bug.** `docker.yml` built and pushed but never started the
+result, so `CMD ["mcp"]` had shipped in three releases with no automated test running
+it — while starting the image with no arguments and speaking JSON-RPC to its stdin is
+*exactly* how an MCP directory validates a server. `tools/mcp_stdio_smoke.py` now
+speaks the real three-message handshake (`initialize` → `notifications/initialized` →
+`tools/list`; the middle one is not optional — omit it and `tools/list` never answers)
+and asserts what a directory looks at. **Verified in CI against a real container**: 12
+checks pass, `serverInfo` reports 0.2.2, 14 tools, stdout is clean JSON-RPC.
+
+It is mutation-verified against all three historical bugs, because a smoke test that
+cannot fail is worse than none:
+
+    drop `mcp._mcp_server.version = …`   -> FAIL, reporting the SDK's own 1.29.0
+    run the entrypoint's `fx gallery`    -> FAIL on non-JSON stdout (real animation
+                                            bytes), then on no initialize reply
+    rename alt_screen in the reply       -> FAIL on the field a release once dropped
+
+Two defects in my own first draft, both found by checking rather than assuming: the
+`paths` filter did not include `tools/`, so editing the smoke test would not re-run the
+workflow that depends on it — the gate could have been broken silently; and the step ran
+`python` in a job with no `setup-python`, which is the exact "don't assume a bare
+`python` on PATH" assumption CLAUDE.md warns about. The script is stdlib-only so the step
+needs no Python setup, and that claim was **verified** by running it on this box's system
+`python3`, which has neither `pyte` nor `mcp` — it works and degrades the tool count to a
+literal *while saying it degraded*.
+
+**The `_mcp_probe` flake is SOLVED, and the previous session's hypothesis was wrong.**
+§10k recorded a suspicion that the probe's own edits caused it. CI failed on
+`macos-latest` with exactly one check red out of 23 — `close is idempotent` — and that
+settled in one run what static reading had not. The mechanism: `close` returns as soon as
+the daemon has SENT its reply, then the daemon exits through its own `finally`. The probe
+immediately called `close` again and required `ok` **unconditionally** — but `81a41ad`,
+shipped in v0.2.2 the same day, made `close` REFUSE while the daemon's pid is alive. So a
+second close landing inside the teardown window is *correctly* refused, and the assertion
+was encoding pre-fix semantics. It failed precisely when the machine was fast enough to
+race the exit, which is why it was load-dependent and never reproduced serially on an idle
+box. Fixed on the assertion side — poll until ok — never by weakening the security fix.
+Mutation-verified (force the guard to always refuse → the probe FAILS, so the poll is not
+a permanently-green no-op) and confirmed 5/5 under four CPU burners, since load is the
+triggering condition and an idle run proves nothing about a 2-in-5 failure.
+**There is no remaining known nondeterminism in the suite**, and `rerun=True` was never
+added.
+
+**A timing ceiling measured under a tracer describes the tracer.** The coverage job
+failed with `content_hash 300x100: 30.0132 ms < 30.0 ms` — a 0.04% overshoot. The same
+check is 5.09 ms bare here, a 6x margin under the same ceiling; `tools/coverage_run.py`
+includes this gate in its subset and runs it with coverage's process-startup hook, which
+bills a Python callback against every call. Fixed by **declining to measure** when a
+tracer is attached, not by raising the ceiling — raising it was the tempting move and the
+wrong one, because the window this gate protects is 2000x (per-cell hashing 16.6 ms idle
+vs 0.008 ms incremental) and a ceiling loose enough to survive instrumentation could no
+longer catch that. Detection is `sys.gettrace()` plus `sys.monitoring` tool slots (3.12+
+traces without setting gettrace) plus a `coverage in sys.modules` fallback, so it is true
+whenever a tracer is really attached rather than keyed to an env var CI could forget.
+Mutation-verified bare: killing `visual_hash`'s incrementality fails all three idle
+ceilings (300x100 → 20.6 ms, 69% of a 30 ms poll).
+
+**Also closed: A0-I18N-ONBOARD.** All four localized READMEs now carry the 30-second
+quickstart and the `drive_vim` comparison. Delegated, then verified independently rather
+than on the worker's word: the fenced command blocks are **byte-identical** to English in
+all four (compared programmatically — a translated command is a broken command), zero CJK
+inside any added fence, every `../../` link resolves against disk, no gated count moved,
+and the diff is 180 pure insertions touching nothing else.
+
+**And a doc gate for a claim nothing was watching.** README quotes `drive_vim`'s step
+list as its strongest onboarding evidence, and it went stale the moment the example
+gained a seventh step. `test_doc_counts` now compares the quoted `[OK ]` lines against
+the `step("…")` literals parsed statically out of the example — running it would spawn a
+real PTY, which this gate must not do and does not need to. Mutation-verified: deleting
+one quoted line FAILS with both counts named.
+
+**Final state: CI green on all 11 jobs** at `e2688d6`, including the two that were red
+(`coverage` and `drive + MCP smoke · macos-latest`).
+
+**Method notes.** A false green nearly shipped twice more: I read Lint/Docker/CodeQL as
+"CI is green" while the CI *matrix* was failing on a separate workflow entry — check the
+workflow named `CI`, not the aggregate impression. And a `time` import was missing from
+my first version of the flake fix, which would have died with `NameError` on the first
+slow path; that is the second missing-import in two sessions, both caught before running.
 
 ---
 

@@ -13,6 +13,19 @@ regression run (drive-probes + `_sandbox_posix_backend.py` on Linux).
 
 ## Fixed & verified
 
+### 2026-08-09 · A second `close` is idempotent only after the daemon has exited (the _mcp_probe flake)
+- **Not a defect — the consequence of a deliberate fix.** `close` returns as soon as the
+  daemon has SENT its reply; the daemon then exits through its own `finally`. A second
+  `close` landing inside that window finds the request failing while the pid is still
+  alive, and correctly REFUSES (see the 2026-08-07 entry above — deleting the entry there
+  would destroy the token and pid that are the only handles left on a live child).
+- **If you script a retry, poll.** Call `close` again on a bounded loop until it reports
+  ok, rather than asserting the second call succeeds immediately. `tests/_mcp_probe.py`
+  does exactly this; its assertion used to require `ok` unconditionally and was the
+  load-dependent flake that failed 2 of 5 full-suite runs and one CI leg on macOS.
+- **Resolved 2026-08-09.** Mutation-verified that the polled version still fails if
+  `close` never becomes idempotent, and 5/5 under four CPU burners with zero leaks.
+
 ### 2026-08-07 · `close` after a timeout deleted a LIVE daemon's registry entry, and `list` then confirmed a lie
 - **Symptom:** `close --id <SID>` printed `closed <sid>`, exited 0, and `list` reported
   zero sessions — while the daemon was still running and still owned a PTY child.
@@ -143,18 +156,6 @@ regression run (drive-probes + `_sandbox_posix_backend.py` on Linux).
   verb hold the lock for its entire timeout, which is most of what this daemon does.
 - **Practical impact while it stands:** a verb that times out does not prove the daemon
   died (see the `close` entry above). Retry before concluding anything.
-
-### `_mcp_probe` has a load-dependent flake (deliberately not hidden)
-- **Symptom:** `tests/_mcp_probe.py` failed in 2 of 5 full-suite `run_all.py` runs on
-  2026-08-07, and did **not** reproduce in 3 back-to-back serial runs of
-  `_tui_cli_probe` + `_mcp_probe`. It passes standalone.
-- **Suspected cause:** the probe was modified in that same session (it gained a second
-  session and a second leak poll), so this session's own work is the likely origin, not
-  a product defect. That is a hypothesis, not a finding.
-- **Why no `rerun=True`:** hiding it would destroy the evidence. `run_all.py` now
-  retains child output and prints the last 40 lines on failure, so the next occurrence
-  reports the probe's own FAIL line. **If you see it, capture that output before doing
-  anything else** — it is the diagnosis this entry is waiting on.
 
 ### ConPTY (Windows) startup quiet-gap & Ctrl-C
 - First prompt can land ~3s after spawn; use `wait-regex` with a 15s timeout for

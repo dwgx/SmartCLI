@@ -82,11 +82,14 @@ non-negotiable and overrides any shortcut that looks faster.
   SKIP themselves rather than deregistering — so 43 does not vary by host. **A green run
   means more than it did before 2026-08-07:** a gate tracked by git but missing on disk
   now FAILS instead of skipping, so deleting or renaming one is no longer invisible.
-  **Known flake:** `_mcp_probe` failed in 2 of 5 full-suite runs on 2026-08-07 and did
-  not reproduce serially; `rerun=True` was deliberately not added, and run_all now
-  prints the child's output so the next occurrence is diagnosable. **It did NOT recur in
-  the two full runs on 2026-08-09**, which is not evidence it is gone — it was 2-in-5.
-  Deterministic gates re-run individually on 2026-08-09: 20/20 exit 0.
+  **The `_mcp_probe` flake is SOLVED (2026-08-09), and the earlier hypothesis was wrong**
+  — it was not the probe's own edits but a stale assertion colliding with the v0.2.2
+  `close` fix: the probe required a second `close` to report ok unconditionally, while
+  `close` now correctly refuses during the daemon's teardown window. CI caught it on
+  macos-latest, which settled in one run what static reading had not. Fixed on the
+  assertion side (poll), mutation-verified, 5/5 under CPU load. **No known
+  nondeterminism remains in the suite**; `rerun=True` was never added. Deterministic
+  gates re-run individually on 2026-08-09: 20/20 exit 0. CI green on all 11 jobs.
 - CI (updated 2026-07-27): **9 workflows**. `ci.yml` is a **3-OS matrix**
   (windows/ubuntu/macos × **py3.10/3.14**) running the deterministic gates incl.
   `test_doc_counts` + `test_version_sync` (anti-drift), `test_visual_change`,
@@ -392,60 +395,32 @@ non-negotiable and overrides any shortcut that looks faster.
   fix this, all four places move together.
 - **Effort:** M
 
-### A0-I18N-ONBOARD. Port the English onboarding flow to the four locales  [S]
-- **Goal:** the English README now opens with a copy-pasteable "Drive something in 30
-  seconds" block and the runnable `examples/drive_vim.py` comparison (0.1.8 fails to save
-  the file, 0.2.0 succeeds). None of `docs/i18n/README.{zh-Hans,zh-Hant,ja,ko}.md` has
-  either — they jump from `pip install` straight to the lazygit section. Verified:
-  `grep -n '30 秒\|30-second\|drive_vim' docs/i18n/README.*.md` returns nothing.
-- **Why it matters:** those two blocks are the whole onboarding argument. The quickstart is
-  the only copy-paste path that proves the install worked, and the drive_vim comparison is
-  the concrete evidence that motivates trusting the alt-screen fix. A reader routed to a
-  locale by the language switcher currently gets a materially thinner case.
-- **Found by:** the independent discovery-mode review (2026-08-06), confirmed by a skeptic.
-  It was filed rather than fixed alongside the three accuracy defects in `efb43a9` because
-  this is a content port, and burying it in a fix commit would have hidden its size.
-- **First step:** read README.md's quickstart + drive_vim section, then port both into each
-  locale at the same position (right under the install command), keeping each file's
-  existing voice. Relative links from `docs/i18n/` need `../../` — the accuracy fixes in
-  `efb43a9` are a worked example.
-- **Verify:** `PYTHONIOENCODING=utf-8 python3 tests/test_doc_counts.py` stays green (it
-  enforces counts across localized docs including the CJK phrasings); every ported link
-  resolves; and the commands in each locale's quickstart are byte-identical to the English
-  ones, since a translated command is a broken command.
-- **Effort:** S
+### ~~A0-I18N-ONBOARD. Port the onboarding flow to the four locales~~  [DONE 2026-08-09]
+- **Result:** all four localized READMEs carry the 30-second quickstart and the
+  `drive_vim` comparison, at the same position as English. 180 pure insertions.
+- **Verified independently of the worker that did it:** the fenced command blocks are
+  BYTE-IDENTICAL to English in all four (compared programmatically — a translated command
+  is a broken command), zero CJK inside any added fence, every `../../` link resolves
+  against disk, no gated count moved, `test_doc_counts` exit 0.
+- **Note the step list is SEVEN steps now**, not the six README carried until 2026-08-09;
+  the locales were given the measured list so they could not inherit the stale one.
+  `test_doc_counts` now gates that quoted output against the example's `step()` literals.
 
-### A0-DOCKER-RUN. Make CI actually RUN the image, not just build it  [S]
-- **Goal:** `docker.yml` builds and pushes but never runs the result
-  (`grep -nE "run:|docker run" .github/workflows/docker.yml` returns nothing). Add a
-  step that starts the built image with no arguments and speaks one JSON-RPC
-  `initialize` + `tools/list` over stdio, asserting `serverInfo.version` equals the
-  package version and that 14 tools come back.
-- **Why it matters:** that is exactly how an MCP directory validates a server, and
-  it is the check that would have caught the v0.2.0 bug where the image defaulted to
-  `CMD ["fx gallery"]` — a directory would have received animation frames and scored
-  the server broken. The `CMD ["mcp"]` fix has shipped in two releases now with **no
-  automated test ever running it**; the only evidence is that the build is green,
-  which proves nothing about what the image does when started.
-- **Partial evidence as of 2026-08-06 (v0.2.1):** verified by RECONSTRUCTING the
-  image layout rather than running a container (no Docker on this host) — copied
-  `smartcli_core/` + `skills/` into a scratch dir, set the Dockerfile's exact
-  `PYTHONPATH`, installed only `requirements.txt` (not the package, matching the
-  image), and spoke JSON-RPC from outside the repo: `serverInfo` = 0.2.1, 14 tools,
-  `snapshot`'s description mentions `alt_screen`. So the bootstrap path resolves and
-  the entrypoint's `mcp` branch is sound. **This is not a container run** — it does
-  not cover the base image, the `ENTRYPOINT` script itself, or anything the
-  Dockerfile's own layers do.
-- **First step:** in `docker.yml`, build with `load: true` for the smoke step (a
-  pushed multi-arch manifest cannot be run directly), then
-  `printf '<initialize>\n<initialized>\n<tools/list>\n' | docker run -i --rm <tag>`
-  and parse the replies. Note the server needs the `notifications/initialized`
-  message between the two requests or `tools/list` never answers — that cost a round
-  when probing it by hand.
-- **Verify:** the step fails if `CMD` is changed back to a demo, and fails if
-  `serverInfo` reports the SDK's version instead of ours (both are real bugs this
-  project has already had).
-- **Effort:** S
+### ~~A0-DOCKER-RUN. Make CI actually RUN the image~~  [DONE 2026-08-09]
+- **Result:** `docker.yml` now builds a local `load: true` image, starts it, and speaks
+  the real JSON-RPC handshake to it via `tools/mcp_stdio_smoke.py` — the same check an
+  MCP directory performs. **Verified in CI against a real container**: 12 checks pass,
+  `serverInfo` 0.2.2, 14 tools, stdout clean JSON-RPC. A fork PR is covered too, since
+  the smoke runs off the local build and needs no push rights.
+- **Mutation-verified against all three historical bugs** — dropping the version
+  forwarding reports the SDK's 1.29.0; running the `fx gallery` branch fails on non-JSON
+  stdout; renaming `alt_screen` fails the field a release once dropped.
+- **Two defects in the first draft, both found by checking:** `paths` did not include
+  `tools/`, so editing the gate would not re-run the workflow that depends on it; and the
+  step ran `python` in a job with no `setup-python`. The script is stdlib-only (verified
+  on an interpreter with neither pyte nor mcp) so no Python setup is needed.
+- **Not verified locally:** no container was run here — Docker CLI is not on PATH on this
+  box (OrbStack installed, never started). The container leg is CI-verified only.
 
 ### ~~A0-CLI-RESIZE. Expose resize as a CLI subcommand~~  [DONE 2026-08-06]
 - **Result:** `tui.py resize --id <SID> --cols N --rows M` (plus `--json`). Validation
