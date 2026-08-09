@@ -5,6 +5,97 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2026-08-09
+
+A control-plane correctness release. The headline is that **`close` could delete a
+live daemon's registry entry**, stranding a real PTY child while the very command
+this project tells you to use for confirming cleanliness reported zero sessions.
+Everything else here either closes a security bypass or makes a check capable of
+failing; there are no new features.
+
+### Fixed
+- **`close` after a failed request deleted the registry entry of a LIVE daemon.**
+  `_call` turns any transport failure — *including a plain timeout* — into a
+  `SystemExit` telling the operator to run `close --id <sid>` "to clean up the stale
+  entry", and `close` then unlinked the file unconditionally. But the daemon's accept
+  loop is serial, so a busy daemon is indistinguishable from a dead one at the socket,
+  and that file is the only store of both the capability token and the pid. The
+  documented recovery could therefore leave a live daemon owning a running PTY child
+  that was unreachable by protocol (token gone) and unfindable for a manual kill (pid
+  gone) — while `close` printed `closed <sid>`, exited 0, and `list` reported zero
+  sessions. Since this project's own guidance is to confirm "zero leaked sessions" with
+  exactly that `list`, the check would have confirmed a lie. Death is now proven before
+  deletion (`os.kill(pid, 0)` on POSIX, `OpenProcess` + `GetExitCodeProcess` on
+  Windows, where signal 0 does not exist); `close` refuses and exits 1 with the pid, and
+  the new `--force` overrides it while saying in its help what that costs.
+- **`--env` could re-inject the session token on Windows.** The control-plane guard was
+  `key.startswith("SMARTCLI_TUI_")` — an exact-case check — while Windows environment
+  names are case-insensitive and CPython upcases keys on assignment. So
+  `--env smartcli_tui_token=…` passed validation and `os.environ.update()` installed it
+  **as `SMARTCLI_TUI_TOKEN`** in the driven child: precisely the capability the daemon
+  pops so a child cannot control its own session. Now compared uppercased
+  unconditionally, with the deny-list widened to `SMARTCLI_ROOT`,
+  `SMARTCLI_MAX_SESSIONS` and `SMARTCLI_AUTO_INSTALL`. Your own variable names are
+  unaffected.
+- **An unauthenticated peer could head-of-line block the daemon for 60s per
+  connection.** `conn.settimeout(60.0)` was set *before* the token check, so any local
+  process could connect, send bytes with no newline, and stall every other caller with
+  no credential at all; with `listen(8)`, nine such connections starve the owner. The
+  budget is now split — 2s pre-auth, re-armed against a **fixed deadline** so a peer
+  dribbling bytes cannot renew it, and 60s only for an authenticated caller's reply.
+  **Measured: nine held connections went from 540s to 18s. That is a 30× reduction and
+  NOT a fix** — the residual is inherent to the serial accept loop. Per-connection
+  threading is the real answer and is deliberately not attempted here, because
+  `PtySession` is not thread-safe; `SECURITY.md` now documents the residual instead of
+  claiming the bound prevents it.
+- **A non-dict JSON request was answered with an interpreter exception, pre-auth.**
+  `[1,2,3]` reached the handler and died on `req.get()`; `AttributeError` was not in the
+  connection guard's tuple, so an unauthenticated peer received
+  `{"error": "AttributeError: …"}` with no `ok` field, unlike every other reply on the
+  socket. Rejected explicitly now, before dispatch.
+- **`examples/drive_vim.py` sent five keystrokes blind and did not set `TERM`.** The
+  mode changes (`Escape`, `G`, `o`) were issued back to back with nothing between them —
+  the blind send this project exists to argue against — so under load the keystrokes
+  were swallowed and nothing was inserted. It now confirms `-- INSERT --` before typing,
+  which proves both `G` and `o` landed. And without a `TERM` vim never enters the
+  alternate screen nor saves the file, so two of the six steps failed for the absence of
+  an environment variable rather than for anything in the code; it is set explicitly now.
+
+### Changed
+- **`tests/run_all.py` no longer reports success for a gate that was deleted.** 29 of 43
+  entries were `optional=True`, including 20 committed deterministic gates, so renaming
+  or removing any of them was a green SKIP — while the runner is documented as
+  pass-or-fail. A missing file that git tracks is now a FAIL regardless of the flag,
+  which is derived rather than hand-maintained and so covers a new gate the moment it is
+  committed. Entries that depend on an external binary (tmux, vim, less) still skip
+  themselves internally, so a green run on a host lacking those covers less.
+- **`run_all.py` retains and prints child output on failure** (last 40 lines), and
+  surfaces internal `SKIP:` lines even on a PASS. Previously a suite failure was
+  reportable only as an exit code and had to be re-run standalone — exactly the case
+  where an order- or load-dependent failure does not reproduce.
+- **Anti-drift gates that could not fail, fixed.** `test_fx_contract`'s exact-width
+  contract was gated on a predicate that evaluated the very condition it asserts, so any
+  effect *violating* it was reclassified "sparse" and passed; the classification is now
+  a frozen 24-name set with a second check so it cannot rot in either direction, and
+  skipped contracts are no longer counted as passes (the summary reads
+  `174/174 passed, 6 skipped`, where "150/150" had included six checks that never ran).
+  `test_doc_counts` exempted its own authoritative counts line by inferring intent from
+  nearby words — exemption is now an explicit `doc-counts:ignore` marker — and it now
+  gates the recipe count it had only been printing. The dependency gate's Homebrew
+  half ran a pip-shaped regex over a Ruby formula and could not match under any
+  circumstances; each draft is now parsed in its own syntax.
+- **`tests/_tmux_launcher_probe.py` read the new pane the instant the launcher
+  returned.** The single-effect branch ends in `exec tmux split-window`, which returns
+  when the pane *exists* — measured, the first frame arrives ~0.5s later — so it
+  sampled a legitimately blank screen. It now polls for the condition with a bound. It
+  also sets `TERM`, without which tmux refuses to attach a client and two more checks
+  failed for a rig reason.
+
+### Notes
+- No API or behaviour change for library users beyond `close`'s new refusal (and the
+  `--force` escape hatch). `smartcli_core`'s public surface is unchanged.
+- `tests/run_all.py` is 43/43 on macOS with no FAIL, no SKIP and no rerun.
+
 ## [0.2.1] - 2026-08-06
 
 A perception-correctness release. The headline is not a feature: **an upgrade of
