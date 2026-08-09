@@ -13,6 +13,33 @@ regression run (drive-probes + `_sandbox_posix_backend.py` on Linux).
 
 ## Fixed & verified
 
+### 2026-08-09 · One connection could stall the daemon for every other caller
+- **Symptom:** any local process — with no credential at all — could connect to the
+  session port, send bytes with no newline, and block every other caller. With
+  `listen(8)`, nine such connections denied service for ~18s at a time, repeatable.
+- **Root cause:** the accept loop was serial and the UNAUTHENTICATED transport read ran
+  inline on it. An earlier fix split the read budget (2s pre-auth / 60s post-auth),
+  cutting the worst case from 540s to 18s — a 30x mitigation that left the primitive
+  intact, because the loop was still serial.
+- **Fix:** three roles. The accept thread only accepts; a per-connection reader does the
+  unauthenticated work (read, parse, check the token) so one silent peer burns only its
+  own 2s; and a SINGLE worker thread is the only thread that ever touches the session.
+  That last part is required, not caution — `visual_hash()` clears `screen.dirty` as a
+  side effect, `pump()` is read-modify-write, and `resize()` mutates four fields in
+  sequence, so two threads in the session corrupt perception silently.
+- **Plus a second layer:** a long `wait*` occupied the worker, so a concurrent
+  `snapshot` waited behind it (8s, measured) — the same block one layer in. The core's
+  wait loops now take an optional poll hook, called in the idle gap ON THE WAITING
+  THREAD, so fast verbs are answered without a second thread touching the session.
+- **Verified:** `tests/test_daemon_concurrency.py` drives the real accept loop against a
+  fake session (no PTY): 9 silent peers → authenticated request served in 0.00s;
+  `snapshot` during a long wait → 0.04s; 200 KB request still succeeds; auth still
+  enforced; session access provably single-threaded. Mutation-verified three ways
+  (serial inline → 10.06s FAIL; no poll hook → 8.00s FAIL; handling on the reader
+  thread → FAIL). On a live PTY: `snapshot` in 0.13s during a 20s `wait-regex`, zero
+  leaked sessions. run_all 44/44; CI green on all 11 jobs including the three-OS
+  real-PTY smoke.
+
 ### 2026-08-09 · A second `close` is idempotent only after the daemon has exited (the _mcp_probe flake)
 - **Not a defect — the consequence of a deliberate fix.** `close` returns as soon as the
   daemon has SENT its reply; the daemon then exits through its own `finally`. A second
@@ -141,21 +168,17 @@ regression run (drive-probes + `_sandbox_posix_backend.py` on Linux).
 
 ## Still open (with reasons)
 
-### One unauthenticated connection can stall the daemon (bounded, not fixed)
-- The accept loop is serial (`conn, _ = srv.accept()`, no threading), so a local peer
-  that connects and never sends a newline blocks every other caller — including you —
-  for the length of its read budget. The budget is split (2s pre-auth, re-armed against
-  a fixed deadline so dribbled bytes cannot renew it; 60s post-auth for an
-  authenticated reply), which took nine held connections from a measured 540s down to
-  18s. **That is a 30× reduction, not a fix**: an attacker who keeps reconnecting still
-  degrades service.
-- **Why it stops there:** per-connection threading is the real answer and
-  `PtySession` is not thread-safe, so it is a concurrency-model change rather than a
-  patch. Tracked as **A0-DAEMON-CONCURRENCY** in `NEXT-STEPS.md`, including the trap in
-  the simpler design — a lock plus per-connection threads would let a blocking `wait*`
-  verb hold the lock for its entire timeout, which is most of what this daemon does.
-- **Practical impact while it stands:** a verb that times out does not prove the daemon
-  died (see the `close` entry above). Retry before concluding anything.
+### A second LONG wait queues behind the first (inherent, not a defect)
+- One session owns one PTY child, so it has one screen. Two concurrent `wait*` verbs on
+  the same session have no meaningful independent answer, and the single session worker
+  runs them in arrival order.
+- **Fast verbs are NOT affected** — `snapshot`, `alive`, `list`, `send-text`,
+  `send-line`, `keys` are answered *during* a long wait (measured on a live PTY: 0.13s
+  while a 20s `wait-regex` was in flight). `resize` is deliberately excluded: it
+  re-dimensions the pyte screen and therefore changes the content hash, so answering it
+  mid-wait would make a caller blocked in `wait-change` read "the screen changed" and
+  conclude its own keystroke had landed.
+- If you need two independent waits, use two sessions.
 
 ### ConPTY (Windows) startup quiet-gap & Ctrl-C
 - First prompt can land ~3s after spawn; use `wait-regex` with a 15s timeout for

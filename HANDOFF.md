@@ -1,6 +1,6 @@
 # SmartCLI — Handoff (承上启下)
 
-*Written 2026-07-08, last updated **2026-08-09**. This is the single document a fresh AI reads first to pick up SmartCLI without re-deriving anything. It records the **current release state**, what the project IS, what already WORKS (with the exact commands to see it), the brain (`knowledge/`), the hard-won rules that must never be re-lost, the environment, and the open tasks framed so you can start in one move. Baked-in truths (re-verified against code 2026-07-27, counts re-confirmed 2026-08-09): there are **THREE** skills, the live `fx` registry has **30** effects, `tui-ui` has **17** widgets, drive-tui has **8** recipes, and `knowledge/` has **143** `.md` files. **Read §0 then §10m (2026-08-09, the most recent work: the Docker image finally RUN in CI the way an MCP directory validates it, the `_mcp_probe` flake solved as a security fix colliding with a stale assertion, a perf ceiling that was measuring a coverage tracer, and the i18n onboarding port) — then §10k (2026-08-07: `close` deleting a live daemon's registry entry, a case-sensitive control-plane guard the historical Windows target bypassed, an unauthenticated DoS bound that was only a 30× reduction, and six gates that could not fail) — then §10j (2026-08-06: the lint gate that measured a state that did not exist, the MCP surface dropping `alt_screen`, the CLI resize verb, and the v0.2.1 release itself), §10i (upstream pyte + the two dependency timebombs), §10h (Harbor adapter), §10a–g (the v0.2.0 arc, since RELEASED), and §9/§8/§7 for history.***
+*Written 2026-07-08, last updated **2026-08-09**. This is the single document a fresh AI reads first to pick up SmartCLI without re-deriving anything. It records the **current release state**, what the project IS, what already WORKS (with the exact commands to see it), the brain (`knowledge/`), the hard-won rules that must never be re-lost, the environment, and the open tasks framed so you can start in one move. Baked-in truths (re-verified against code 2026-07-27, counts re-confirmed 2026-08-09): there are **THREE** skills, the live `fx` registry has **30** effects, `tui-ui` has **17** widgets, drive-tui has **8** recipes, and `knowledge/` has **143** `.md` files. **Read §0 then §10n (2026-08-09, the newest: the daemon's serial accept loop removed, where the task's own preferred design proved insufficient) — then §10m (2026-08-09: the Docker image finally RUN in CI the way an MCP directory validates it, the `_mcp_probe` flake solved as a security fix colliding with a stale assertion, a perf ceiling that was measuring a coverage tracer, and the i18n onboarding port) — then §10k (2026-08-07: `close` deleting a live daemon's registry entry, a case-sensitive control-plane guard the historical Windows target bypassed, an unauthenticated DoS bound that was only a 30× reduction, and six gates that could not fail) — then §10j (2026-08-06: the lint gate that measured a state that did not exist, the MCP surface dropping `alt_screen`, the CLI resize verb, and the v0.2.1 release itself), §10i (upstream pyte + the two dependency timebombs), §10h (Harbor adapter), §10a–g (the v0.2.0 arc, since RELEASED), and §9/§8/§7 for history.***
 
 ---
 
@@ -1660,6 +1660,77 @@ workflow named `CI`, not the aggregate impression. And a `time` import was missi
 my first version of the flake fix, which would have died with `NameError` on the first
 slow path; that is the second missing-import in two sessions, both caught before running.
 
+### 10n. The daemon's serial accept loop is gone, and the preferred design was not enough (2026-08-09)
+
+**A0-DAEMON-CONCURRENCY is closed — the last real security residual.** The accept loop
+was serial with the UNAUTHENTICATED transport read inline, so any local process could
+connect, send bytes with no newline, and head-of-line block every other caller. The
+earlier split budget (2s pre-auth / 60s post-auth, `beb7583`) cut the worst case from
+540s to 18s and left the primitive intact. Measured now: **nine silent peers holding
+connections, and an authenticated request is served in 0.00s** — against 10.06s and
+still timing out when the serial design is put back.
+
+**The task's own preferred design was insufficient, and that is the most useful thing
+here.** NEXT-STEPS favoured "one accept thread handing connections to a
+single-threaded session worker over a queue". I implemented exactly that and measured
+it: a `wait-regex --timeout-ms 60000` occupies the worker, so a concurrent `snapshot`
+waited **8.00s**. The queue had moved; the block had not. A plan is a hypothesis.
+
+The shape that works is three roles — accept thread accepts only; a per-connection
+reader does the unauthenticated work so a silent peer burns only its own 2s; a SINGLE
+worker owns the session — **plus** an optional `on_poll` hook on the core's four wait
+loops and `PtySession`'s six wait methods, called in the idle gap ON THE WAITING
+THREAD. That is what answers a fast verb during a long wait *without* a second thread
+ever entering the session.
+
+**Why the single worker is required rather than cautious.** `PtySession` is not
+thread-safe in three specific ways, all of which corrupt perception silently rather
+than raising: `ScreenModel.visual_hash()` recomputes only pyte's dirty rows and then
+CLEARS `screen.dirty`, so two racing callers lose a real screen change; `pump()` is
+read-modify-write (`read_nonblocking` → `feed` → `drain_replies` → `write`); and
+`resize()` mutates `cols`, `rows`, the backend, the screen and `_blank_hash` as four
+steps. A lock instead would serialise the expensive part anyway and let a 60s wait
+hold it for the whole timeout.
+
+**Core policy conditions, all three met.** Real run path: a live PTY with a 20s
+`wait-regex` in flight answered `snapshot` in **0.13s** with the real prompt visible,
+the wait then completed its own timeout, zero leaked sessions (polled). Adversarial
+review found a real defect of mine: `resize` was in the interleavable set, but it
+re-dimensions the pyte screen and therefore **changes the content hash**, so a caller
+blocked in `wait_change` would read "the screen changed" and conclude its own keystroke
+had landed. Removed; `close` and every `wait_*` were already excluded (teardown, and
+unbounded recursion through the poll gap). No regression: `run_all` 44/44 with zero
+SKIP, CI green on all 11 jobs including the three-OS real-PTY smoke, and **mypy green**
+— the one gate that cannot be run on this box, and the one most exposed by a typing
+change to the core.
+
+**Mutation-verified three ways, and the third found a defect in my own gate.** Serial
+accept inline → FAIL (10.06s). Drop the poll hook → FAIL (8.00s), which is what proves
+the hook is load-bearing rather than decoration. Handle requests on the reader thread →
+**initially PASSED**: the check recorded thread NAMES, and every reader is created with
+the same name `conn-reader`, so N distinct threads collapsed into one set entry and
+"session access stayed single-threaded" held even when it was false. Keyed on thread
+ident now; the mutation fails listing four idents. That is the "check that cannot fail"
+shape from §10k, reproduced by me, in the gate written to prevent it.
+
+**Two rig failures on the way, both diagnosed by suspecting the rig first** (the
+project's measured-hit-rate rule): the fake session's long wait blocked on an
+`Event` instead of polling, so the hook was never called and the interleave assertion
+failed for a rig reason; and `FakeSnapshot.to_json()` returned a dict where the real
+`Snapshot.to_json()` returns a **str**, which `_snapshot_response` feeds to
+`json.loads` — surfacing as a `TypeError` that reads like a daemon bug. Shape a fake
+from the real signature.
+
+**Honest limit, in the code and in LIMITATIONS:** a second LONG wait still queues
+behind the first. One session owns one PTY child, so it owns one screen; that is
+inherent, and it was never what the head-of-line defect was about.
+
+**One bad edit worth recording.** A scripted multi-site edit inserted four
+`on_poll=on_poll` lines into an unrelated `SystemExit(...)` call — the session-limit
+error message — because its anchor search missed and `str.index` found the next
+matching bracket far away. Caught by reading the diff, not by a test. Scripted edits
+need their insertion point asserted, not assumed.
+
 ---
 
 ## CONTINUATION PROMPT (paste to next AI)
@@ -1842,8 +1913,8 @@ then C4 Show HN / r/commandline + C5 skill-community posts (C1 proof reels are D
 VERIFY WHAT YOU SHIP (all should exit 0; paths POSIX-style, swap \ on Windows).
 Use an interpreter that has pyte; take exit codes directly, never through a pipe.
 Heavy PTY spawners (run_all, verify_fx, probes) need user consent first — red line:
-  python tests/run_all.py                # unified runner (43 entries; consent first)
-    # 43/43 on macOS as of 2026-08-09, no FAIL/SKIP/rerun. It was 41/43 until the
+  python tests/run_all.py                # unified runner (44 entries; consent first)
+    # 44/44 on macOS as of 2026-08-09, no FAIL/SKIP/rerun. It was 41/43 until the
     # two TERM rigs were fixed (10l), and it needs `pip install hypothesis` or one
     # gate reports an internal SKIP. If you see 39/43 you are on an older
     # checkout: the four platform-gap failures (msvcrt fixtures, drive_vim

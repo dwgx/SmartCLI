@@ -25,20 +25,22 @@ surface is narrow but real:
   (`hmac.compare_digest`) before any action runs. The token is passed to the
   daemon via an environment variable (never argv, which is world-visible in
   `ps`/Task Manager) and persisted in a `0600` per-session registry file.
-  **Known residual (do not read the bound below as a fix):** the accept loop is
-  serial, so an unauthenticated loopback peer that connects and sends no newline
-  head-of-line blocks every other caller for the duration of its read budget.
-  That budget is split — 2s before the token check, 60s only for an authenticated
-  caller's reply, and the pre-auth side is re-armed against a fixed deadline so a
-  peer dribbling bytes cannot renew it indefinitely. Measured, nine held
-  connections fell from 540s to 18s: a 30× reduction, **not** a fix, because an
-  attacker who keeps reconnecting still degrades service. The real answer is
-  per-connection threading, which is blocked on `PtySession` not being
-  thread-safe (tracked as A0-DAEMON-CONCURRENCY in `NEXT-STEPS.md`). An earlier
-  version of this paragraph claimed the transport was bounded "so an
-  unauthenticated loopback peer cannot ... kill the daemon" — the timeout *was*
-  the denial-of-service primitive, not the mitigation. Request size is bounded, so
-  memory exhaustion is genuinely covered. Since 0.2.0 the hardening also covers: session ids are
+  **Head-of-line denial of service: FIXED (2026-08-09, unreleased at time of
+  writing).** The accept loop used to be serial with the unauthenticated transport
+  read inline, so any local process could connect, send no newline, and block every
+  other caller — measured at ~18s of denial from nine held connections, repeatable.
+  An earlier version of this paragraph claimed the pre-token transport was bounded
+  "so an unauthenticated loopback peer cannot ... kill the daemon"; the timeout
+  *was* the denial-of-service primitive, not the mitigation. Now the accept thread
+  only accepts, a per-connection reader performs the unauthenticated work (read,
+  parse, constant-time token check) so a silent peer burns only its own 2s budget,
+  and a single worker thread is the only thread that touches the session — required
+  because `PtySession` is not thread-safe. Measured after: an authenticated request
+  is served in 0.00s with nine silent peers holding connections. Request size is
+  bounded (4 MiB) so memory exhaustion is covered separately. Locked by
+  `tests/test_daemon_concurrency.py`, which drives the real accept loop and is
+  mutation-verified against a reverted serial design.
+  Since 0.2.0 the hardening also covers: session ids are
   validated before any registry path use (no traversal); the per-session registry
   directory is created `0700` and refused if it is a symlink or owned by another
   user; registry files are created `O_EXCL` (+`O_NOFOLLOW` on POSIX) so a

@@ -72,7 +72,8 @@ non-negotiable and overrides any shortcut that looks faster.
   (test_doc_counts.py) enforces effect, widget **and recipe** counts across shipping
   docs — the recipe family was added 2026-08-07 after the PASS banner was found
   printing an untested number between two tested ones.
-- Suite size: `tests/run_all.py` `build_suite()` is **43 entries**, **43/43 green on
+- Suite size: `tests/run_all.py` `build_suite()` is **44 entries** (test_daemon_concurrency
+  joined 2026-08-09), **44/44 green on
   macOS as of 2026-08-09 with no FAIL, no SKIP and no rerun** — the SKIP-free part is
   new; install `hypothesis` or one gate reports an internal skip. It was **41/43** until
   the same day: two probes relied on an inherited `TERM` (HANDOFF §10l), which is a rig
@@ -362,38 +363,33 @@ non-negotiable and overrides any shortcut that looks faster.
   never both).
 - **Effort:** M
 
-### A0-DAEMON-CONCURRENCY. Stop one connection from blocking the daemon  [M]
-- **Goal:** the session daemon's accept loop is serial (`conn, _ = srv.accept()`, no
-  threading, `srv.listen(8)`), so ONE peer inside `recv()` blocks every other caller —
-  including an unauthenticated one, since the transport runs before the token check.
-- **What is already done, and what is not:** `beb7583` split the timeout into a 2s
-  pre-auth budget (re-armed against a fixed deadline, so a dribbling peer cannot renew
-  it) and a 60s post-auth reply budget. **Measured: nine held connections went from a
-  worst case of 9x60 = 540s down to 18s.** That is a 30x reduction and NOT a fix — an
-  attacker who keeps reconnecting still degrades service, because the loop is still
-  serial.
-- **Why it was not finished there:** the real answer is handling each connection in its
-  own thread, and `PtySession` is not thread-safe. Doing that inside a security patch
-  would have been a concurrency-model change smuggled in under a different heading.
-- **First step:** decide the model before writing code. Either (a) one accept thread
-  handing connections to a single-threaded session worker over a queue, which keeps all
-  PtySession access on one thread and makes the accept loop non-blocking, or (b) a lock
-  around the session with per-connection threads, which is simpler but serialises the
-  expensive part anyway and risks a slow verb holding the lock. (a) is likely right:
-  the wait verbs block for many seconds by design, and under (b) a wait would hold the
-  lock for its whole timeout.
-- **Verify:** a pure test (no PTY) that opens `listen` backlog + 1 connections which
-  never send a newline and asserts an authenticated request still gets a reply within a
-  small bound — the rig in `beb7583`'s commit message drives the loop with a fake
-  session and is a working starting point. Also confirm a legitimate large payload
-  (200 KB send-text, which spans several `recv()` calls) still succeeds, and that a
-  blocking `wait-regex` on one connection no longer prevents a `snapshot` on another.
-- **Documented as a known issue, not silently carried:** `SECURITY.md` now states the
-  residual (and corrects its old claim that the bound *prevented* a peer from killing
-  the daemon — the timeout was the DoS primitive), `skills/drive-tui/SKILL.md` notes it
-  under Constraints, and `references/LIMITATIONS.md` has a "Still open" entry. If you
-  fix this, all four places move together.
-- **Effort:** M
+### ~~A0-DAEMON-CONCURRENCY. Stop one connection from blocking the daemon~~ [DONE 2026-08-09]
+- **Result:** three roles — the accept thread only accepts, a per-connection reader does
+  the unauthenticated work (so a silent peer burns only its own 2s), and a SINGLE worker
+  is the only thread that touches the session. Measured: 9 silent peers holding
+  connections → an authenticated request served in **0.00s** (reverting to serial:
+  10.06s, still timing out).
+- **This task's own preferred design was insufficient, and that is the finding.** "One
+  accept thread + a single-threaded worker over a queue" relocates the queue rather than
+  removing the block: a 60s `wait-regex` occupies the worker, so a concurrent `snapshot`
+  waited 8.00s. Fixed by adding an optional `on_poll` hook to the core's four wait loops
+  and PtySession's six wait methods, called in the idle gap ON THE WAITING THREAD — so
+  fast verbs are answered without a second thread ever touching the session.
+- **`smartcli_core` was modified under the DO-NOT-MODIFY exception**, all three
+  conditions met: real-run-path (live PTY, `snapshot` in 0.13s during a 20s
+  `wait-regex`, zero leaks), adversarial review (found a real defect of my own —
+  `resize` was interleavable, but it re-dimensions the pyte screen and so changes the
+  content hash, which would make a `wait-change` caller conclude its keystroke landed;
+  removed), and no regression (run_all 44/44, CI 11/11 including three-OS real-PTY
+  smoke, mypy green). Default `None` keeps every existing caller byte-identical.
+- **Locked by** `tests/test_daemon_concurrency.py` (no PTY — drives the real accept loop
+  against a fake session). Mutation-verified three ways, and the third caught a defect in
+  my own gate: it keyed on thread NAMES, and every reader is named `conn-reader`, so N
+  threads collapsed to one entry and "single-threaded" passed even when it was false.
+  Now keyed on thread ident.
+- **Honest limit, documented in code and LIMITATIONS:** a second LONG wait still queues
+  behind the first. One session owns one PTY child, so that is inherent, and it was never
+  the defect.
 
 ### ~~A0-I18N-ONBOARD. Port the onboarding flow to the four locales~~  [DONE 2026-08-09]
 - **Result:** all four localized READMEs carry the 30-second quickstart and the

@@ -177,11 +177,11 @@ Combos: `C-c` / `^C` (Ctrl+C), `M-x` (Alt+x). Anything else is sent literally.
 - Never blind-`sleep` to wait for output — use `wait` / `wait-regex`; they pump the PTY and have hard timeouts.
 - Always re-snapshot after acting; the snapshot before your keystroke is stale.
 - Arrow/nav keys are **adaptive**: `send_keys` reads the live screen's cursor-key mode and emits SS3 (`ESC O A`) when the program has enabled DECCKM (application cursor keys — most full-screen/curses TUIs), else CSI (`ESC [ A`). This is auto — you just send `keys Up`. (Verified on real Linux ncurses; before this, CSI-only arrows silently did nothing in DECCKM apps.) If a rare app still ignores arrows, re-snapshot and fall back to its letter/number shortcuts.
-- The daemon binds `127.0.0.1` only — local process control, no network exposure. It is
-  not hardened against a hostile *local* peer, though: the serial accept loop means one
-  connection that sends no newline stalls the others for its read budget (bounded at 2s
-  pre-auth, and that bound is a 30× mitigation rather than a fix — see
-  `references/LIMITATIONS.md`).
+- The daemon binds `127.0.0.1` only — local process control, no network exposure. One
+  connection can no longer stall the others: the unauthenticated read happens off the
+  accept path, and fast verbs (`snapshot`, `alive`, `send-*`, `keys`) are answered even
+  while a long `wait*` is in flight. A second LONG wait does queue behind the first —
+  one session owns one screen; use two sessions if you need two independent waits.
 - `--env` may not set SmartCLI's own control variables (`SMARTCLI_TUI_*`,
   `SMARTCLI_ROOT`, `SMARTCLI_MAX_SESSIONS`, `SMARTCLI_AUTO_INSTALL`), compared
   case-insensitively. Your own names pass through untouched.
