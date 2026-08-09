@@ -9,7 +9,7 @@ description: >-
   spinners, password fields, curses UIs), or when a piped command hangs or
   prints nothing.
 allowed-tools: Bash, Read
-version: 0.2.1
+version: 0.2.2
 ---
 
 # drive-tui
@@ -64,6 +64,10 @@ A detached daemon owns one live program; each command connects over a localhost-
    `python skills/drive-tui/scripts/tui.py alive --id <SID>`   (exit 0 alive, 1 dead)
    `python skills/drive-tui/scripts/tui.py list`
    `python skills/drive-tui/scripts/tui.py close --id <SID>`   (always close when done)
+   `close` REFUSES and exits 1 if the request failed but the daemon's pid is still
+   alive — a socket timeout is not proof of death, and that registry file is the only
+   store of the token AND the pid, so deleting it would strand a live PTY child.
+   Retry the verb, or kill the printed pid; `--force` deletes anyway.
 
 Subcommands: `start`, `snapshot`, `send-text`, `send-line`, `keys`, `wait`, `wait-regex`, `wait-change`, `wait-visual-change`, `wait-any`, `alive`, `resize`, `close`, `list`. The `wait*` verbs print liveness + reason/index to stderr and the snapshot to stdout. `wait-change` blocks until the screen text changes from a baseline (the "did my action land?" primitive); `wait-visual-change` is the same but also counts attribute/cursor-only changes (see *Choosing the right wait*); `wait-any` races several `--pattern` regexes (pexpect `expect([...])` style) and reports WHICH matched first (index on stderr) — order patterns most-specific-first, since the earliest in the list wins a same-poll tie.
 
@@ -164,12 +168,23 @@ Combos: `C-c` / `^C` (Ctrl+C), `M-x` (Alt+x). Anything else is sent literally.
 3. Still alive but stuck: try `keys Enter` (dismiss a pager/prompt) or `keys Escape` (leave a mode).
 4. Interrupt a running command: `keys C-c`. **Windows caveat:** under ConPTY a raw Ctrl-C byte does NOT reliably raise an interrupt in a line-mode child (verified — `time.sleep` in the Python REPL was not interrupted). On Windows, if `C-c` fails, the reliable recovery is `close --id <SID>` and `start` a fresh session. On POSIX, `C-c` works normally.
 5. Always `close` sessions you started (frees the daemon and the child).
+6. **A verb that times out does not mean the daemon died.** The accept loop is serial,
+   so a busy daemon is indistinguishable from a dead one at the socket — that is why
+   `close` refuses to delete a live daemon's entry. Retry before concluding anything,
+   and treat `--force` as data loss you have chosen.
 
 ## Constraints / gotchas
 - Never blind-`sleep` to wait for output — use `wait` / `wait-regex`; they pump the PTY and have hard timeouts.
 - Always re-snapshot after acting; the snapshot before your keystroke is stale.
 - Arrow/nav keys are **adaptive**: `send_keys` reads the live screen's cursor-key mode and emits SS3 (`ESC O A`) when the program has enabled DECCKM (application cursor keys — most full-screen/curses TUIs), else CSI (`ESC [ A`). This is auto — you just send `keys Up`. (Verified on real Linux ncurses; before this, CSI-only arrows silently did nothing in DECCKM apps.) If a rare app still ignores arrows, re-snapshot and fall back to its letter/number shortcuts.
-- The daemon binds `127.0.0.1` only — local process control, no network exposure.
+- The daemon binds `127.0.0.1` only — local process control, no network exposure. It is
+  not hardened against a hostile *local* peer, though: the serial accept loop means one
+  connection that sends no newline stalls the others for its read budget (bounded at 2s
+  pre-auth, and that bound is a 30× mitigation rather than a fix — see
+  `references/LIMITATIONS.md`).
+- `--env` may not set SmartCLI's own control variables (`SMARTCLI_TUI_*`,
+  `SMARTCLI_ROOT`, `SMARTCLI_MAX_SESSIONS`, `SMARTCLI_AUTO_INSTALL`), compared
+  case-insensitively. Your own names pass through untouched.
 - Session cap: `start` refuses beyond 8 concurrent sessions by default (`SMARTCLI_MAX_SESSIONS`, 1-128). Stale registry files count against the quota — if you hit the limit, `list` and `close` dead sessions first.
 - The session registry is per-user, never a shared fixed path: `%TEMP%\smartcli_tui` (Windows); `$XDG_RUNTIME_DIR/smartcli_tui` when set, else `~/Library/Caches/SmartCLI/sessions` (macOS) or `~/.cache/smartcli/sessions` (Linux). `SMARTCLI_TUI_DIR` overrides it; `list` reads exactly this directory.
 - Paths above are relative to this skill's folder; run the script by its path from the repo root.

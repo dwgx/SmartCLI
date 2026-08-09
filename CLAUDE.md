@@ -33,6 +33,14 @@ kiro-cli 全屏 TUI + 反复起关 daemon + mutation 来回 git checkout + verif
 Set `PYTHONIOENCODING=utf-8` before running anything (box-drawing/CJK glyphs crash
 on legacy codepages; CI sets it too).
 
+**Use an interpreter that has `pyte` installed.** Every test here imports
+`smartcli_core`, so a bare `python`/`python3` from a version manager will die with
+`ModuleNotFoundError: No module named 'pyte'` — which reads like a broken test.
+`python -m venv .venv && .venv/bin/pip install -r requirements.txt -e .` gives you
+one; `python -m smartcli_core` reports what a given interpreter can actually see.
+And **take the exit code directly** — `python tests/x.py 2>&1 | tail` yields
+`tail`'s status, so an import crash reads as a pass.
+
 ```bash
 # Full self-test aggregator — exit 0 iff everything present passes, and a gate
 # that is tracked by git but missing on disk now FAILS rather than skipping
@@ -55,9 +63,15 @@ python tests/verify_fx.py
 python tools/coverage_run.py
 python tools/coverage_run.py --xml        # also write coverage.xml for Codecov
 
-# Lint / type-check (CI lint job is advisory, not blocking):
-ruff check .
+# Lint / type-check. PARTLY BLOCKING in CI (lint.yml): the ruff correctness subset
+# and mypy fail the build; the full ruff report and format check are advisory.
+ruff check --select E9,F63,F7,F82 .       # the blocking subset
 mypy                                      # config in pyproject.toml; checks smartcli_core only
+ruff check .                              # advisory (full style/modernization backlog)
+# mypy MUST see the real pyte. Without it, ignore_missing_imports degrades
+# pyte.Screen to Any, which BOTH hides real errors in the subclass and reports a
+# correct `type: ignore` as unused — that once failed CI on a clean tree while two
+# genuine errors went unseen. Run it in an env where `requirements.txt` is installed.
 
 # cmd-art effect engine (run from skills/cmd-art):
 python -m fx list                         # live catalog (30 effects)
@@ -117,7 +131,12 @@ end-anchored markers like `r">>> $"` never match — use unanchored markers.
   the same surface as a stdio MCP server. `_vendor/smartcli_core/` is a
   byte-identical vendored copy of the core (enforced by `test_vendor_sync`);
   `smartcli_bootstrap.locate_core()` resolves the real core first
-  (`$SMARTCLI_ROOT` → parent walk → `_vendor/` → pip install).
+  (`$SMARTCLI_ROOT` → parent walk → `_vendor/` → pip install). The control plane is
+  security-relevant: per-session token, session-id validation, a per-user `0700`
+  registry, a deny-list on `--env` (compared uppercased, since Windows upcases env
+  keys), and `close` refuses to remove the entry of a daemon whose pid is still alive.
+  Its serial accept loop means one unauthenticated connection can stall the others —
+  bounded, not fixed; see `SECURITY.md` and A0-DAEMON-CONCURRENCY.
 - `skills/cmd-art/` — the `fx` effect engine: `Effect` ABC + `@register` +
   pkgutil auto-discovery. Effects are **pure frame producers** (return one full
   frame; never print/sleep/touch ANSI modes — the play loop owns the terminal).
@@ -171,9 +190,22 @@ pass/fail. Tests are standalone scripts, not pytest. Two tiers:
   (`_diff_tmux_pyte`, `_tmux_launcher_probe`), which SKIP themselves when tmux
   is absent.
 
-Docs and counts are contract-tested: changing the number of effects/widgets
+Docs and counts are contract-tested: changing the number of effects/widgets/recipes
 requires updating README/SKILL.md counts or `test_doc_counts` fails (it also
-bans hard-coded dev-box paths from portable docs).
+bans hard-coded dev-box paths from portable docs). To quote a deliberately WRONG
+number — explaining a past drift, citing another project's catalog — put
+`doc-counts:ignore` on that line. The gate used to infer that from nearby words and
+thereby exempted HANDOFF's own authoritative counts line, so the marker is explicit
+by design.
+
+**A green check is only evidence if it can turn red.** Reviewing for that specifically
+found nine defects on 2026-08-07, six inside the gates themselves (HANDOFF §10k): a
+contract gated on a predicate that evaluated the condition it asserts, a skipped check
+counted as a pass, a regex family with a dead branch, a pip-shaped pattern run over a
+Ruby formula, an assertion pinned to values argparse had just parsed, a verification
+grep that could not match its own text, and a missing-file case that skipped instead of
+failing. When adding a gate, name the change that would make it fail — and for a regex
+family, require every branch to have a live hit on disk.
 
 **Differential testing is the strongest evidence available here.**
 `tests/_diff_tmux_pyte.py` diffs our grid against a real tmux pane cell by
@@ -189,5 +221,13 @@ rules forbid automated/AI submissions**. Read it before filing anything anywhere
 one channel baits agents with a fake "fast-track" marker.
 
 `HANDOFF.md` is the authoritative current-state record a fresh session reads
-first; `NEXT-STEPS.md` is the prioritized task queue. Both must be kept
-reconciled with reality after significant work.
+first (§0, then the newest §10 subsection); `NEXT-STEPS.md` is the prioritized task
+queue. Both must be kept reconciled with reality after significant work — one
+document, appended to, rather than a new takeover/summary file per session. A second
+file claiming to hold the current state just splits the truth in two, and the older
+one keeps being read.
+
+`skills/drive-tui/references/LIMITATIONS.md` is the living log for driving defects:
+read it FIRST when a program misbehaves, and append there when you fix one. Known
+issues that affect a user's decisions belong in it and in `SECURITY.md`, not only in
+a commit message.

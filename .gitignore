@@ -46,3 +46,11 @@ research/_*
 # OS noise
 Thumbs.db
 .DS_Store
+
+# Local dev environments. Tests import smartcli_core, so a venv with
+# requirements.txt installed is the normal way to run them here.
+.venv/
+venv/
+
+# Scratch captures from MCP browser tooling used while checking the docs site.
+.playwright-mcp/

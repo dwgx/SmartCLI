@@ -13,6 +13,53 @@ regression run (drive-probes + `_sandbox_posix_backend.py` on Linux).
 
 ## Fixed & verified
 
+### 2026-08-07 · `close` after a timeout deleted a LIVE daemon's registry entry, and `list` then confirmed a lie
+- **Symptom:** `close --id <SID>` printed `closed <sid>`, exited 0, and `list` reported
+  zero sessions — while the daemon was still running and still owned a PTY child.
+- **Root cause:** `_call` turns *any* transport failure, including a plain timeout,
+  into a `SystemExit` whose message tells the operator to run `close` "to clean up the
+  stale entry", and `cmd_close` then unlinked the registry file unconditionally. But
+  the daemon's accept loop is **serial**, so a busy daemon looks exactly like a dead
+  one at the socket. That file is the only store of both the capability token and the
+  pid, so the deletion left a live daemon unreachable by protocol (token gone) and
+  unfindable for a manual kill (pid gone). The red-line check every session is
+  supposed to run — `list` → zero leaked sessions — would have confirmed a lie.
+- **Fix:** death must be proven before deletion. `_pid_is_alive()` uses
+  `os.kill(pid, 0)` on POSIX (`ProcessLookupError` = gone, `PermissionError` = exists
+  but foreign) and `OpenProcess` + `GetExitCodeProcess` on Windows, where signal 0
+  does not exist. On a failed request with a live pid, `close` **refuses**, exits 1,
+  and prints the pid so you can act. `--force` overrides it.
+- **What this means for you when it fires:** a refusing `close` is not a bug. Retry
+  the verb (the daemon was probably just busy serving another connection), or kill the
+  printed pid and re-run. Reach for `--force` only when you have confirmed the process
+  is gone, because it restores the old data-loss behaviour by design.
+- **Verified:** without spawning a PTY — a registry entry whose pid is the live test
+  process and whose port nothing listens on. Pre-fix, `cmd_close` printed
+  "closed livepid", returned 0, and unlinked the file while that pid was alive. Locked
+  by `test_close_keeps_a_live_daemons_entry` in `tests/test_drive_security.py` (live
+  pid → entry kept, rc!=0; absent pid → removed, rc==0; `--force` → removed anyway).
+  Mutation-verified: restoring the unconditional unlink fails that check.
+
+### 2026-08-07 · `--env` could re-inject the session token on Windows (case-sensitive guard)
+- **Symptom:** on Windows, `--env smartcli_tui_token=stolen` was accepted and the
+  driven child received `SMARTCLI_TUI_TOKEN` — the capability the daemon deliberately
+  pops so a child cannot control its own session.
+- **Root cause:** the guard was `key.startswith("SMARTCLI_TUI_")`, an exact-case
+  check. Windows environment names are case-insensitive and CPython upcases keys on
+  assignment (`os.py`: under `if name == 'nt'`, `encodekey` returns
+  `encode(key).upper()`), so a lowercase spelling passed validation and
+  `os.environ.update()` installed it under the reserved name anyway. Measured
+  pre-fix: `smartcli_tui_token`, `SmartCli_Tui_Token`, `SMARTCLI_ROOT` and
+  `SMARTCLI_MAX_SESSIONS` all ACCEPTED.
+- **Fix:** compare uppercased unconditionally (free on POSIX, closes the bypass on the
+  historical primary dev target), with the deny-list widened to the other variables
+  this CLI reads: `SMARTCLI_ROOT`, `SMARTCLI_MAX_SESSIONS`, `SMARTCLI_AUTO_INSTALL`.
+  Your own names are unaffected — a test asserts `SMARTCLI_USER_THING` still passes.
+- **Verified:** `tests/test_drive_security.py`; mutation-verified — restoring the
+  case-sensitive guard fails 7 checks. Same commit also rejects a non-dict JSON
+  request before dispatch (`[1,2,3]` used to return an `AttributeError` string, with
+  no `ok` field, to a peer that had not authenticated).
+
 ### 2026-08-06 · pyte had no alternate-screen buffer, so full-screen programs corrupted the primary screen
 - **Symptom:** pyte implements no alternate-screen mode at all (1049/1047/47 just set an
   unknown bit), so `vim`/`less`/`htop` — every full-screen program this skill exists to
@@ -80,6 +127,34 @@ regression run (drive-probes + `_sandbox_posix_backend.py` on Linux).
 ---
 
 ## Still open (with reasons)
+
+### One unauthenticated connection can stall the daemon (bounded, not fixed)
+- The accept loop is serial (`conn, _ = srv.accept()`, no threading), so a local peer
+  that connects and never sends a newline blocks every other caller — including you —
+  for the length of its read budget. The budget is split (2s pre-auth, re-armed against
+  a fixed deadline so dribbled bytes cannot renew it; 60s post-auth for an
+  authenticated reply), which took nine held connections from a measured 540s down to
+  18s. **That is a 30× reduction, not a fix**: an attacker who keeps reconnecting still
+  degrades service.
+- **Why it stops there:** per-connection threading is the real answer and
+  `PtySession` is not thread-safe, so it is a concurrency-model change rather than a
+  patch. Tracked as **A0-DAEMON-CONCURRENCY** in `NEXT-STEPS.md`, including the trap in
+  the simpler design — a lock plus per-connection threads would let a blocking `wait*`
+  verb hold the lock for its entire timeout, which is most of what this daemon does.
+- **Practical impact while it stands:** a verb that times out does not prove the daemon
+  died (see the `close` entry above). Retry before concluding anything.
+
+### `_mcp_probe` has a load-dependent flake (deliberately not hidden)
+- **Symptom:** `tests/_mcp_probe.py` failed in 2 of 5 full-suite `run_all.py` runs on
+  2026-08-07, and did **not** reproduce in 3 back-to-back serial runs of
+  `_tui_cli_probe` + `_mcp_probe`. It passes standalone.
+- **Suspected cause:** the probe was modified in that same session (it gained a second
+  session and a second leak poll), so this session's own work is the likely origin, not
+  a product defect. That is a hypothesis, not a finding.
+- **Why no `rerun=True`:** hiding it would destroy the evidence. `run_all.py` now
+  retains child output and prints the last 40 lines on failure, so the next occurrence
+  reports the probe's own FAIL line. **If you see it, capture that output before doing
+  anything else** — it is the diagnosis this entry is waiting on.
 
 ### ConPTY (Windows) startup quiet-gap & Ctrl-C
 - First prompt can land ~3s after spawn; use `wait-regex` with a 15s timeout for

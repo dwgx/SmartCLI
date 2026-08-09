@@ -1,6 +1,6 @@
 # SmartCLI — Handoff (承上启下)
 
-*Written 2026-07-08, last updated **2026-08-06**. This is the single document a fresh AI reads first to pick up SmartCLI without re-deriving anything. It records the **current release state**, what the project IS, what already WORKS (with the exact commands to see it), the brain (`knowledge/`), the hard-won rules that must never be re-lost, the environment, and the open tasks framed so you can start in one move. Baked-in truths (re-verified against code 2026-07-27): there are **THREE** skills, the live `fx` registry has **30** effects, `tui-ui` has **17** widgets, drive-tui has **8** recipes, and `knowledge/` has **143** `.md` files. **Read §0 then §10j (2026-08-06, the most recent work: the lint gate that measured a state that did not exist, the MCP surface that was dropping `alt_screen`, the CLI resize verb, and the v0.2.1 release itself) — then §10i (upstream pyte + the two dependency timebombs), §10h (Harbor adapter), §10a–g (the v0.2.0 arc, since RELEASED), and §9/§8/§7 for history.***
+*Written 2026-07-08, last updated **2026-08-09**. This is the single document a fresh AI reads first to pick up SmartCLI without re-deriving anything. It records the **current release state**, what the project IS, what already WORKS (with the exact commands to see it), the brain (`knowledge/`), the hard-won rules that must never be re-lost, the environment, and the open tasks framed so you can start in one move. Baked-in truths (re-verified against code 2026-07-27, counts re-confirmed 2026-08-09): there are **THREE** skills, the live `fx` registry has **30** effects, `tui-ui` has **17** widgets, drive-tui has **8** recipes, and `knowledge/` has **143** `.md` files. **Read §0 then §10k (2026-08-07, the most recent work: `close` deleting a live daemon's registry entry, a case-sensitive control-plane guard the historical Windows target bypassed, an unauthenticated DoS bound that was only a 30× reduction, and six gates that could not fail) — then §10j (2026-08-06: the lint gate that measured a state that did not exist, the MCP surface dropping `alt_screen`, the CLI resize verb, and the v0.2.1 release itself), §10i (upstream pyte + the two dependency timebombs), §10h (Harbor adapter), §10a–g (the v0.2.0 arc, since RELEASED), and §9/§8/§7 for history.***
 
 ---
 
@@ -26,6 +26,16 @@
 > Note the PyPI JSON index lagged several minutes behind the green publish — the
 > workflow is the source of truth, not the index, exactly as this section has always
 > said.
+>
+> **UNRELEASED WORK SITS ON `main`.** As of 2026-08-09 the tag `v0.2.1` is **18
+> commits behind `main`**, which is fully synced with `origin/main` (0 ahead / 0
+> behind) and green on CI / Lint / CodeQL / Docker at `9b3b562`. Thirteen of those
+> commits are the 2026-08-07 session (§10k): three real drive-tui control-plane
+> defects — one of which let `close` delete a **live** daemon's registry entry —
+> and six gates that were structurally incapable of failing. **So `pip install
+> smartcli-toolkit` does NOT contain them.** Whether to cut v0.2.2 is the owner's
+> call; the fixes are behaviour changes to a security surface, not doc edits. Count
+> the gap with `git rev-list --count v0.2.1..HEAD`, never from this line.
 
 SmartCLI is **published and public**; latest RELEASED version **v0.2.1** (2026-08-06, live on PyPI + GitHub + MCP Registry). The previous release was **v0.2.0** (2026-07-27). v0.2.0 shipped from branch `codex/cross-platform-mcp-hardening`, merged to `main` and tagged; `publish.yml` published to PyPI and re-published `server.json` to the MCP Registry via OIDC — all three jobs green, verified by installing `smartcli-toolkit==0.2.0` from PyPI in a clean venv. This section is the authoritative current-state record; anything older in this doc that contradicts it is stale. See §10 for the whole 0.2.0 arc: drive-tui control-plane security hardening, `visual_hash` + `wait_visual_change` (closes old known-#3), the wheel now shipping `smartcli_drive` + three console scripts, `mcp` as a required dependency, Python floor 3.10, CI drive-smoke/package jobs, and **twelve screen-emulation bugs** found by differential testing against real terminals — including the alternate screen buffer, which pyte does not implement at all, so every full-screen TUI was previously unreadable. **BREAKING in 0.2.0:** Python 3.9 dropped; the MCP SDK is a required dependency. v0.1.8 added `wait_any`, **Sixel graphics output**, and a **Terminal-Bench agent adapter** (§9h). v0.1.7 shipped `spectrum_bars` + `cbonsai` (catalog 30) and the **MCP Registry** listing (`io.github.dwgx/smartcli`, active — §9g).
 
@@ -190,9 +200,9 @@ Reproducible ground-truth archive (INTERNAL-ONLY — gitignored, EXCLUDED from p
 
 ## 5. Environment (how to run things)
 
-- **Current working copy (since 2026-07-19): macOS (Apple Silicon), Python 3.14.6**, checkout at `/Users/dwgx/Documents/Project/SmartCLI` — the v0.2.0 branch work and the 2026-07-27 review both happened here. The Windows 11 machine below remains the historical primary dev target; treat the project as dual-host and write repo-relative paths in anything agent-facing.
+- **Current working copy: macOS (Apple Silicon).** The checkout MOVED — it is under `WorkSpace/Project/` now, not the `Documents/Project/SmartCLI` path this section named through 2026-08-06. Do not hardcode either; `git rev-parse --show-toplevel` is the answer, and everything agent-facing should be repo-relative. **The interpreter matters more than the path:** tests import `smartcli_core`, so they need one with `pyte` installed — a version-manager `python3` here does not have it and fails with `ModuleNotFoundError: No module named 'pyte'`, which reads like a broken test rather than a missing dependency. Use a venv with `requirements.txt` installed (measured 2026-08-09: Python 3.13.15 + pyte 0.8.2 + mcp 1.29.0, editable install of 0.2.1), and take exit codes directly — piping through `tail` reports `tail`'s status, so an import crash reads as a pass. `ruff` and `mypy` are NOT installed here, so `lint.yml`'s blocking gates can only be verified in CI. The Windows 11 machine below remains the historical primary dev target; treat the project as dual-host.
 - **OS/host (historical primary):** Windows 11 Pro (10.0.26200) + MSYS2 bash + PowerShell. **NO tmux, NO WSL distro** — tmux cannot run locally; `skills/cmd-art/tmux/*.sh` can't be exercised there. Git-bash / MSYS2 tooling at `D:/Software/Git`.
-- **Runtimes:** Python **3.14.6**, Node 24.16. `pyte` + `pywinpty` pip-installed and importable. Caveat: `import pyte` works but `pyte.__version__` does NOT exist — don't rely on it.
+- **Runtimes (historical Windows box):** Python **3.14.6**, Node 24.16. `pyte` + `pywinpty` pip-installed and importable. Caveat: `import pyte` works but `pyte.__version__` does NOT exist — don't rely on it. Supported range is 3.10–3.14 (the CI matrix legs are exactly those boundaries).
 - **PTY backend rule:** on Windows drive PTYs via **pywinpty (ConPTY)**, not tmux; keep the backend pluggable so Linux/mac use pexpect/posix pty. ANSI truecolor works in Windows Terminal without tmux.
 - **ConPTY caveats (baked into drive-tui SKILL.md):** (1) *startup quiet-gap* — the child's banner can land ~3s after spawn (Python REPL) while the first byte is ~20ms; use a strict `wait-regex` with a generous timeout (e.g. 15000ms) for the FIRST prompt, NOT bare `wait`/`wait_ready` (it may declare STABLE on a still-blank screen). (2) *raw Ctrl-C does NOT reliably interrupt* a line-mode child under ConPTY — recover by `close` + `start` a fresh session (C-c works on POSIX).
 - **Encoding:** set `PYTHONIOENCODING=utf-8` on Windows so box/CJK glyphs encode (rule 8).
@@ -206,7 +216,7 @@ Reproducible ground-truth archive (INTERNAL-ONLY — gitignored, EXCLUDED from p
 - Ground-truth archive (INTERNAL-ONLY, gitignored / excluded from release): `research/cc-decompiled/`, `research/real-frames/`
 - Knowledge graph root: `knowledge/INDEX.md`
 - Docs: root `README.md`, `README-USAGE.md`; audit `AUDIT-REPORT.md`; agentcli `AGENTCLI-VALIDATION.md`; research archive `research/README.md`
-- Memory: `C:/Users/dwgx1/.claude/projects/D--Project-SmartCLI/memory/` (MEMORY.md index + nodes)
+- Memory: per-machine and per-checkout-path, so there is no portable location to name — it lives under `~/.claude/projects/<slug of the checkout path>/memory/` (MEMORY.md index + nodes). The old Windows path recorded here (`C:/Users/dwgx1/.claude/projects/D--Project-SmartCLI/memory/`) belongs to that box only; a fresh session should read its own, not go looking for that one.
 
 ---
 
@@ -220,7 +230,7 @@ Ranked by impact/effort. The v0.1.2 release, the deterministic/mutation-verified
 4. **[DONE 2026-07-15, v0.1.6] Await-change wait primitive** — `wait_change` (not multi-marker, but the higher-value "did my action land?" primitive pilotty/termscope converged on): block until the screen content-hash changes from a baseline. In session/daemon/CLI (`wait-change`)/MCP. `tests/test_wait_change.py`. Multi-marker `wait-any` remains a smaller open nicety.
 5. **[DONE 2026-07-15, v0.1.4] Golden-frame snapshot test** — `tests/test_golden_frames.py` + `tests/golden/*.txt`: every widget rendered to a deterministic frame, diffed against a committed baseline (`--update` to regen), renders twice to reject non-determinism. Skips widgets whose optional dep is absent (banner→pyfiglet).
 6. **[DONE 2026-07-15, v0.1.6] Shared `easing.py`** — 14 canonical Penner easings, used by the text effects. (A `Gradient(stops,…)` builder was NOT separately done; theme.gradient already covers most of it.)
-7. **[DONE 2026-07-15, v0.1.7] Ship `spectrum_bars` + `cbonsai` effects** — the knowledge notes `[[spectrum-bars]]` / `[[procedural-branching]]` were the ready building blocks. Both shipped as pure-frame `fx` effects (`skills/cmd-art/fx/effects/spectrum_bars.py` + `cbonsai.py`): `spectrum_bars` = cava's log-bins + gravity/integral smoothing + eighth-block sub-cell render over a synthesized signal (aliases `spectrum`/`bars`); `cbonsai` = the stochastic branching turtle (lifeStart 32, multiplier 5, cooldown-gated shoots), seeded RNG generates the whole tree once as an ordered draw-event list, each frame reveals the grown prefix (deterministic). Both pass `test_fx_contract.py` (30 effects x 6 sizes x 5 contracts = 150/150). Catalog 28→30; these were the last two "knowledge → effect" gaps.
+7. **[DONE 2026-07-15, v0.1.7] Ship `spectrum_bars` + `cbonsai` effects** — the knowledge notes `[[spectrum-bars]]` / `[[procedural-branching]]` were the ready building blocks. Both shipped as pure-frame `fx` effects (`skills/cmd-art/fx/effects/spectrum_bars.py` + `cbonsai.py`): `spectrum_bars` = cava's log-bins + gravity/integral smoothing + eighth-block sub-cell render over a synthesized signal (aliases `spectrum`/`bars`); `cbonsai` = the stochastic branching turtle (lifeStart 32, multiplier 5, cooldown-gated shoots), seeded RNG generates the whole tree once as an ordered draw-event list, each frame reveals the grown prefix (deterministic). Both pass `test_fx_contract.py` (which reported "150/150" at the time; it is **174/174 passed, 6 skipped** since `f67cd5e` added a sixth contract and stopped counting skipped checks as passes — see §10k). Catalog 28→30; these were the last two "knowledge → effect" gaps.
 8. **[PARTIAL] Docs site + contributor onramp:** `CONTRIBUTING.md` + `SECURITY.md` DONE (v0.1.4); Codecov badge live; **Read the Docs is LIVE** at https://smartcli.readthedocs.io/ (mkdocs, via `.readthedocs.yaml` + `tools/build_docs.py` which rewrites repo-relative links to absolute GitHub URLs). Still open: `TestPyPI`/`conda-forge`/`Homebrew` publishing (configs prepared, human steps in `docs/PACKAGING-NOTES.md`).
 
 **Discoverability (0 stars today):** the README top now carries **real re-driven proof reels** (lazygit/htop/ncdu/nano as 60/30fps MP4+WebM video, not GIFs, incl. Windows/macOS/Linux variants + dialog/vim) — the "record a demo" chore is DONE. Remaining: Show HN / r/commandline / `awesome-claude-code` + `awesome-cli-apps` PRs (copy ready in `docs/LAUNCH-COPY.md`, owner-gated). A calibrated `/deep-research` prompt list exists (anchors: conch, terminal-bench, plotille, TTE, PyPI trusted publishing) — worth saving as `RESEARCH-PROMPTS.md`.
@@ -563,7 +573,7 @@ verify + independent adversarial review + full-suite green).**
     selection. Because an Effect is a PURE frame producer (no per-char nanosleep),
     a seeded RNG generates the WHOLE tree once as an ordered draw-event list and
     each frame reveals the "grown" prefix — so it animates AND is deterministic.
-  - Both pass `test_fx_contract.py` (30 effects × 6 sizes × 5 contracts = 150/150,
+  - Both pass `test_fx_contract.py` (then 5 contracts = 150/150; now 174/174 + 6 skipped,
     incl. 1×1/2×2 no-crash + 20×8 no-overflow) and were verified LIVE in a real
     PTY (`verify_fx.py spectrum_bars cbonsai` = 2/2: alt-screen enter/leave +
     truecolor + self-exit). Zero PTY leaks confirmed after (CLAUDE.md red-line).
@@ -1298,16 +1308,215 @@ CUD/DCH/alt_screen/DL and the `resize` verb. `publish-mcp` — which only runs o
 real tag push and had therefore never executed with the bumped pins — went green.
 `tests/run_all.py` was 43/43 before tagging, with no FAIL, no SKIP and no rerun.
 
+### 10k. Checks that could not fail, and one that deleted a live daemon (2026-08-07)
+
+**Thirteen commits, all after the v0.2.1 tag, none of them a feature.** The session
+had one theme: *a green check is only evidence if it is capable of turning red*. An
+independent reviewer was pointed at that shape specifically, and it turned up nine
+times — three in the security surface, six in the gates themselves. Nothing here is
+released; v0.2.1 remains the published version and these sit unreleased on `main`.
+
+**Three defects in the drive-tui control plane, worst first.**
+
+1. **`close` deleted the registry entry of a LIVE daemon** (`81a41ad`). `_call`
+   turns any transport failure — *including a plain timeout* — into a `SystemExit`
+   telling the operator to run `close --id <sid>` "to clean up the stale entry", and
+   `cmd_close` then unlinked the file unconditionally. But the accept loop is
+   **serial**, so a busy daemon is indistinguishable from a dead one at the socket,
+   and that file is the only store of both the capability token and the pid. The
+   documented recovery could therefore leave a live daemon owning a running PTY child
+   that is unreachable by protocol (token gone) and unfindable for a manual kill (pid
+   gone) — while `close` printed "closed <sid>", exited 0, and `list` reported zero
+   sessions. **CLAUDE.md's red line requires confirming "zero leaked sessions" with
+   exactly that `list`, so the check would have confirmed a lie.** Now death must be
+   proven before deletion: `_pid_is_alive()` (POSIX `os.kill(pid, 0)`, distinguishing
+   `ProcessLookupError` from `PermissionError`; `OpenProcess` +
+   `GetExitCodeProcess` on Windows, where signal 0 does not exist). A failed request
+   with a live pid makes `close` **refuse**, exit 1, and print the pid; `--force`
+   overrides and says in its help what it costs.
+2. **The `--env` control-plane guard was case-sensitive** (`ba632d4`), so the
+   historical primary dev target bypassed it. The check was
+   `key.startswith("SMARTCLI_TUI_")` — exact case — while Windows environment names
+   are case-insensitive and CPython upcases keys on assignment (`os.py`, under
+   `if name == 'nt'`, `encodekey` returns `encode(key).upper()`). So
+   `--env smartcli_tui_token=stolen` passed validation and `os.environ.update()`
+   installed it **as `SMARTCLI_TUI_TOKEN`** in the driven child — precisely the
+   variable the daemon pops so a child cannot turn around and control its own
+   session. Measured before the fix: `smartcli_tui_token`, `SmartCli_Tui_Token`,
+   `SMARTCLI_ROOT` and `SMARTCLI_MAX_SESSIONS` all ACCEPTED. Now compared
+   uppercased unconditionally, with a deny-list covering the other variables this CLI
+   reads (`SMARTCLI_ROOT`, `SMARTCLI_MAX_SESSIONS`, `SMARTCLI_AUTO_INSTALL`) — and a
+   test asserting `SMARTCLI_USER_THING` is still allowed, so the guard did not become
+   a blanket ban on the user's own names. Same commit: a non-dict JSON payload
+   (`[1,2,3]`) raised `AttributeError` on `req.get()`, which is not in the connection
+   guard's tuple, so an **unauthenticated** peer got back
+   `{"error": "AttributeError: 'list' object has no attribute 'get'"}` — an
+   interpreter exception, with no `ok` field, unlike every other reply on this socket.
+3. **The unauthenticated pre-auth read budget was the DoS primitive, not the
+   mitigation** (`beb7583`). `conn.settimeout(60.0)` was set *before* the token check,
+   so any unprivileged local process could connect, send bytes with no newline, and
+   head-of-line block the serial loop for 60s per connection with no credential at
+   all; with `listen(8)`, nine such connections starve the owner. SECURITY.md's claim
+   that the pre-token transport is "bounded ... so an unauthenticated loopback peer
+   cannot exhaust memory or kill the daemon" was true and beside the point. Split into
+   `PRE_AUTH_TIMEOUT` (2s, re-armed against a **fixed deadline** so a dribbling peer
+   cannot renew its welcome) and `POST_AUTH_TIMEOUT` (60s, authenticated replies only).
+   **Measured: nine held connections went from 9×60 = 540s to 18s. That is a 30×
+   reduction and NOT a fix** — the residual is inherent to the serial loop and an
+   attacker who keeps reconnecting still degrades service. Per-connection threads are
+   the real answer and were deliberately not done inside a security patch, because
+   `PtySession` is not thread-safe and that is a concurrency-model change; filed as
+   **A0-DAEMON-CONCURRENCY** in NEXT-STEPS (`470b3b0`), including the trap in the
+   simpler candidate design — a lock plus per-connection threads would let a blocking
+   wait verb hold the lock for its entire timeout, which is most of what this daemon
+   does. Verified the legitimate path is unharmed on a real PTY: a 200 KB `send-text`
+   necessarily spans several `recv()` calls and still succeeds.
+
+**Six gates that could not fail, three of them written earlier in this same session.**
+
+- **`test_fx_contract`'s exact-width contract was structurally incapable of failing
+  for its own defect class** (`f67cd5e`) — the worst instance, because it is in a test
+  rather than in prose. C3 asserts "solid effects fill every cell, so every row is
+  exactly `ctx.width`", and it was gated on `_is_solid()`, which decided the question
+  by rendering at 80×24 and returning False the moment a row's width != 80 — i.e. by
+  evaluating the exact condition C3 asserts. Any effect that **violated** C3 was
+  reclassified "sparse" and handed a pass. Fixed by freezing the classification into an
+  explicit `SOLID_EFFECTS` set (24 names, following the file's own
+  `KNOWN_NARROW_OVERFLOW` precedent) plus a new C6 `check_solid_allowlist` so the list
+  cannot rot in *either* direction: on the list but no longer filling → C3 fails;
+  filling but not on the list → C6 fails, because a new full-fill effect whose author
+  forgot to enrol it would otherwise be silently exempt. Second half of the fix: a
+  skipped contract is no longer counted as a pass, so the summary now reads
+  **`174/174 checks passed, 6 skipped (not counted)`** where the long-quoted "150/150"
+  had been inflated by exactly the checks that never ran.
+- **`run_all.py` reported exit 0 after a gate was deleted** (`38c05cc`). 29 of 43
+  entries were `optional=True`, including 20 committed deterministic gates
+  (`test_version_sync`, `test_doc_counts`, `test_drive_security`,
+  `test_terminal_fidelity`, …), so renaming or removing any of them was a green
+  **SKIP** — while CLAUDE.md called this file "exit 0 iff everything passes". Several
+  flags still carried the rationale "another agent may be adding it" for files
+  committed weeks earlier. Fixed by **deriving** it instead of flipping 20 flags:
+  if a missing file is tracked by git, its absence is a regression and now FAILS
+  regardless of the flag — which cannot rot the way a hand-maintained list does, and
+  covers a new gate the moment it is committed. The tmux/vim/less entries stay
+  legitimately skippable because their *files* are committed while they skip
+  themselves internally when the binary is absent; that distinction is what the old
+  flag conflated. CLAUDE.md's claim was corrected to say what a green run actually
+  means, including that a host without tmux/vim/less covers less than this one.
+- **`run_all.py` threw away every child's output** (`9b3b562`), so a suite failure
+  was reportable only as `[FAIL] <label> (exit 1)` and had to be re-run standalone to
+  learn why — exactly the case where an order- or load-dependent failure does not
+  reproduce. `Test.output` is now retained (decoded with replacement; `subprocess.run`
+  is called without `text=True` so an invalid-UTF-8 child cannot raise here — verified
+  with a child writing `b'\xff\xfe'`) and the last 40 lines print on failure or
+  timeout. Internal skips surface **even on a PASS**, scoped to lines *starting* with
+  `SKIP:` — the first filter matched `" SKIP: "` anywhere and swept up
+  `test_fx_contract`'s six normal per-item skips.
+- **The doc gate exempted the one line most likely to be read as ground truth**
+  (`e9f2018`). `_is_meta` inferred intent: it exempted any line containing
+  "stale"/"should be", or the correct fx count together with any of
+  "older lines|why|still says|drift" — and that second clause fires on HANDOFF's own
+  "**Live counts (re-verified against code …)**" line, because the same sentence
+  mentions the anti-drift gates. Mutation-proven: rewriting that line to
+  "18 effects / 1 widgets" left the gate reporting PASS. <!-- doc-counts:ignore -->
+  Replaced with an explicit
+  per-line `doc-counts:ignore` marker, since inferring "this line quotes a wrong
+  number on purpose" from nearby words cannot be made reliable while asking for a
+  marker can. It needed **no exemptions at all** when it landed, so the heuristic was
+  buying nothing; the line above is the first — writing this section is what created
+  the case the marker was designed for, and the gate caught it on the first run.
+  Same commit: `N_RECIPES` was computed, printed in the
+  PASS banner between two numbers that *were* tested, and **never asserted** —
+  `grep -rn N_RECIPES` found it only in two f-strings. Added `RECIPE_DOCS` (9 files)
+  and `RECIPE_RES`.
+- **My own recipe gate then shipped a pattern that could never match** (`31214c6`),
+  one commit later, reproducing the exact shape it was written to fix. The zh-Hans
+  alternative used `个` (`(\d+)\s*个\s*(?:recipe|配方)`) while the file says
+  `**8 种配方**` with `种` — zero hits, so that locale was ungated. Now
+  `[种種個个]`, and the acceptance criterion changed: **every branch must have a live
+  hit on disk**, because a zero-hit branch is a branch that cannot fail. The
+  pre-existing families were audited the same way rather than assumed correct —
+  `WIDGET_RES` (7 patterns) and `EFFECT_CJK_RE` (4 alternatives, checked
+  *individually*, since a family can fire while one branch is dead) all have live hits.
+  Re-verified 2026-08-09 by evaluating the module's own pattern literals against disk:
+  every branch of all three families still hits. Do the same after editing any of
+  them, and read the hit counts off the real patterns — transcribing one by hand is
+  how a dead branch appears (`種の` vs `個の` cost a round here).
+- **The Homebrew half of the dependency cap check could not match Ruby**
+  (`3aacbc3`). One pip-shaped regex (`name >= <digits>` at end of line) was run over
+  both packaging drafts, but a formula declares dependencies as
+  `resource "<name>" do … url ".../<name>-<ver>.tar.gz" … end`. Its entry guard did
+  not save it either: `if name not in text: continue` was defeated by the bare word
+  "mcp" appearing in the formula's own comments and `desc`, so the branch was always
+  entered, always passed, and printed a PASS reading as if the formula respected
+  `mcp>=1.0,<2`. Each draft is now parsed in its own syntax. The judgement call worth
+  keeping: a **missing** `mcp` stanza is not treated as a defect, because the file
+  marks itself DRAFT, pins the 0.1.2 sdist, carries all-zero sha256 placeholders and
+  says the publisher must run `brew update-python-resources` first — the reviewer's
+  suggested "assert every capped dependency has a stanza" would have failed the gate
+  for something the file already discloses. What is caught instead is the formula
+  becoming *publishable* while still stale: the absence is allowed only while the
+  DRAFT/TODO markers remain.
+- Also `92cbc29`, four probe defects: `resize --json`'s payload is built from `args`
+  and never from the daemon reply (a bare `{"ok": True}`), and `_call` raises on any
+  error reply, so `ok` was unconditionally True and cols/rows were the numbers argparse
+  had just parsed — the 90×28 resize was never observed anywhere, and against a daemon
+  patched to never resize the old assertion still PASSED. An `alt_screen` check was
+  gated on `time.sleep(1.0)` ten lines below a comment reading "a marker/condition is
+  a fact, a bare timing guess is not" (now a bounded poll reporting its poll count). A
+  fixture path went unquoted into `start(cmd=f"less {fixture}")`, which
+  `PosixPtyBackend` runs as `["/bin/sh", "-c", cmd]`, so a TMPDIR-derived path was
+  word-split and glob-expanded by `sh` while every other command in these probes uses
+  `shlex.join`. And the whole `less` block sat behind `if shutil.which("less")` with a
+  fall-through to exit 0, so a host without `less` reported **[PASS] with zero
+  coverage** — now a hard FAIL on POSIX (where absence means a broken rig) and a
+  stderr SKIP on Windows (where Git for Windows ships `less.exe` unexported).
+
+**Two doc-truth corrections, both of numbers this project had propagated on trust.**
+`0207f72`: the alt-screen differential count is **six**, not sixteen — four in
+`_diff_tmux_pyte.py` plus two in `_diff_two_refs.py`; the 26 in
+`test_terminal_fidelity.py` are pure in-memory locks, a different kind of evidence,
+and the claim's whole force came from "diffed against a real tmux pane". Both HANDOFF
+and LIMITATIONS now state the two counts separately, say outright they must not be
+added, and carry the command that settles it
+(`grep -c '"alt screen' tests/_diff_*.py`). Note the propagation path: the LIMITATIONS
+entry was written in the same session that corrected it, by copying "sixteen" out of
+HANDOFF without counting — the same shape as the `pyte 3.0.5` typo that rode eight
+releases. `bf5549c`: three stale release claims in §0 survived because the verification
+grep could not match its own text — the string written was the hyphenated
+`PREPARED-NOT-TAGGED` and the grep was for the space-separated `NOT TAGGED`. Re-sweeping
+with a pattern that *can* fail immediately surfaced a third instance in the document's
+own "read this first" header.
+
+**One outstanding item, stated plainly rather than hidden.** `_mcp_probe` has a
+**load-dependent flake**: it failed in 2 of 5 full-suite runs and did not reproduce in
+3 back-to-back serial runs of `_tui_cli_probe` + `_mcp_probe`. That probe was modified
+in this same session (it gained a second session and a second leak poll), so the
+session's own work is the likely cause. `rerun=True` was deliberately **not** added —
+with `9b3b562` in place, the next occurrence prints the child's own FAIL line, which is
+what will identify it. Do not paper over it; the next full-suite run is the evidence.
+
 ---
 
 ## CONTINUATION PROMPT (paste to next AI)
 
 ```
 You are the next AI taking over SmartCLI. The repo lives at the checkout root you were
-launched in (historically D:\Project\SmartCLI on Windows 11; since 2026-07-19 also
-/Users/dwgx/Documents/Project/SmartCLI on macOS — treat it as dual-host, use
-repo-relative paths). Read HANDOFF.md (§0 then §10 first) and knowledge/INDEX.md
-before doing anything else.
+launched in — do NOT hardcode a path, and do not trust one written in a doc: the macOS
+checkout has already moved once. `git rev-parse --show-toplevel` is the answer; treat
+the project as dual-host (Windows 11 historically primary, macOS current) and write
+repo-relative paths in anything agent-facing. Read HANDOFF.md (§0 then §10k, §10j) and
+knowledge/INDEX.md before doing anything else.
+
+FIRST, TWO THINGS THAT WILL WASTE YOUR TIME IF YOU SKIP THEM:
+- Tests need an interpreter with `pyte` installed. A bare version-manager python3 dies
+  with `ModuleNotFoundError: No module named 'pyte'`, which reads like a broken test.
+  Use a venv with requirements.txt installed; `python -m smartcli_core` reports what an
+  interpreter can see. Take exit codes DIRECTLY — `python tests/x.py 2>&1 | tail` gives
+  you tail's status, so an import crash reads as a pass.
+- `main` carries UNRELEASED work. As of 2026-08-09 the v0.2.1 tag is 18 commits behind
+  it, including three real drive-tui security fixes. `git rev-list --count v0.2.1..HEAD`
+  is the live number; a released-version claim is not a claim about this tree.
 
 STANDING DIRECTIVES (non-negotiable):
 - Token budget is UNLIMITED. Optimize for MAX QUALITY, never for brevity or cost.
@@ -1373,7 +1582,12 @@ Pace multi-agent fan-outs to API health: an 8-wide fan-out died to 529 storms on
 RELEASE STATE: latest RELEASED = **v0.2.1** (2026-08-06) — live on PyPI (wheel + sdist),
 the MCP Registry (0.2.1 `active`), and a published GitHub Release marked Latest; all three
 publish.yml jobs green including publish-mcp. Verified by installing
-`smartcli-toolkit==0.2.1` from PyPI into a clean venv. Standing rule for releases: a
+`smartcli-toolkit==0.2.1` from PyPI into a clean venv. **But that tag is 18 commits
+behind `main` as of 2026-08-09** (re-count: `git rev-list --count v0.2.1..HEAD`), and
+those commits include three drive-tui control-plane fixes — see §10k. So users on PyPI
+do NOT have them, and an unreleased-vs-released distinction matters in anything you
+write. `main` is synced with origin (0/0) and CI-green at 9b3b562. Whether to cut
+v0.2.2 is the OWNER's call. Standing rule for releases: a
 published version number can never be reused, so confirm with the owner before tagging
 unless they have said to. Previous RELEASED = **v0.2.0** (2026-07-27; PyPI + GitHub tags v0.1.0…v0.2.1
 + a GitHub Release). It merged the codex/cross-platform-mcp-hardening branch — see HANDOFF
@@ -1428,12 +1642,25 @@ OPEN OBJECTIVES (the §6 A-grade list #1–#7 is DONE through v0.1.8; what actua
    keyboard for three hours after — an unanswered first question kills a Show HN.
    B-SEC (the leaked PyPI token) was raised and the owner decided on 2026-07-27 NOT to
    revoke it. Decision recorded; stop re-raising it.
-3. [S] D1: write RESEARCH-PROMPTS.md from the calibrated /deep-research anchor list
-   (conch, terminal-bench, plotille, TTE, PyPI trusted publishing) — see NEXT-STEPS D1.
+3. [DONE 2026-08-06] D1: RESEARCH-PROMPTS.md — five anchors, each with what a good
+   answer would CHANGE in the backlog, and the tempting answers priced honestly.
 4. [DONE 2026-08-05] Harbor adapter — see §10h. `smartcli_tbench/harbor_agent.py`,
    selectable via `import_path`, validated against the real Harbor BaseAgent.
-5. [M] tui-ui reactive/declarative layer; [M] kitty graphics protocol next to sixel.
-6. [Human eyeball] effort_selector cadence in a real Windows Terminal (travel SMALL,
+5. [M] **A0-DAEMON-CONCURRENCY** (NEXT-STEPS) — the drive-tui daemon's accept loop is
+   serial, so one unauthenticated connection stalls every other caller. Bounded 30× in
+   `beb7583`, NOT fixed; blocked on PtySession not being thread-safe, so decide the
+   concurrency model before writing code (the task states both candidates and the trap
+   in the simpler one).
+6. [S] **A0-DOCKER-RUN** — docker.yml builds and pushes the image but never RUNS it, so
+   `CMD ["mcp"]` has shipped in two releases with no automated test. That is exactly how
+   an MCP directory validates a server, and how the `CMD ["fx gallery"]` bug got in.
+7. [S] **A0-I18N-ONBOARD** — the 30-second quickstart and the drive_vim comparison that
+   anchor the English README are missing from all four locales (verified 2026-08-09:
+   `grep -l 'drive_vim' docs/i18n/README.*.md` is empty).
+8. [M] **A0-PYTE-UPSTREAM** — five pyte defects port mechanically; read §10i in full
+   first, especially the FOUR that must NOT be filed.
+9. [M] tui-ui reactive/declarative layer; [M] kitty graphics protocol next to sixel.
+10. [Human eyeball] effort_selector cadence in a real Windows Terminal (travel SMALL,
    ~lambda x1..1.6; distances ultracode 4/max 14/xhigh 25/high 34/medium 45/low 53);
    real-Mac interactive curses DECCKM/SS3 probe over SSH; real-WT sixel render
    eyeball. (tmux launchers: DONE 2026-07-27 on real tmux 3.6b.)
@@ -1445,11 +1672,17 @@ Discoverability (owner-gated, copy ready in docs/LAUNCH-COPY.md): C2 awesome-lis
 then C4 Show HN / r/commandline + C5 skill-community posts (C1 proof reels are DONE).
 
 VERIFY WHAT YOU SHIP (all should exit 0; paths POSIX-style, swap \ on Windows).
+Use an interpreter that has pyte; take exit codes directly, never through a pipe.
 Heavy PTY spawners (run_all, verify_fx, probes) need user consent first — red line:
   python tests/run_all.py                # unified runner (43 entries; consent first)
     # 43/43 on macOS as of 2026-08-06. If you see 39/43 you are on an older
     # checkout: the four platform-gap failures (msvcrt fixtures, drive_vim
-    # import) were fixed — see HANDOFF 10i.
+    # import) were fixed — see HANDOFF 10i. Since 38c05cc a gate that is tracked
+    # by git but missing on disk FAILS instead of skipping, so a green run means
+    # more than it used to. KNOWN: _mcp_probe has a load-dependent flake (2 of 5
+    # full-suite runs on 2026-08-07, not reproducible serially) and rerun=True was
+    # deliberately NOT added — if it fires, capture the child output run_all now
+    # prints and diagnose it; do not paper over it (§10k).
   cd skills/cmd-art && python -m fx list && python -m fx gallery   # 30 effects
   python skills/tui-ui/examples/effort_selector.py --once --stage ultracode --frame 1
   python skills/drive-tui/scripts/tui.py start --cmd "python3 -i -q" --cols 80 --rows 24
@@ -1463,5 +1696,4 @@ Heavy PTY spawners (run_all, verify_fx, probes) need user consent first — red 
 Then open the visual result in a real terminal and show the user before calling
 anything done.
 ```
-
 

@@ -135,7 +135,10 @@ Full subcommand surface (`tui.py --help`):
 
 - `start` — spawn a program in a detached persistent session. Options:
   `--cmd`, `--id`, `--cols/--rows`, `--cwd` (working directory for the target),
-  `--env KEY=VALUE` (repeatable; extra environment for the target).
+  `--env KEY=VALUE` (repeatable; extra environment for the target — it may not set
+  SmartCLI's own control variables `SMARTCLI_TUI_*`, `SMARTCLI_ROOT`,
+  `SMARTCLI_MAX_SESSIONS`, `SMARTCLI_AUTO_INSTALL`, matched case-insensitively so the
+  guard holds on Windows too; your own names pass through).
 - `snapshot` — print a semantic snapshot (text, styled spans, cursor,
   selected row, hashes).
 - `send-text` / `send-line` — type literal text, without / with a trailing
@@ -156,8 +159,15 @@ Full subcommand surface (`tui.py --help`):
     `expect([...])`-style; reports which matched first (earliest in the list
     wins a same-poll tie). `--stdin` reads patterns one per line.
 - `alive` — check whether the child process is still running.
-- `close` — terminate the session and its daemon.
+- `close` — terminate the session and its daemon. If the request fails while the
+  daemon's pid is still alive, `close` refuses and exits 1 instead of removing the
+  registry entry: a socket timeout is not proof of death (the accept loop is serial, so
+  a busy daemon looks like a dead one), and that file holds both the token and the pid,
+  so deleting it would leave a live PTY child unreachable and unfindable. Retry, or
+  kill the printed pid; `--force` removes it anyway.
 - `list` — list active sessions (use to confirm zero leaks).
+- `resize` — change the terminal size of a live session (`--cols`/`--rows`). A rejected
+  size is an error reply, not a dead session.
 - `run` — one-shot mode: run a JSON step list against a fresh program.
 - `doctor` — report where `smartcli_core` resolved from + dependency status.
 

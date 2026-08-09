@@ -280,6 +280,12 @@ if FAILURES:
     print(f"\ntest_doc_counts FAIL -- {len(FAILURES)} doc(s) drifted from code:")
     for f in FAILURES:
         print("   -", f)
+    print(f"\nFix the doc to match the code. If a line quotes a WRONG number on "
+          f"purpose — explaining a past drift, quoting an upstream project's count — "
+          f"put `{IGNORE_MARKER}` on that line to exempt it. The exemption is "
+          f"explicit by design: this gate used to infer intent from nearby words like "
+          f"'stale' or 'drift', and that silently exempted HANDOFF's own "
+          f"authoritative Live-counts line.")
     sys.exit(1)
 print(f"\nPASS: all shipping docs agree with the code "
       f"(fx={N_FX}, recipes={N_RECIPES}, widgets={N_WIDGETS}); "

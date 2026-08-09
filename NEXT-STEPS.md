@@ -1,8 +1,8 @@
 # NEXT-STEPS — SmartCLI prioritized task queue
 
-Written 2026-07-12; snapshot + queue last reconciled **2026-08-06** (post-v0.2.0-release
-work — see HANDOFF §10h/10i). This file is the single source of truth for "what to do
-next". Tasks are ordered by impact/effort and written as **self-contained prompts**:
+Written 2026-07-12; snapshot + queue last reconciled **2026-08-09** (after the
+2026-08-07 gate/security session — see HANDOFF §10k). This file is the single source of
+truth for "what to do next". Tasks are ordered by impact/effort and written as **self-contained prompts**:
 a fresh AI with no memory of this session can pick any task and start. Each task
 states the goal, why it matters, a concrete first step, how to verify, and effort
 (S/M/L).
@@ -22,8 +22,23 @@ non-negotiable and overrides any shortcut that looks faster.
 
 ---
 
-## Verified ground-truth snapshot (checked against disk 2026-08-06)
+## Verified ground-truth snapshot (checked against disk 2026-08-09)
 
+- **`main` carries 18 unreleased commits.** The v0.2.1 tag is 18 behind `main`, which is
+  synced with `origin/main` (0 ahead / 0 behind) and green on CI / Lint / CodeQL / Docker
+  at `9b3b562`. Thirteen are the 2026-08-07 session (HANDOFF §10k): three drive-tui
+  control-plane defects — `close` deleting a **live** daemon's registry entry, a
+  case-sensitive `--env` guard the Windows target bypassed, an unauthenticated
+  head-of-line block bounded 30× but not fixed — plus six gates that could not fail.
+  **PyPI users do not have any of it.** Cutting v0.2.2 is the owner's call; these are
+  behaviour changes to a security surface, not doc edits. Re-count with
+  `git rev-list --count v0.2.1..HEAD` rather than trusting this line.
+- **The interpreter, before anything else:** tests import `smartcli_core`, so they need
+  `pyte` installed. A bare version-manager `python3` fails with
+  `ModuleNotFoundError: No module named 'pyte'`, which reads like a broken test. Take
+  exit codes directly — piping through `tail` reports `tail`'s status, so an import
+  crash reads as a pass. `ruff`/`mypy` are not installed on the current macOS box, so
+  `lint.yml`'s blocking gates are CI-only here.
 - **v0.2.1 IS RELEASED (2026-08-06).** Tagged from `main` at `9454f05`; all three
   publish.yml jobs green including `publish-mcp` (which only runs on a real tag push, so
   the bumped action pins executed there for the first time). Live and verified: PyPI
@@ -48,23 +63,32 @@ non-negotiable and overrides any shortcut that looks faster.
   cursor_down DECSTBM fix — none of these bumped the version. 3 skills also on
   skillhu.bz. `.claude-plugin/marketplace.json` present. Codecov + Read the Docs
   (smartcli.readthedocs.io) live.
-- Version 0.2.0 (in-tree) is consistent across **TEN** sites: pyproject.toml,
+- Version **0.2.1** (in-tree, re-checked 2026-08-09; this line said 0.2.0 for three
+  days after the release) is consistent across **TEN** sites: pyproject.toml,
   smartcli_core/__init__.py, skills/cmd-art/fx/__init__.py, all 3 skills/*/SKILL.md,
   marketplace.json, **plugin.json**, _vendor/smartcli_core/__init__.py, server.json
   (2 fields). After a bump run tools/sync_vendor.py + tests/test_vendor_sync.py +
   **tests/test_version_sync.py** (anti-drift gate added 2026-07-27). VERIFIED.
-- Live counts (re-verified against code 2026-07-27): cmd-art **30 effects / 8 themes**;
-  drive-tui **8 recipes** (patterns/recipes/); tui-ui **17 widgets** (11 core + 6 in
-  ui/widgets_ext/); knowledge **143 md files**. `python -m fx list` = 30,
-  `python -m ui widgets` = 17. Anti-drift gate (test_doc_counts.py) enforces effect
-  AND widget counts across shipping docs (extended 2026-07-27).
+- Live counts (re-verified against code 2026-08-09 by importing the registries): cmd-art
+  **30 effects / 8 themes**; drive-tui **8 recipes** (patterns/recipes/); tui-ui
+  **17 widgets** (11 core + 6 in ui/widgets_ext/); knowledge **143 md files**.
+  `python -m fx list` = 30, `python -m ui widgets` = 17. Anti-drift gate
+  (test_doc_counts.py) enforces effect, widget **and recipe** counts across shipping
+  docs — the recipe family was added 2026-08-07 after the PASS banner was found
+  printing an untested number between two tested ones.
 - Suite size: `tests/run_all.py` `build_suite()` is **43 entries**, **43/43 green on
-  macOS as of 2026-08-06** — the first full green here. It was 39/43 for a while; the
+  macOS as of 2026-08-07**. It was 39/43 for a while; the
   four earlier failures were platform gaps in test fixtures (`_menu_app.py` and three
   siblings opening with `import sys, msvcrt` and dying on POSIX before drawing
   anything; `examples/drive_vim.py` unable to import `smartcli_core` from a checkout),
   not product bugs. See HANDOFF §10i. Registration is unconditional — tmux probes SKIP
-  themselves rather than deregistering — so 43 does not vary by host.
+  themselves rather than deregistering — so 43 does not vary by host. **A green run
+  means more than it did before 2026-08-07:** a gate tracked by git but missing on disk
+  now FAILS instead of skipping, so deleting or renaming one is no longer invisible.
+  **Known flake:** `_mcp_probe` failed in 2 of 5 full-suite runs on 2026-08-07 and did
+  not reproduce serially; `rerun=True` was deliberately not added, and run_all now
+  prints the child's output so the next occurrence is diagnosable. Deterministic gates
+  re-run individually on 2026-08-09: 14/14 exit 0.
 - CI (updated 2026-07-27): **9 workflows**. `ci.yml` is a **3-OS matrix**
   (windows/ubuntu/macos × **py3.10/3.14**) running the deterministic gates incl.
   `test_doc_counts` + `test_version_sync` (anti-drift), `test_visual_change`,
@@ -73,7 +97,10 @@ non-negotiable and overrides any shortcut that looks faster.
   (wheel/registry contract) jobs. Plus `publish.yml` (OIDC PyPI + `publish-mcp`
   OIDC MCP-Registry job) + `publish-testpypi.yml`, `pages.yml`, `docker.yml`
   (GHCR), `codeql.yml`, `lint.yml` (ruff correctness subset + mypy now BLOCK),
-  `release-drafter.yml`, `bench.yml`. VERIFIED present.
+  `release-drafter.yml`, `bench.yml`. VERIFIED present. Note `lint.yml` installs
+  `requirements.txt` on purpose: without the real pyte, `ignore_missing_imports`
+  degrades `pyte.Screen` to `Any`, which once failed the build on a clean tree while
+  hiding two genuine errors (HANDOFF §10j).
 - Core fixes (smartcli_core, done WITH authorization + adversarial verify):
   #1 blank_hash readiness gate, #2 unanchored `>>> ` docstrings, #4 WinptyBackend
   EOF/queue reset. **#5 + #6 FIXED & verified on real Debian 13 (2026-07-13)**:
@@ -84,14 +111,37 @@ non-negotiable and overrides any shortcut that looks faster.
   skills/drive-tui/references/LIMITATIONS.md for the living log.
 - `research/cc-decompiled/` is gitignored and EXCLUDED from release. VERIFIED. Keep
   it excluded — do not re-expose it. Provenance wording already neutralized.
-- Env: dual-host. Current working copy: macOS (Apple Silicon), Python 3.14.6, POSIX
-  pty. Historical primary: Windows 11, pyte 0.8.2 + pywinpty 3.0.5, no tmux/WSL.
-  Everywhere `export PYTHONIOENCODING=utf-8` (box/CJK glyphs crash on gbk). Since
-  v0.2.0 `mcp>=1.0` is a required dependency.
+- Env: dual-host. Current working copy: macOS (Apple Silicon), POSIX pty. **The macOS
+  checkout has moved at least once, so resolve it with `git rev-parse --show-toplevel`
+  rather than from any path written in a doc.** Historical primary: Windows 11,
+  pyte 0.8.2 + pywinpty 3.0.5, no tmux/WSL. Everywhere
+  `export PYTHONIOENCODING=utf-8` (box/CJK glyphs crash on gbk). Since v0.2.0
+  `mcp>=1.0` is a required dependency.
 
 ---
 
 ## A0. NEW since v0.2.0 (added 2026-07-27)
+
+### A0-REL-022. Decide whether to release the 18 unreleased commits  [S] (OWNER decision)
+- **Goal:** the v0.2.1 tag is 18 commits behind `main`. Either cut v0.2.2 or record a
+  decision not to; right now the state is undeclared, which is the worst of the three.
+- **Why it matters:** three of those commits are drive-tui control-plane fixes, and one
+  of them (`81a41ad`) is an operational-invariant defect — `close` after a timeout
+  deleted a **live** daemon's registry entry, stranding a PTY child while `list`
+  reported zero sessions. Anyone on `pip install smartcli-toolkit` still has that
+  behaviour. The rest raise the floor on test honesty (a deleted gate used to be a green
+  SKIP) but do not affect users.
+- **Nothing is blocking it technically:** ten version sites at 0.2.1, CI green at
+  `9b3b562`, `main` synced with origin, publish.yml does PyPI + MCP Registry on a tag
+  push via OIDC. So the work is: bump the ten sites, `python tools/sync_vendor.py`,
+  `test_version_sync` + `test_vendor_sync`, write the CHANGELOG entry with the release
+  day's date, then `git tag v0.2.2 && git push origin v0.2.2`.
+- **Why the owner and not an agent:** a published version number can never be reused,
+  and this project's standing rule is to confirm before tagging.
+- **Verify:** all three publish.yml jobs green; `pip install smartcli-toolkit==0.2.2`
+  into a clean venv and confirm `close` refuses to delete a live daemon's entry (the
+  headline fix) rather than trusting the workflow status.
+- **Effort:** S
 
 ### ~~A0-GLAMA. List on Glama to unblock the 91k-star awesome-mcp-servers PR~~  [DONE 2026-08-03 — owner]
 - **Goal:** submit SmartCLI at <https://glama.ai/mcp/servers> ("Add Server"), then
@@ -338,6 +388,11 @@ non-negotiable and overrides any shortcut that looks faster.
   session and is a working starting point. Also confirm a legitimate large payload
   (200 KB send-text, which spans several `recv()` calls) still succeeds, and that a
   blocking `wait-regex` on one connection no longer prevents a `snapshot` on another.
+- **Documented as a known issue, not silently carried:** `SECURITY.md` now states the
+  residual (and corrects its old claim that the bound *prevented* a peer from killing
+  the daemon — the timeout was the DoS primitive), `skills/drive-tui/SKILL.md` notes it
+  under Constraints, and `references/LIMITATIONS.md` has a "Still open" entry. If you
+  fix this, all four places move together.
 - **Effort:** M
 
 ### A0-I18N-ONBOARD. Port the English onboarding flow to the four locales  [S]
@@ -740,6 +795,29 @@ Every task above is done under these rules. They override any faster-looking sho
    mutation is worthless — fix it before trusting it. Every test in this repo is
    mutation-verified genuine; keep it that way.
 
+   *Two ways this goes wrong, both measured here.* A **bad mutation** looks like a
+   working gate: injecting a change as a subclass appended after a class body does
+   nothing when `@register` decorated the original, and slicing `ln[:-1]` on a raw row
+   cuts into an ANSI escape and *widens* the row instead of narrowing it — two
+   "passes" that each proved nothing. And **the harness itself can be
+   non-deterministic**: Python validates a `.pyc` against (mtime in whole seconds,
+   size), so two same-size mutations written in the same second run the previous
+   mutation's bytecode.
+
+3b. **Hunt for checks that CANNOT FAIL — separately from hunting for bugs.** This is
+   the highest-yield review mode found so far: on 2026-08-07 it produced nine findings
+   (HANDOFF §10k), six of them inside the gates themselves. The recurring shapes:
+   a contract gated on a predicate that evaluates the very condition it asserts
+   (`test_fx_contract`'s C3); a skipped check counted as a pass; a regex family with a
+   dead branch (so **every branch must have a live hit on disk** — that is now the
+   acceptance criterion, not inspection); one syntax's pattern run over another
+   syntax's file (a pip regex over a Ruby formula); an entry guard defeated by the
+   word appearing in a comment; an assertion pinned to values the caller just parsed
+   rather than to what the system returned; a verification grep that cannot match the
+   text it is verifying; and a missing-file case that skips instead of failing. Ask of
+   every green check: *what change would turn this red?* If you cannot name one, it is
+   not evidence.
+
 4. **Concurrent workflows + adversarial verify.** Run multi-agent workflows in
    parallel, and always finish with an independent adversarial verification pass that
    tries to disprove the result. Unlimited tokens — default to the higher-quality
@@ -747,7 +825,9 @@ Every task above is done under these rules. They override any faster-looking sho
 
 5. **Quality only goes UP.** Never trade a passing gate for speed. Regression gates
    that must stay exit-0: verify_fx.py (38/38 = 30 effects + 8 fixed checks; known
-   random-seconds flake — rerun once), _readme_literal.py, probe_pty_fx.py, tests/run_all.py.
+   random-seconds flake — rerun once), _readme_literal.py, probe_pty_fx.py,
+   tests/run_all.py. `test_fx_contract` reports **174/174 passed, 6 skipped** since
+   2026-08-07 — the long-quoted "150/150" counted six checks that never ran.
 
 6. **The smartcli_core modification rule.** smartcli_core was DO-NOT-MODIFY. Changes
    are now allowed ONLY with: (a) real-run-path verification, (b) independent
