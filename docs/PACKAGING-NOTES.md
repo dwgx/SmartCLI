@@ -43,10 +43,34 @@ python tests/test_version_sync.py    # all ten sites agree
 git tag vX.Y.Z && git push origin vX.Y.Z   # publish.yml: PyPI + MCP Registry via OIDC
 ```
 
-### TestPyPI (rehearsal channel) — `.github/workflows/publish-testpypi.yml`
-One-time: register at test.pypi.org, add a Trusted Publisher (repo **`SmartCLI`**,
-workflow **`publish-testpypi.yml`**, environment **`testpypi`**), create a
-`testpypi` GitHub Environment. Then a `v0.1.3rc1` tag rehearses the full publish.
+### TestPyPI (rehearsal channel) — OPTIONAL, deliberately not set up
+**This is not a gap. Do not treat it as unfinished work.** It was listed here for
+long enough to look like a to-do, so here is the reasoning instead.
+
+TestPyPI exists because a PyPI version number is permanent — you cannot delete and
+re-upload one — so it gives you somewhere disposable to check that a package really
+builds, installs and imports. Every one of those checks already happens without it:
+
+- CI's `package` job builds the wheel, installs it into a clean venv and runs it
+  through `uvx` on every push.
+- Before the v0.2.3 tag, the built artifacts were checked with `twine check`,
+  installed into a clean venv, and the release's headline fix was exercised through
+  the installed package against a real PTY. After the tag, the same was repeated
+  from PyPI itself.
+- Production OIDC publishing is **verified working** — v0.2.3 went out that way with
+  all three publish jobs green.
+
+So the only thing TestPyPI would add is rehearsing the *upload step* against a
+throwaway index, which matters if you later rewrite `publish.yml` and don't want to
+burn a real version number finding a mistake. Worth doing then; not worth an account
+and a Trusted Publisher setup now.
+
+If that day comes, the workflow is already written and needs four one-time steps:
+register at test.pypi.org, add a Trusted Publisher (project `smartcli-toolkit`, owner
+`dwgx`, repo **`SmartCLI`** — the GitHub repo name, not the dist name, which is the
+mismatch that broke the production setup originally — workflow
+`publish-testpypi.yml`, environment `testpypi`), create a `testpypi` GitHub
+Environment, then dispatch it.
 
 ### GHCR image visibility
 The image publishes automatically, but GHCR packages start **private**. To make it
@@ -88,19 +112,20 @@ Action (composes server.json + publishes via OIDC), matching our existing
 tag-push release flow.
 
 ### conda-forge — `packaging/conda-forge/recipe/meta.yaml`
-**Calibrated to 0.2.3 and the sha256 is FILLED and verified** (2026-08-09) — it
-matches PyPI's own recorded digest for the 0.2.3 sdist, and the recipe's three
-`test:` commands were run against a real install of that version and pass. The
-dependency list, `requires-python` floor and `noarch: python` all agree with
-`pyproject.toml`.
+**OPTIONAL — a genuinely different distribution channel, so the only reason to do it
+is "I want conda users to reach the package". It is not unfinished work.** The recipe
+is finished: calibrated to 0.2.3, sha256 filled and verified (matches PyPI's own
+recorded digest), the three `test:` commands run against a real install of that
+version and pass, deps / `requires-python` / `noarch` all agree with pyproject.
 
-Two things remain, and both are yours:
-1. **A second `recipe-maintainers` entry.** conda-forge wants more than one
-   maintainer per feedstock; the recipe currently lists only `dwgx`. Either add
-   someone who agrees to it, or submit with one and expect a reviewer to ask.
-2. Copy into a fork of `conda-forge/staged-recipes` under
-   `recipes/smartcli-toolkit/` and open a PR. A maintainer reviews; on merge a
-   feedstock is auto-created and their bot bumps future versions.
+If you ever want it live, the whole step is: fork `conda-forge/staged-recipes`, copy
+`packaging/conda-forge/recipe/meta.yaml` to `recipes/smartcli-toolkit/meta.yaml`, open
+a PR. Two notes so it goes smoothly:
+1. conda-forge prefers more than one `recipe-maintainers` entry; the recipe lists only
+   `dwgx`. Either add someone who agrees, or submit with one and answer the
+   reviewer's question.
+2. Their bot takes over future version bumps once merged, so this is a one-time
+   submission, not an ongoing chore.
 
 ### Homebrew — `packaging/homebrew/smartcli-toolkit.rb`
 **Do not open a homebrew-core PR.** Verdict recorded 2026-08-09 in the formula
