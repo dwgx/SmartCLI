@@ -94,7 +94,7 @@ dependencies = [
     # "the 'mcp' package is required" even though mcp is installed.
     # Upstream keeps v1.x maintained on its own branch; revisit when the
     # server is ported to the 2.x API.
-    "mcp>=1.0,<2",
+    "mcp>=1.0,<3",
     "pywinpty>=2.0; platform_system == 'Windows'",
 ]
 
