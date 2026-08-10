@@ -78,7 +78,7 @@ jobs:
       # pull_request there is nothing pushed at all. Building twice is cheap here
       # because both steps share the same gha cache.
       - name: Build image locally (loadable, for the smoke test)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           load: true
@@ -118,7 +118,7 @@ jobs:
         # where the token is read-only — the smoke above still ran, so a fork PR
         # that breaks the image is caught without needing push rights.
         if: github.event_name != 'pull_request'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: true
