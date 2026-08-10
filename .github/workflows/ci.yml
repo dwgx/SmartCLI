@@ -238,7 +238,7 @@ jobs:
       - name: Run coverage over the deterministic gates
         run: python tools/coverage_run.py --xml
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           files: ./coverage.xml
           # Tokenless uploads on a plain push are rate-limited/unsupported now
