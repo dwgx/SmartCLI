@@ -28,7 +28,7 @@ pyte>=0.8.1
 # is what the Docker image installs (Dockerfile: pip install -r
 # requirements.txt), and that image is what MCP directories run to validate the
 # server — so the cap has to be in BOTH files or the image ships broken.
-mcp>=1.0,<2
+mcp>=1.0,<3
 
 # pywinpty — ConPTY wrapper used by smartcli_core WinptyBackend. Imported lazily
 # (`import winpty`) only inside the Windows spawn path, so it is Windows-only:
