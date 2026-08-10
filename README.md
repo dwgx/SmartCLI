@@ -143,7 +143,24 @@ Reproduce any with `python -m fx play <name>` (see [Quickstart](#quickstart)).
 
 ## Install
 
-**Primary — from PyPI:**
+**Just want the three Claude Code skills?** Download one zip, unzip it, done — no
+git, no pip, no marketplace:
+
+```bash
+curl -LO https://github.com/dwgx/SmartCLI/releases/latest/download/smartcli-skills.zip
+```
+
+```bash
+unzip smartcli-skills.zip -d ~/.claude/skills/
+```
+
+That gives you `cmd-art`, `drive-tui` and `tui-ui` (309 KiB total). `cmd-art` and
+`tui-ui` then work with nothing but CPython 3.10+ — verified on a bare virtualenv,
+all 30 effects and all 17 widgets load. `drive-tui` additionally needs `pyte`, which
+the PyPI install below provides. Or install all three via the plugin marketplace:
+`/plugin marketplace add dwgx/SmartCLI`.
+
+**Primary — from PyPI (the library, the CLI, and the MCP server):**
 
 ```bash
 pip install smartcli-toolkit

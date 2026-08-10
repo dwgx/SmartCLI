@@ -145,7 +145,15 @@ SOURCE / ISSUES
             z.write(src, arc)
         z.writestr("README.txt", readme)
 
+    # Also emit a version-FREE copy. GitHub's /releases/latest/download/<name>
+    # endpoint needs an exact filename, so a versioned-only asset means every doc
+    # linking to it breaks on the next release — the exact drift this project keeps
+    # getting bitten by. Uploading both gives a permanent link plus an archival name.
+    stable = out_dir / "smartcli-skills.zip"
+    shutil.copy2(target, stable)
+
     print(f"built {target.relative_to(Path.cwd()) if target.is_relative_to(Path.cwd()) else target}")
+    print(f"  stable copy: {stable.name} (for /releases/latest/download/)")
     print(f"  version : {ver}")
     print(f"  files   : {len(files)} (+ README.txt)")
     print(f"  size    : {target.stat().st_size / 1024:.0f} KiB")

@@ -7,6 +7,18 @@ pluggable PTY + `pyte` core. There are four ways to get it, from "just drop the
 folder in" to a normal pip install. Pick the one that matches how you got the
 files.
 
+## Fastest path — one zip, no git, no pip
+
+```bash
+curl -LO https://github.com/dwgx/SmartCLI/releases/latest/download/smartcli-skills.zip
+unzip smartcli-skills.zip -d ~/.claude/skills/
+```
+
+309 KiB, and that is the whole install — `cmd-art`, `drive-tui` and `tui-ui` land as
+three directories your AI discovers on the next session. Swap the path for
+`<project>/.claude/skills/` to scope them to one project. The link always points at
+the newest release. (`drive-tui` additionally needs `pyte` — see the note below.)
+
 ## TL;DR — drop-in, zero config
 
 Unzip the release and drop the whole repo (or just a single skill folder) into

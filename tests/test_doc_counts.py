@@ -292,6 +292,27 @@ if example.exists() and readme.exists():
                  f" -> README quotes {len(doc_steps)}: {doc_steps!r}; "
                  f"source declares {len(src_steps)}: {src_steps!r}"))
 
+# --- the release-download instructions must stay version-independent ---------
+# README and INSTALL tell people to curl
+# /releases/latest/download/smartcli-skills.zip. That endpoint needs an EXACT asset
+# filename, so if a doc ever hard-codes a versioned name (smartcli-skills-0.2.3.zip)
+# the link 404s for everyone the moment the next release ships — a broken install
+# path is the worst possible drift, since it hits first-time users only.
+# tools/build_skill_bundle.py uploads both names for this reason; this check makes
+# sure the DOCS point at the stable one.
+VERSIONED_ASSET_RE = re.compile(r"releases/latest/download/smartcli-skills-\d")
+for rel in ("README.md", "INSTALL.md"):
+    doc = ROOT / rel
+    if not doc.exists():
+        continue
+    text = doc.read_text(encoding="utf-8", errors="replace")
+    bad = [f"line {i}" for i, line in enumerate(text.splitlines(), 1)
+           if VERSIONED_ASSET_RE.search(line)]
+    check(not bad,
+          f"{rel}: skill-bundle link uses the version-independent asset name"
+          + ("" if not bad else " -> " + "; ".join(bad)
+             + " hard-codes a version, which 404s after the next release"))
+
 # --- portable docs must not hard-code one machine's absolute paths -----------
 portable = []
 for pattern in PORTABLE_DOC_GLOBS:
