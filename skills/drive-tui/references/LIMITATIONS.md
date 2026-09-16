@@ -218,8 +218,10 @@ regression run (drive-probes + `_sandbox_posix_backend.py` on Linux).
   apply backpressure to the child.
 - **Close is confirmed or admitted.** `close_unconfirmed` with `last_progress` is a real answer; a
   returned native call is never treated as an exit. Still open: a partial device-reply write is
-  best-effort, the daemon's reader "cap" is a filter rather than an admission limit, and `_reply` can
-  stall the single worker for up to 60 s on a peer that stops reading.
+  best-effort, the daemon's reader "cap" is a filter rather than an admission limit, `_reply` can
+  stall the single worker for up to 60 s on a peer that stops reading, and -- found by driving a real
+  ConPTY child past a lowered high water -- **`pump(max_bytes=...)` can hang once the reader pauses**
+  (see the OPEN section below; issue #15).
 
 ## Write-path scheduling edges (N2, 2026-09-16)
 
@@ -243,6 +245,23 @@ Verification: `tests/test_partial_write_edges.py` (7 cases, injected `os.write`/
 failed 5/7 before the change and passes after; the real-pty test still delivers 262 144 B exactly once
 (sha256 match, 32 writability waits). The wait count is scheduling-dependent -- 32/35/44 across
 identical runs -- so never read it as a fixed property of the transport.
+
+## OPEN: `pump(max_bytes=)` can hang when the reader reaches its high water (found 2026-09-16)
+
+On the real ConPTY transport, a client that asks for a byte budget can wait forever once the reader
+pauses at the payload high water: the client waits for its full `max_bytes`, the reader stops filling
+at the high water, and the reader only resumes when the client drains -- which a client waiting for a
+budget it can never get never does. Measured: `pump(max_bytes=64 KiB)` with
+`SMARTCLI_WINPTY_HIGH_BYTES=131072`/`LOW=32768` and a child writing 256 KiB **never returned**
+(faulthandler dump inside `WinptyBackend._read_budgeted`); with the default 4 MiB high water the same
+run behaves, because a normal burst never reaches the pause. A control (`read_status()` called once
+while the child writes) returns in 0.00 s, so the io-evidence path is not the stall.
+
+Tracked as <https://github.com/dwgx/SmartCLI/issues/15>; repro in
+`D:\\Project\\SmartCLI-v3-runs\\A04\\s5-highwater\\`. **Until it is fixed: do not pass `max_bytes` to
+`pump()` on Windows, and do not lower the high water** -- an unbudgeted `pump()` takes whatever is
+ready and cannot enter the wait. Fix direction: return what is available after a bounded wait, and
+wake the reader when the client drains below the low water.
 
 ## Environment facts found while verifying (2026-09-16, Windows 11 + ConPTY)
 
