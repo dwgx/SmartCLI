@@ -9,7 +9,7 @@ description: >-
   spinners, password fields, curses UIs), or when a piped command hangs or
   prints nothing.
 allowed-tools: Bash, Read
-version: 0.3.1
+version: 0.3.2
 ---
 
 # drive-tui

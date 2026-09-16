@@ -5,6 +5,28 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] - 2026-09-16
+
+### Fixed
+- **A partial device reply was never retried.** A reply the runtime could not write in full was reported
+  (`io.pending.reply_bytes` / `reply_error`) and then abandoned, so a child blocked on its own answer
+  stayed blocked. The unwritten suffix is now retried on a later turn from the ledger -- the same
+  suffix, never a re-send from zero -- bounded by an opt-in byte budget (`SMARTCLI_REPLY_RETRY_BYTES`,
+  default 0 = off), with the debt still visible in `io.pending`.
+- **A peer that stopped reading could hold the daemon's single worker for up to 60 s.** `_reply` now
+  runs a non-blocking send loop against two bounds: the 60 s total ceiling (unchanged for a peer that
+  is making progress, now tunable via `SMARTCLI_REPLY_TIMEOUT_MS`) and a stall window
+  (`SMARTCLI_REPLY_STALL_SECONDS`, default 2 s, 0 disables) that abandons a peer which accepts NOTHING
+  for that long. Every accepted byte renews the window, so a slow-but-reading peer keeps the patience it
+  had before. The outcome is returned as a receipt (`sent`/`bytes`/`total_bytes`/`reason`).
+- **The daemon's reader cap is now an admission limit** rather than a filter on what it lists: work
+  beyond the cap is refused explicitly instead of being silently carried.
+
+### Notes
+- Verified with the author's own commands (`tests/test_liveness_gaps.py` -> 18 tests OK) and by the full
+  aggregator (`python tests/run_all.py` -> 56/56) before the merge; the release commit republishes the
+  same tree, so artifact == tag == repository.
+
 ## [0.3.1] - 2026-09-16
 
 ### Fixed
