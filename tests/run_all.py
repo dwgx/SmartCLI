@@ -262,6 +262,9 @@ def build_suite():
     suite.append(Test("test_partial_write_regression (T03 partial PTY write receipts)",
                       [PY, str(TESTS / "test_partial_write_regression.py")], ROOT, 60,
                       optional=True))
+    suite.append(Test("test_partial_write_edges (N2 scheduling edges of the write path)",
+                      [PY, str(TESTS / "test_partial_write_edges.py")], ROOT, 60,
+                      optional=True))
     suite.append(Test("test_a04_read_budget (A04-S1 byte-budgeted transport)",
                       [PY, str(TESTS / "test_a04_read_budget.py")], ROOT, 60,
                       optional=True))

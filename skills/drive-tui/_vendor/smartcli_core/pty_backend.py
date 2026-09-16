@@ -525,19 +525,43 @@ class PosixPtyBackend(PtyBackend):
     #: value is a bounded-wait policy, not a performance target.
     write_timeout: float = 5.0
 
+    def _wait_writable(self, deadline: float, offset: int, total: int) -> None:
+        """Wait for writability, bounded by ``deadline``.
+
+        ``select.select`` is a syscall and can raise: EINTR means a signal arrived
+        (retry the SAME suffix -- never a re-send from zero, which would duplicate
+        bytes), and any other OSError must leave the receipt it earned, carrying
+        how much of the payload had already been accepted.
+        """
+        import select
+        import time
+
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise IncompleteWrite(offset, total, "deadline waiting for writability") from None
+        try:
+            # Spurious wakeups are allowed: the caller re-checks the same suffix.
+            select.select([], [self._fd], [], min(remaining, 0.25))
+        except InterruptedError:
+            return                      # a signal during the wait: try again
+        except OSError as exc:
+            raise IncompleteWrite(offset, total,
+                                  f"select failed: {type(exc).__name__}: {exc}") from exc
+
     def write(self, data: bytes) -> None:
         """Write every byte of ``data``, or raise :class:`IncompleteWrite`.
 
         The fd is non-blocking, so a single ``os.write`` may accept only a
-        prefix (or raise ``EAGAIN``); its return value was previously discarded,
-        which reported success for input the child never received. This loop
-        keeps an offset and only returns once every byte has been accepted,
-        waiting for writability between attempts and honouring a deadline.
-        ``EINTR`` retries the very same suffix -- never a re-send of the whole
-        payload, which would duplicate bytes already delivered.
+        prefix; its return value was previously discarded, which reported success
+        for input the child never received. This loop keeps an offset and only
+        returns once every byte has been accepted, waiting for writability
+        between attempts and honouring a deadline that is re-checked before EVERY
+        write -- including the case where every call succeeds with one byte, which
+        would otherwise run past the deadline unnoticed. ``EINTR`` retries the
+        very same suffix, never a re-send of the whole payload, which would
+        duplicate bytes already delivered.
         """
         import os
-        import select
         import time
 
         if self._fd is None:
@@ -550,20 +574,16 @@ class PosixPtyBackend(PtyBackend):
         offset = 0
         deadline = time.monotonic() + self.write_timeout
         while offset < total:
+            if time.monotonic() >= deadline:
+                # Checked here, not only in the no-progress branches: a trickling
+                # writer makes progress on every call and would never reach them.
+                raise IncompleteWrite(offset, total, "deadline before next write")
             try:
                 written = os.write(self._fd, view[offset:])
             except InterruptedError:
-                # A signal arrived before any byte was accepted: same suffix.
-                if time.monotonic() >= deadline:
-                    raise IncompleteWrite(offset, total, "deadline after EINTR") from None
-                continue
+                continue                     # same suffix; the loop re-checks the deadline
             except BlockingIOError:
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    raise IncompleteWrite(offset, total, "deadline waiting for writability") from None
-                # Spurious wakeups are allowed: re-check the same suffix. The
-                # call is bounded and never spins.
-                select.select([], [self._fd], [], min(remaining, 0.25))
+                self._wait_writable(deadline, offset, total)
                 continue
             except OSError as exc:
                 # EPIPE/EIO/bad fd: the previously written prefix is still real,
@@ -571,12 +591,9 @@ class PosixPtyBackend(PtyBackend):
                 raise IncompleteWrite(offset, total,
                                       f"{type(exc).__name__}: {exc}") from exc
             if written <= 0:
-                # No progress and no error: treat like EAGAIN rather than
-                # looping hot on a descriptor that accepted nothing.
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    raise IncompleteWrite(offset, total, "no progress")
-                select.select([], [self._fd], [], min(remaining, 0.25))
+                # No progress and no error: treat like EAGAIN rather than looping
+                # hot on a descriptor that accepted nothing.
+                self._wait_writable(deadline, offset, total)
                 continue
             offset += written
 

@@ -154,6 +154,7 @@ class PtySession:
         self._last_cut: str = "unknown"     # drained | budget_limited | unknown | error
         self._stream_error: str | None = None
         self._pending_reply_bytes = 0
+        self._reply_error: str | None = None
         # Close protocol (A04-S4): requested -> closing -> confirmed | unconfirmed.
         self._close_requested = False
         self._closing = False
@@ -189,6 +190,7 @@ class PtySession:
         self._last_cut = "unknown"
         self._stream_error = None
         self._pending_reply_bytes = 0
+        self._reply_error = None
         self._close_requested = False
         self._closing = False
         self._close_confirmed = False
@@ -299,8 +301,17 @@ class PtySession:
                 try:
                     self.backend.write(reply)
                     self._pending_reply_bytes = 0
-                except Exception:
-                    pass
+                    self._reply_error = None
+                except Exception as exc:
+                    # N2: a device reply that could not be written must be VISIBLE
+                    # (the program may be blocked waiting for it), and it must not
+                    # be re-sent blindly: a partial write already put a prefix on
+                    # the wire, so a whole-payload retry would duplicate bytes. The
+                    # known prefix is subtracted from what is still owed.
+                    written = getattr(exc, "written_bytes", None)
+                    self._pending_reply_bytes = (len(reply) if written is None
+                                                 else max(0, len(reply) - int(written)))
+                    self._reply_error = f"{type(exc).__name__}: {exc}"
         return data
 
     def io_block(self) -> dict:
@@ -370,6 +381,7 @@ class PtySession:
                     "readable_now": status.get("readable_now"),
                     "parser_incomplete": self._parser_incomplete(),
                     "reply_bytes": self._pending_reply_bytes,
+                    "reply_error": self._reply_error,
                     "upstream": "unknown" if representation == "conpty_reconstructed_utf8" else None,
                 },
                 "local_cut": self._last_cut,

@@ -192,9 +192,12 @@ class PartialWriteRegression(unittest.TestCase):
 
     # -- the linearization point: the last accepted byte is the truth -------
     def test_completion_is_not_undone_by_a_later_deadline(self):
-        # The final write lands and returns; the deadline is checked only while
-        # bytes are still outstanding, so a finished request stays finished.
-        rec, error = run_write([len(PAYLOAD)], write_timeout=0.000001)
+        # The final write lands and returns; the deadline is checked only BEFORE
+        # starting another write, so a finished request stays finished even when
+        # the loop exits after the deadline has technically passed. The fake clock
+        # makes "the deadline is between the first and the second write" exact.
+        rec, error = run_write([len(PAYLOAD)], write_timeout=0.05,
+                               clock=stepping_clock(0.04))
         self.assertIsNone(error)
         self.assertEqual(bytes(rec.received), PAYLOAD)
 
