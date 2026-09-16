@@ -5,6 +5,28 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-09-16
+
+### Fixed
+- **The published 0.3.0 artifact did not match its own tag.** The tag was re-pointed after CI found two
+  mypy errors that only exist on the Linux runner (`select.select` handed an `int | None` descriptor;
+  the base backend class never declared the budgeted-read hook), so `smartcli_toolkit-0.3.0-py3-none-any.whl`
+  on PyPI carried the pre-fix `smartcli_core/pty_backend.py`. 0.3.1 publishes exactly the tagged tree:
+  `PtyBackend` now declares `READ_BUDGET_CAPABLE = False` plus `_read_budgeted`/`read_status` (raising
+  `ReadBudgetUnsupported`, subclasses override), and the writability wait narrows the descriptor before
+  handing it to `select`, reporting `IncompleteWrite(descriptor closed while writing)` if it vanished.
+  This is a behaviour-preserving fix, but a release must be the code it names: the artifact, the tag and
+  the repository are now the same bytes.
+- **The registry publish step is idempotent.** Re-running (or re-pointing) a tag after the version is in
+  the MCP Registry returned `400 cannot publish duplicate version` and turned the release-check red,
+  while the PyPI step above it already treated the same case as success. The step now skips that one
+  message and still fails for every other error.
+
+### Changed
+- CHANGELOG 0.3.0 no longer quotes a single writability-wait count as if it were a property of the
+  transport: identical 262 144 B fixtures measured 32, 35 and 44 waits. The byte-exact result (delivered
+  once, sha256 match) is what the entry stands behind.
+
 ## [0.3.0] - 2026-09-16
 
 A trust-and-liveness release for the driving loop: what the runtime *observed*, what it has *not*

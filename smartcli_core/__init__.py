@@ -56,4 +56,4 @@ __all__ = [
     "KEY_MAP",
 ]
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
