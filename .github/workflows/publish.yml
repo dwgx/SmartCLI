@@ -178,4 +178,18 @@ jobs:
         run: ./mcp-publisher login github-oidc
 
       - name: Publish server metadata
-        run: ./mcp-publisher publish
+        # Idempotent on purpose, like the PyPI step above (`skip-existing: true`).
+        # A tag re-point or a workflow re-run after the version is already in the
+        # registry returns 400 "cannot publish duplicate version"; that is the
+        # desired end state, not a failure. Every other error still fails the job.
+        run: |
+          set -o pipefail
+          log="$(mktemp)"
+          if ./mcp-publisher publish 2>&1 | tee "$log"; then
+            exit 0
+          fi
+          if grep -q "cannot publish duplicate version" "$log"; then
+            echo "::notice::server metadata for this version is already published; nothing to do"
+            exit 0
+          fi
+          exit 1
