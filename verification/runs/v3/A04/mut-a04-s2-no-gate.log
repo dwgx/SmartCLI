@@ -1,0 +1,35 @@
+.F..F....F
+======================================================================
+FAIL: test_budget_limited_screen_is_not_stable (__main__.IoGate.test_budget_limited_screen_is_not_stable)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v3-runs\A04\validation2\repo\tests\test_a04_pending_readiness.py", line 82, in test_budget_limited_screen_is_not_stable
+    self.assertFalse(settled, "a budget-limited observation must not be called stable")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: True is not false : a budget-limited observation must not be called stable
+
+======================================================================
+FAIL: test_only_drained_is_complete (__main__.IoGate.test_only_drained_is_complete)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v3-runs\A04\validation2\repo\tests\test_a04_pending_readiness.py", line 53, in test_only_drained_is_complete
+    self.assertTrue(_io_blocks_stability(io_block(cut)), cut)
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : budget_limited
+
+======================================================================
+FAIL: test_wait_ready_reports_timeout_while_budget_limited (__main__.IoGate.test_wait_ready_reports_timeout_while_budget_limited)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v3-runs\A04\validation2\repo\tests\test_a04_pending_readiness.py", line 106, in test_wait_ready_reports_timeout_while_budget_limited
+    self.assertEqual(reason, "TIMEOUT")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+AssertionError: 'STABLE' != 'TIMEOUT'
+- STABLE
++ TIMEOUT
+
+
+----------------------------------------------------------------------
+Ran 10 tests in 0.242s
+
+FAILED (failures=3)

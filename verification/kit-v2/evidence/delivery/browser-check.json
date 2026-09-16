@@ -1,0 +1,19 @@
+{
+  "status": "PASS",
+  "mode": "In-memory rendering of generated HTML; not a file:// navigation test",
+  "browser": "system Chromium",
+  "sections": 17,
+  "search_match_count": 5,
+  "no_result_and_clear": "PASS",
+  "mobile_width": 390,
+  "document_width": {
+    "scroll": 390,
+    "client": 390
+  },
+  "page_errors": [],
+  "prior_attempts": [
+    "Bundled Playwright browser absent; used existing system Chromium without installation.",
+    "file:// navigation blocked by browser policy; not changed or bypassed. Generated HTML tested by set_content."
+  ],
+  "not_tested": "Local file URL access and clicking relative downloads in this browser. Relative file existence checked statically."
+}

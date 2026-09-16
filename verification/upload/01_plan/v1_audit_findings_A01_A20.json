@@ -1,0 +1,320 @@
+[
+  {
+    "id": "A01",
+    "priority": "P0",
+    "title": "非阻塞PTY短写未重试",
+    "location": "smartcli_core/pty_backend.py :: PosixPtyBackend.write",
+    "evidence": "仅调用一次os.write(fd,data)，未检查返回n；fd在spawn设为nonblocking。",
+    "impact": "长文本只输入前缀仍向调用端报告成功；EAGAIN也没有排队/重试契约。",
+    "fix": "按offset累积写入，EAGAIN等待可写；设置输入字节上限、截止时间、取消；区分排队/写完/应用确认。",
+    "acceptance": "注入1..N短写、EAGAIN、EINTR；最终字节精确相同，无重发前缀；截止前可取消。",
+    "sources": [
+      "SC03",
+      "STD01"
+    ],
+    "status": "源码确认；提取逻辑L01已复现"
+  },
+  {
+    "id": "A02",
+    "priority": "P0",
+    "title": "SGR冒号预处理破坏分片不变性",
+    "location": "smartcli_core/screen_model.py :: _ByteStream.feed",
+    "evidence": "正则只改写当前data内完整CSI…m；ESC[4:与3m分两次feed不被同样归一化。",
+    "impact": "相同终端字节因PTY分片不同而生成不同屏幕；冒号简单替换也改变subparameter语义。",
+    "fix": "引入有边界的流式控制序列状态，正确处理SGR子参数；不触碰OSC/DCS；保留原字节记录并标注不支持样式。",
+    "acceptance": "每个字节边界切分、随机chunk；文本/光标/支持属性一致；38:2::R:G:B、4:3m、OSC含冒号均有回归。",
+    "sources": [
+      "SC05"
+    ],
+    "status": "源码确认；提取逻辑L02已复现"
+  },
+  {
+    "id": "A03",
+    "priority": "P0",
+    "title": "终端列坐标误用于Unicode字符串切片",
+    "location": "smartcli_core/snapshot.py :: build_snapshot",
+    "evidence": "menu_items使用display[y][a:b]；a,b是cell列，display已去掉wide continuation stub。",
+    "impact": "中文/日文/组合字符前缀使selected.text错误，模型可能操作错误对象。",
+    "fix": "从row_cells的data聚合span，定义wide continuation和grapheme边界；禁止用显示字符串下标替代cell坐标。",
+    "acceptance": "中文 OK中高亮cols5..7必须输出OK；combining/emoji/宽字被截断边界也测试。",
+    "sources": [
+      "SC06",
+      "SC05"
+    ],
+    "status": "源码确认；提取逻辑L03已复现"
+  },
+  {
+    "id": "A04",
+    "priority": "P0",
+    "title": "空闲会话不持续泵输出，读取缺预算",
+    "location": "skills/drive-tui/scripts/tui.py :: worker；pty_backend.py :: read_nonblocking",
+    "evidence": "worker在jobs.get超时后直接continue；只有观察/wait/alive时pump。POSIX drain直到不可读；Win队列无界。",
+    "impact": "后台应用可能因PTY回压停住；设备查询无人及时回复；高流量单次pump消耗无界。",
+    "fix": "单会话owner事件循环持续有界drain；每轮字节/时间预算；Win reader绑定会话队列并设高水位；明确丢弃/暂停/落盘策略。",
+    "acceptance": "无客户端轮询仍回答CPR并输出；有界高流量下snapshot/取消满足预算；内存达到高水位后不无限增长。",
+    "sources": [
+      "SC03",
+      "SC04",
+      "SC08"
+    ],
+    "status": "源码确认；实际产品运行待验证"
+  },
+  {
+    "id": "A05",
+    "priority": "P0",
+    "title": "连接线程数注释并未实现并发上限",
+    "location": "skills/drive-tui/scripts/tui.py :: _serve_forever",
+    "evidence": "每accept创建thread；len(readers)>64只剔除已结束线程；所有线程活跃时仍可继续增长。jobs也是无界。",
+    "impact": "本地未认证连接可持续消耗线程/内存；旧版本的9连接修复不等于全量资源耗尽防护。",
+    "fix": "认证前信号量或有界reader池；有界jobs；拒绝/速率限制与单用户配额；不让拒绝回复占worker。",
+    "acceptance": "用fake transport或本机隔离小上限测试：设置cap=4，活跃reader绝不>4；已认证控制仍可服务。",
+    "sources": [
+      "SC08"
+    ],
+    "status": "源码确认；提取逻辑L04已复现；未进行外部攻击"
+  },
+  {
+    "id": "A06",
+    "priority": "P0",
+    "title": "单owner仍可能被阻塞回包与长wait卡住",
+    "location": "skills/drive-tui/scripts/tui.py :: _reply / _drain_interleavable",
+    "evidence": "worker和poll hook直接sendall，POST_AUTH_TIMEOUT=60；close/resize排在长wait之后；排空queue没有每轮预算。",
+    "impact": "慢读客户端可延迟其他操作；大量fast请求可拖延timeout；取消没有独立控制路径。",
+    "fix": "owner只产出immutable response；有界输出队列交给IO层；watcher非阻塞；close/cancel优先但不并发触碰模型。",
+    "acceptance": "慢读者不阻塞控制；并行3个watcher各自timeout/cancel；close可在长wait中触发，并等待真实退出后清理。",
+    "sources": [
+      "SC08",
+      "SC07"
+    ],
+    "status": "源码确认；实际产品运行待验证"
+  },
+  {
+    "id": "A07",
+    "priority": "P1",
+    "title": "高亮等同选中、最宽等同当前项",
+    "location": "smartcli_core/snapshot.py :: build_snapshot",
+    "evidence": "bold或任何非default背景都加入menu_items；max(span.width)唯一选择。",
+    "impact": "主题背景/标题/状态栏胜过真实菜单项；errors也可能把红色说明或0 errors误判为错误。",
+    "fix": "分离observed_styles、inferences与app_semantics；输出候选、reason、provenance、置信等级；不足时selected=null。",
+    "acceptance": "背景整屏、粗体标题、底部状态栏、反色菜单、0 errors标注语料；报告误检/漏检而非只挑演示。",
+    "sources": [
+      "SC06",
+      "SC16"
+    ],
+    "status": "源码确认；提取逻辑L05已复现"
+  },
+  {
+    "id": "A08",
+    "priority": "P1",
+    "title": "屏幕变化不是本次动作的因果确认",
+    "location": "session.py :: wait_change；readiness.py :: wait_for_regex / wait_ready",
+    "evidence": "正则对整个当前屏幕搜索；min_wait只延迟；其他写者/后台动画也可改变hash。",
+    "impact": "旧prompt导致提前成功；画面改变被误作本动作完成；CRC是状态摘要不是交易ID。",
+    "fix": "act_and_observe原子记录before_seq/action_id；expected_seq与geometry_epoch；单写者lease；结果分written/observed/applied/verified。",
+    "acceptance": "已有prompt、无回显输入、别的writer、动画和resize分别测试；不具备app ACK时不能填applied=true。",
+    "sources": [
+      "SC04",
+      "SC07",
+      "SC08",
+      "CP19"
+    ],
+    "status": "源码确认；实际产品运行待验证"
+  },
+  {
+    "id": "A09",
+    "priority": "P1",
+    "title": "多个只读等待不必串行排队",
+    "location": "LIMITATIONS.md；readiness.py；tui.py",
+    "evidence": "文档称一屏两个wait无独立意义，但不同predicate完全可在同一屏幕revision上独立评价。",
+    "impact": "并发监视/安全取消/人类查看的能力被无必要限制；clone会话会改变任务语义。",
+    "fix": "一个owner，多watcher状态机，各有predicate/deadline/cancel和after_seq；禁止多线程直接进入PtySession。",
+    "acceptance": "同一revision上regexA/regexB/exit各自返回；取消其中一个不取消进程或其他watcher。",
+    "sources": [
+      "SC13",
+      "SC07",
+      "SC08"
+    ],
+    "status": "源码确认；实际产品运行待验证"
+  },
+  {
+    "id": "A10",
+    "priority": "P1",
+    "title": "进程退出结果与进程树生命周期不完整",
+    "location": "pty_backend.py :: is_alive / terminate；tui.py :: _run_daemon",
+    "evidence": "is_alive waitpid丢弃status；terminate已有reap但只针对pid；spawn/registry在try之前。",
+    "impact": "无法稳定提供exit_code；部分启动失败可能不走cleanup；后代是否存活需要验证。",
+    "fix": "缓存ExitState(exit_code,signal,reaped_at,identity)；spawn全过程资源事务；进程组/Windows Job Object可选约束。",
+    "acceptance": "重复is_alive不丢exit7；exec失败返回127原因；故障注入registry失败不漏PTY；后代清理分受控/逃逸策略。",
+    "sources": [
+      "SC03",
+      "SC08"
+    ],
+    "status": "源码确认；实际产品运行待验证"
+  },
+  {
+    "id": "A11",
+    "priority": "P1",
+    "title": "一次性脚本失败仍可能退出0",
+    "location": "skills/drive-tui/scripts/tui.py :: _run_steps",
+    "evidence": "wait超时或matched=False只emit，没有改变最终return0；只有未知action返回2。",
+    "impact": "CI和Agent可能把未满足的检查当任务成功。",
+    "fix": "新assert步骤、--fail-on-timeout或v2默认strict；结果结构含step_id/status；保持旧脚本兼容标志。",
+    "acceptance": "故意不匹配返回非零；成功脚本返回0；未知操作与超时可区分；不把屏幕稳定当验收断言。",
+    "sources": [
+      "SC08"
+    ],
+    "status": "源码确认；实际产品运行待验证"
+  },
+  {
+    "id": "A12",
+    "priority": "P1",
+    "title": "感知降级未进入Agent默认响应",
+    "location": "screen_model.py :: feed；tui.py :: _snapshot_response",
+    "evidence": "feed异常计数feed_errors存在，但整批余量丢弃且默认快照不暴露计数/失真。",
+    "impact": "模型看到正常ok却可能依据缺行/旧画面行动。",
+    "fix": "fidelity.valid/degraded、feed_error_count、drop counters与mode support进入观测；原始日志可供离线恢复。",
+    "acceptance": "触发已有malformed parser案例，响应明确degraded；正常输入恢复有规则；不悄悄改成全部吞错。",
+    "sources": [
+      "SC05",
+      "SC08",
+      "SC09"
+    ],
+    "status": "源码确认；实际产品运行待验证"
+  },
+  {
+    "id": "A13",
+    "priority": "P1",
+    "title": "构建系统最低版本声明不匹配",
+    "location": "pyproject.toml :: build-system.requires",
+    "evidence": "setuptools>=61，同时使用license字符串和project.license-files；官方支持从77.0.0开始。",
+    "impact": "固定旧构建依赖/离线或下限矩阵安装会失败；常规最新依赖构建成功掩盖问题。",
+    "fix": "下限提升到已验证的77.x适合版本；单独最低构建依赖测试，不回退现代license元数据。",
+    "acceptance": "在最低允许setuptools构建wheel+sdist+twinecheck；验证声明下限确实可用。",
+    "sources": [
+      "SC02",
+      "STD02"
+    ],
+    "status": "源码确认；实际产品运行待验证"
+  },
+  {
+    "id": "A14",
+    "priority": "P1",
+    "title": "MCP风险标注和安全域需要纠正",
+    "location": "skills/drive-tui/scripts/mcp_server.py :: start / send_line / send_keys",
+    "evidence": "输入工具destructiveHint=False/openWorldHint=False；任意程序可删除文件或访问网络；env经argv，token只防其他用户读取。",
+    "impact": "提示可能误导客户端审批；同UID受控子进程不是被隔离的不可信环境。",
+    "fix": "保守annotations；read/write/admin分capability；secret_ref不经argv；可选容器/Job/sandbox明确威胁模型，不承诺靠提示词隔离。",
+    "acceptance": "annotations契约与实际权限一致；fake secret不出ps/log/artifacts；同UID信任边界写清；危险输入由策略/人类确认。",
+    "sources": [
+      "SC09",
+      "SC08",
+      "STD03",
+      "STD04"
+    ],
+    "status": "源码确认；实际产品运行待验证"
+  },
+  {
+    "id": "A15",
+    "priority": "P1",
+    "title": "关键测试与文档基线不一致",
+    "location": "ci.yml；tests/run_all.py；NEXT-STEPS.md",
+    "evidence": "run_all含daemon_concurrency但已读ci.yml不调用它也不调用run_all；NEXT称无rerun而run_all使用rerun=True。",
+    "impact": "关键修复可能不随PR持续验证；继任AI按旧文档错误判断已完成/未完成。",
+    "fix": "生成统一测试manifest并映射CI；记录first-pass、rerun、skip；机器生成版本/计数，历史附录与current state分离。",
+    "acceptance": "修改daemon_concurrency故意失败在目标CI中红；文档baseline自动同步；retry不得覆盖first-pass失败记录。",
+    "sources": [
+      "SC10",
+      "SC11",
+      "SC12"
+    ],
+    "status": "源码确认；实际产品运行待验证"
+  },
+  {
+    "id": "A16",
+    "priority": "P2",
+    "title": "输入协议覆盖不够且未知键静默变文本",
+    "location": "session.py :: _resolve_key / send_keys",
+    "evidence": "SS3适配已存在；未见mouse/bracketed paste/增强修饰键API；未知token回退literal。",
+    "impact": "Ctrl+Up等错误拼写可能打进应用；粘贴/模式切换无法由工具面正确表达。",
+    "fix": "版本化KeySpec；unknown_key显式错误且literal单独type；模式感知paste/mouse；双层应用键与raw bytes分开。",
+    "acceptance": "DECCKM原测试保留；BracketedPaste只在启用时包装；多行文本字节保真；鼠标协议按报告模式编码。",
+    "sources": [
+      "SC04",
+      "CP01",
+      "CP21"
+    ],
+    "status": "源码确认；实际产品运行待验证"
+  },
+  {
+    "id": "A17",
+    "priority": "P2",
+    "title": "观测预算、差分、回放未统一产品化",
+    "location": "screen_model.py；snapshot.py；tools/screenshot/*",
+    "evidence": "已有compact snapshot、增量visual CRC和独立PNG工具；未见持久会话的统一artifact/seq/diff接口。",
+    "impact": "快照重复传输、旧日志丢失；人工难回看Agent实际做了什么。",
+    "fix": "复用PNG模块接readonly frame；event journal/checkpoint，region+since_seq/per-consumer；渲染元数据和安全redaction。",
+    "acceptance": "同一事件回放出一致cells；resize/input/output有序；失败证据可离线查看；正文/结构按需返回。",
+    "sources": [
+      "SC05",
+      "SC06",
+      "SC14",
+      "SC15",
+      "CP06",
+      "CP25",
+      "CP26"
+    ],
+    "status": "源码确认；实际产品运行待验证"
+  },
+  {
+    "id": "A18",
+    "priority": "P2",
+    "title": "兼容层边界和声明需收紧",
+    "location": "screen_model.py :: _Screen；README",
+    "evidence": "对pyte有大量行为修订；已明确IL/DL、DECSTBM在参考终端间有真实差异；部分标题却用never/always。",
+    "impact": "一套局部参考行为容易被误当普遍标准；更新依赖可能切换实现路径。",
+    "fix": "TerminalEngine协议+terminal profile；先保持pyte默认，不急于换Rust；分级supported/degraded/unsupported。",
+    "acceptance": "双参考一致集必须过；分歧用profile标签；pyte capability两路径CI；端到端模式报告。",
+    "sources": [
+      "SC05",
+      "SC01",
+      "SC13",
+      "CP01"
+    ],
+    "status": "源码确认；实际产品运行待验证"
+  },
+  {
+    "id": "A19",
+    "priority": "P2",
+    "title": "产品入口应聚焦而非重建已存在分发",
+    "location": "README；pyproject；NEXT-STEPS",
+    "evidence": "MCP/agent关键词、PyPI、skills、registry与截图都已经存在；三个技能同等叙事会分散主用途。",
+    "impact": "新用户难立即判断这是Agent终端runtime还是装饰库；调研者只看热门榜会漏。",
+    "fix": "首页主叙事Agent终端运行时，三个入口清晰；艺术/UI保留为可选包与fixture优势；更正上一轮目录。",
+    "acceptance": "新用户从README完成Vim/菜单demo且能描述用途；pypi/import/bin命名表准确；不以star改变技术纳入。",
+    "sources": [
+      "SC01",
+      "SC02",
+      "SC12"
+    ],
+    "status": "源码确认；实际产品运行待验证"
+  },
+  {
+    "id": "A20",
+    "priority": "P3",
+    "title": "应用语义与人机共享是扩展机会",
+    "location": "现有core/drive边界；tui-ui作为首个适配对象",
+    "evidence": "现有推断不是应用widget tree；没有统一writer lease/attach接口的已核验证据。",
+    "impact": "复杂TUI要靠猜；人工接管与多Agent协作无法可靠确认控制权。",
+    "fix": "可选SemanticProvider；先tui-ui与Neovim/Textual，再taria桥；readonly attach+lease；通用屏幕回退继续存在。",
+    "acceptance": "app ACK只用于真正应用确认；同屏只允许一个writer；human takeover撤销Agent写权限；语义未覆盖处回退。",
+    "sources": [
+      "SC06",
+      "CP15",
+      "CP16",
+      "CP18",
+      "CP19",
+      "CP24"
+    ],
+    "status": "源码确认；实际产品运行待验证"
+  }
+]

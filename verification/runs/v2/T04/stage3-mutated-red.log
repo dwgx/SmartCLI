@@ -1,0 +1,129 @@
+..FFFF...F.E.F.FFF..F.
+======================================================================
+ERROR: test_oversized_incomplete_csi_is_bounded_and_recovers (__main__.SgrStreamRegression.test_oversized_incomplete_csi_is_bounded_and_recovers)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v2-runs\T04\validation\repo\tests\test_sgr_stream_regression.py", line 165, in test_oversized_incomplete_csi_is_bounded_and_recovers
+    self.assertLessEqual(len(m.stream._csi), m.stream._CSI_CAP)
+                             ^^^^^^^^^^^^^
+AttributeError: '_ByteStream' object has no attribute '_csi'. Did you mean: 'csi'?
+
+======================================================================
+FAIL: test_curly_underline_degrades_without_italic (__main__.SgrStreamRegression.test_curly_underline_degrades_without_italic)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v2-runs\T04\validation\repo\tests\test_sgr_stream_regression.py", line 123, in test_curly_underline_degrades_without_italic
+    self.assertFalse(m.screen.buffer[0][0].italics)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: True is not false
+
+======================================================================
+FAIL: test_dcs_lookalike_is_not_rewritten (__main__.SgrStreamRegression.test_dcs_lookalike_is_not_rewritten)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v2-runs\T04\validation\repo\tests\test_sgr_stream_regression.py", line 208, in test_dcs_lookalike_is_not_rewritten
+    self.assertFalse(any(c.underscore for c in row))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: True is not false
+
+======================================================================
+FAIL: test_dropping_every_group_is_not_a_reset (__main__.SgrStreamRegression.test_dropping_every_group_is_not_a_reset)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v2-runs\T04\validation\repo\tests\test_sgr_stream_regression.py", line 155, in test_dropping_every_group_is_not_a_reset
+    self.assertEqual(m.screen.buffer[0][1].fg, "red", "attributes must survive a dropped sequence")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'default' != 'red'
+- default
++ red
+ : attributes must survive a dropped sequence
+
+======================================================================
+FAIL: test_empty_chunk_and_eof (__main__.SgrStreamRegression.test_empty_chunk_and_eof)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v2-runs\T04\validation\repo\tests\test_sgr_stream_regression.py", line 189, in test_empty_chunk_and_eof
+    self.assertFalse(m.screen.buffer[0][3].italics)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: True is not false
+
+======================================================================
+FAIL: test_osc_lookalike_is_not_rewritten (__main__.SgrStreamRegression.test_osc_lookalike_is_not_rewritten)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v2-runs\T04\validation\repo\tests\test_sgr_stream_regression.py", line 198, in test_osc_lookalike_is_not_rewritten
+    self.assertEqual(m.title, "t\x1b[4:3mx", "the payload must keep its original bytes")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 't\x1b[4;3mx' != 't\x1b[4:3mx'
+- t[4;3mx
+?     ^
++ t[4:3mx
+?     ^
+ : the payload must keep its original bytes
+
+======================================================================
+FAIL: test_string_terminated_by_st (__main__.SgrStreamRegression.test_string_terminated_by_st)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v2-runs\T04\validation\repo\tests\test_sgr_stream_regression.py", line 213, in test_string_terminated_by_st
+    self.assertEqual(m.title, "a\x1b[4:3mb")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'a\x1b[4;3mb' != 'a\x1b[4:3mb'
+- a[4;3mb
+?     ^
++ a[4:3mb
+?     ^
+
+
+======================================================================
+FAIL: test_truecolor_background (__main__.SgrStreamRegression.test_truecolor_background)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v2-runs\T04\validation\repo\tests\test_sgr_stream_regression.py", line 114, in test_truecolor_background
+    self.assertEqual(m.screen.buffer[0][0].bg, "00ff00")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'default' != '00ff00'
+- default
++ 00ff00
+
+
+======================================================================
+FAIL: test_truecolor_semantics (__main__.SgrStreamRegression.test_truecolor_semantics)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v2-runs\T04\validation\repo\tests\test_sgr_stream_regression.py", line 104, in test_truecolor_semantics
+    self.assertEqual(m.screen.buffer[0][0].fg, "ff0080")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '00ff00' != 'ff0080'
+- 00ff00
++ ff0080
+
+
+======================================================================
+FAIL: test_truecolor_with_colour_space_slot (__main__.SgrStreamRegression.test_truecolor_with_colour_space_slot)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v2-runs\T04\validation\repo\tests\test_sgr_stream_regression.py", line 110, in test_truecolor_with_colour_space_slot
+    self.assertEqual(m.screen.buffer[0][0].fg, "ff0080")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '00ff00' != 'ff0080'
+- 00ff00
++ ff0080
+
+
+======================================================================
+FAIL: test_unsupported_underline_color_must_not_leak (__main__.SgrStreamRegression.test_unsupported_underline_color_must_not_leak)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v2-runs\T04\validation\repo\tests\test_sgr_stream_regression.py", line 139, in test_unsupported_underline_color_must_not_leak
+    self.assertEqual(cell.fg, "red")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: 'default' != 'red'
+- default
++ red
+
+
+----------------------------------------------------------------------
+Ran 22 tests in 0.025s
+
+FAILED (failures=10, errors=1)

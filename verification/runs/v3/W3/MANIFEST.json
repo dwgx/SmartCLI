@@ -1,0 +1,33 @@
+{
+ "package": "W3 minimal benchmark — offline half + E5 episodes",
+ "generated": "2026-09-16",
+ "files": {
+  "judge.py": "9cd9239a4aa3167b57b1a487cd074c29126400da7e6f8fb88ba4bbaea900091f",
+  "test_bench_min.py": "b35900f833b29dd135e6fc040e71e1e9ef54b881d68fd59606bd85ef84a45c09"
+ },
+ "tracks": [
+  "U strict-UI",
+  "A app-adapted",
+  "H hybrid"
+ ],
+ "judge_controls": 10,
+ "episodes": [
+  "b1_edit_in_editor_20260916",
+  "b2_confirm_prompt_20260916",
+  "b3_navigate_menu_20260916"
+ ],
+ "e5": {
+  "model_id": "deepseek-v4.1-flash:max (omp backend, dispatched)",
+  "dispatch_receipt": {
+   "backend": "omp",
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "session_id": "01a0a832-7a36-726e-b3dd-3271e4fd215b"
+  },
+  "usage_total_usd": 0.00077454,
+  "episodes_run": 3,
+  "episodes_passed": 3,
+  "track": "U",
+  "judged_by": "parent re-ran judge.judge() over every result.json after the worker exited",
+  "ground_truth": "fixture files on disk, read by the parent: B1 3 lines ending 'third line from an agent'; B2 file exists only on 'y'; B3 state file + program-side keys ['\\x1bOB','\\r'] and exitstatus 0"
+ }
+}

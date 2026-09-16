@@ -1,0 +1,90 @@
+{
+ "run_id": "b1_edit_in_editor_H_20260916",
+ "task": "B1_edit_in_editor",
+ "track": "H",
+ "seed": 20260916,
+ "model_id": "deepseek-v4.1-flash:max (omp backend, dispatched)",
+ "budget": {
+  "episodes": 9,
+  "wall_clock_minutes": 60,
+  "usd": 0
+ },
+ "transport": "filesystem only (no PTY, no keystrokes)",
+ "actions": [
+  "read_file",
+  "write_file"
+ ],
+ "action_counts": {
+  "read_file": 1,
+  "write_file": 1
+ },
+ "claimed_complete": true,
+ "completion_basis": "artifact_readback_verified",
+ "completion_detail": {
+  "in_episode_check": {
+   "file_lines": 3,
+   "contains": "third line from an agent",
+   "target": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b1_edit_in_editor_H_20260916\\episode_b1_hybrid.txt",
+   "bytes": 43,
+   "lines": [
+    "line one",
+    "line two",
+    "third line from an agent"
+   ]
+  }
+ },
+ "fixture_state": {
+  "file_lines": 3,
+  "contains": "third line from an agent",
+  "target": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b1_edit_in_editor_H_20260916\\episode_b1_hybrid.txt",
+  "bytes": 43,
+  "lines": [
+   "line one",
+   "line two",
+   "third line from an agent"
+  ]
+ },
+ "fixture_state_source": "filesystem readback of the artifact the episode wrote",
+ "ui_claim": false,
+ "track_note": "hybrid (track H): the artifact was produced by a file write and verified by a file read; no terminal action was used, so this is NOT a UI pass",
+ "setup": [
+  {
+   "what": "artifact absent before the episode",
+   "path": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b1_edit_in_editor_H_20260916\\episode_b1_hybrid.txt",
+   "exists": false,
+   "outside_pty": true
+  },
+  {
+   "what": "hybrid channel",
+   "kind": "filesystem write/readback",
+   "outside_pty": true
+  }
+ ],
+ "session": {
+  "driver": "none (no PTY session was opened for this episode)",
+  "argv": [],
+  "cancel": false,
+  "process_exited": false,
+  "close_state": "not_applicable",
+  "close_observed": null,
+  "observations": 2,
+  "wall_clock_s": 0.0
+ },
+ "observations": [
+  {
+   "step": "artifact written through the filesystem",
+   "path": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b1_edit_in_editor_H_20260916\\episode_b1_hybrid.txt",
+   "bytes": 43
+  },
+  {
+   "step": "artifact read back",
+   "lines": [
+    "line one",
+    "line two",
+    "third line from an agent"
+   ],
+   "sha256": "28cf0ef6e126f388af1b8c12f04b4a4548c07eab897e580a791478a8ed950dba"
+  }
+ ],
+ "wall_clock_s": 0.0
+}

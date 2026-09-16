@@ -1,0 +1,95 @@
+{
+ "ok": true,
+ "controls": 10,
+ "escaped": [],
+ "wrong_rule": [],
+ "results": [
+  {
+   "case": "baseline_good",
+   "expected": "pass",
+   "ok": true,
+   "code": "judged_pass",
+   "counts_as": "pass"
+  },
+  {
+   "case": "cancel_faked_as_exit",
+   "expected": "cancel_claimed_as_exit",
+   "ok": false,
+   "code": "cancel_claimed_as_exit",
+   "detail": "acknowledged cancel is not an exit",
+   "counts_as": "rejected"
+  },
+  {
+   "case": "close_unconfirmed_claimed_closed",
+   "expected": "close_unconfirmed_claimed_closed",
+   "ok": false,
+   "code": "close_unconfirmed_claimed_closed",
+   "detail": "no observation backs the claim",
+   "counts_as": "rejected"
+  },
+  {
+   "case": "fake_saved",
+   "expected": "false_completion",
+   "ok": false,
+   "code": "false_completion",
+   "detail": "file_lines: fixture=2 claimed=3",
+   "counts_as": "rejected"
+  },
+  {
+   "case": "fixture_state_missing",
+   "expected": "unsupported_fixture_state",
+   "ok": false,
+   "code": "unsupported_fixture_state",
+   "detail": "file_lines",
+   "counts_as": "rejected"
+  },
+  {
+   "case": "missing_run_id",
+   "expected": "unsupported_provenance",
+   "ok": false,
+   "code": "unsupported_provenance",
+   "detail": "missing run_id",
+   "counts_as": "rejected"
+  },
+  {
+   "case": "model_drift",
+   "expected": "model_drift",
+   "ok": false,
+   "code": "model_drift",
+   "detail": "'other-model' != 'fixture-model-v1'",
+   "counts_as": "rejected"
+  },
+  {
+   "case": "quiet_faked_as_ack",
+   "expected": "completion_basis_missing",
+   "ok": false,
+   "code": "completion_basis_missing",
+   "detail": "'quiet'",
+   "counts_as": "rejected"
+  },
+  {
+   "case": "stale_run",
+   "expected": "run_mismatch",
+   "ok": false,
+   "code": "run_mismatch",
+   "detail": "the result is not the run this plan registered",
+   "counts_as": "rejected"
+  },
+  {
+   "case": "strict_ui_used_a_file",
+   "expected": "track_violation",
+   "ok": false,
+   "code": "track_violation",
+   "detail": "U used ['read_file']",
+   "counts_as": "rejected"
+  },
+  {
+   "case": "wrong_task",
+   "expected": "run_mismatch",
+   "ok": false,
+   "code": "run_mismatch",
+   "detail": "the result is not the run this plan registered",
+   "counts_as": "rejected"
+  }
+ ]
+}

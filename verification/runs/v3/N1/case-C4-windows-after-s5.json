@@ -1,0 +1,18 @@
+{
+ "case": "N1-posix-winS5",
+ "start_rc": 1,
+ "start": "",
+ "start_stderr": "error: session daemon did not start in time",
+ "child_before_first_request": null,
+ "child_after_first_request": null,
+ "child_final": null,
+ "io_block": null,
+ "snapshot_ok": "n/a (snapshot --json prints the Snapshot)",
+ "daemon_finished_the_fixture_unpumped": false,
+ "no_request_outcome": {
+  "cpr_answered_before_contact": false,
+  "written_before_contact": null,
+  "done_before_contact": false
+ },
+ "closed": true
+}

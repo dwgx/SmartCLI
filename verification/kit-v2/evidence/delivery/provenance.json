@@ -1,0 +1,52 @@
+{
+  "schema_version": 2,
+  "as_of": "2026-09-16",
+  "timezone": "Asia/Tokyo",
+  "smartcli_baseline": "701e61f6d69aa2420617edf80b1136df8d5e8cf7",
+  "microsoft_tui_test_baseline": "d7e239c49a50d13e22be81fef207e7f4f85a509a",
+  "inputs": [
+    {
+      "filename": "PROMPTS.zip",
+      "bytes": 115273,
+      "sha256": "67d214dd259850e94de3827ae662013134c0b5510a19061535a06a1aafd4678e"
+    },
+    {
+      "filename": "smartcli-local-evidence-2026-09-16(1).md",
+      "bytes": 14704,
+      "sha256": "63530513fde28e0e9ec8d4c8d69fbccf62696a3f28c9b9aa08001775d2e209c0"
+    },
+    {
+      "filename": "SmartCLI_Local_Agent_Plan_2026-09-15.zip",
+      "bytes": 200051,
+      "sha256": "08ca1443337404030f2893a8790cdca0273306b12ead5b94442c32429ed79922"
+    },
+    {
+      "filename": "SmartCLI_Audit_and_Upgrade_Handoff_2026-09-15.zip",
+      "bytes": 241267,
+      "sha256": "53815caf1f7d14474343ca1075a8358a4176dfcff941a79ce85ee6d823e79833"
+    }
+  ],
+  "selected_task_attachments_count": 19,
+  "selected_task_attachments_byte_equal_to_uploaded_zip": true,
+  "standalone_evidence_equal_to_zip_copy": true,
+  "local_E3_reused_not_remeasured": true,
+  "web_chat_archive_original_received": false,
+  "delivery_environment": {
+    "python": "3.13.5 (main, Jul 15 2026, 20:25:40) [GCC 14.2.0]",
+    "os": "Linux",
+    "machine": "x86_64",
+    "pyte_available": false
+  },
+  "new_selftests": {
+    "total": 62,
+    "passed": 62,
+    "skipped": 0,
+    "failed": 0,
+    "errors": 0,
+    "evidence_scope": "Delivery utilities and injected reference models only"
+  },
+  "native_pty_tests": "NOT_RUN",
+  "conpty_tests": "NOT_RUN",
+  "competitor_runtime_tests": "NOT_RUN",
+  "production_repository_modified": false
+}

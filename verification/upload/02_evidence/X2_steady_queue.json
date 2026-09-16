@@ -1,0 +1,94 @@
+{
+ "case": "X2-windows-conpty-steady",
+ "backend": "WinptyBackend",
+ "payload_lines": 6000,
+ "child_output_expected_bytes": 558018,
+ "queue_depth_samples": [
+  {
+   "t": 0.0,
+   "items": 0,
+   "queued_bytes": 0
+  },
+  {
+   "t": 0.5,
+   "items": 2,
+   "queued_bytes": 23
+  },
+  {
+   "t": 1.0,
+   "items": 2,
+   "queued_bytes": 23
+  },
+  {
+   "t": 1.5,
+   "items": 2,
+   "queued_bytes": 23
+  },
+  {
+   "t": 2.0,
+   "items": 2,
+   "queued_bytes": 23
+  },
+  {
+   "t": 2.5,
+   "items": 2,
+   "queued_bytes": 23
+  },
+  {
+   "t": 3.0,
+   "items": 2,
+   "queued_bytes": 23
+  },
+  {
+   "t": 3.5,
+   "items": 311,
+   "queued_bytes": 29069
+  },
+  {
+   "t": 4.0,
+   "items": 633,
+   "queued_bytes": 59337
+  },
+  {
+   "t": 4.5,
+   "items": 954,
+   "queued_bytes": 89511
+  },
+  {
+   "t": 5.0,
+   "items": 1278,
+   "queued_bytes": 119967
+  },
+  {
+   "t": 5.5,
+   "items": 1600,
+   "queued_bytes": 150235
+  },
+  {
+   "t": 6.0,
+   "items": 1923,
+   "queued_bytes": 180597
+  },
+  {
+   "t": 6.51,
+   "items": 2245,
+   "queued_bytes": 210865
+  },
+  {
+   "t": 7.01,
+   "items": 2566,
+   "queued_bytes": 241039
+  },
+  {
+   "t": 7.51,
+   "items": 2888,
+   "queued_bytes": 271307
+  }
+ ],
+ "max_queued_bytes": 271307,
+ "drained_bytes_on_first_contact": 301763,
+ "drain_seconds": 0.0018,
+ "queue_items_after": 0,
+ "queue_bytes_after": 0,
+ "line_check": 3209
+}

@@ -1,0 +1,35 @@
+{
+  "schema_version": 2,
+  "task": "T05",
+  "status": "PENDING",
+  "evidence_scope": {
+    "environment": "NOT_RECORDED",
+    "io_mode": "NOT_RECORDED",
+    "native_pty": "NOT_RUN"
+  },
+  "changed_files": [],
+  "first_results": [],
+  "mutation_cycle": {
+    "old_red": null,
+    "candidate_green": null,
+    "bug_restored_red": null,
+    "candidate_restored_green": null,
+    "unchanged_test_sha256": null
+  },
+  "preserved": [
+    "interleave",
+    "resize_deferral",
+    "vendor_sync",
+    "packaging_paths"
+  ],
+  "controls": [],
+  "not_run": [
+    {
+      "scope": "native_pty",
+      "reason": "NOT_YET_EXECUTED"
+    }
+  ],
+  "commit": "NOT_CREATED",
+  "push": "NOT_REQUESTED",
+  "next_task": "T04"
+}

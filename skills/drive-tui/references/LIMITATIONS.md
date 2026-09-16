@@ -258,22 +258,24 @@ failed 5/7 before the change and passes after; the real-pty test still delivers 
 (sha256 match, 32 writability waits). The wait count is scheduling-dependent -- 32/35/44 across
 identical runs -- so never read it as a fixed property of the transport.
 
-## OPEN: `pump(max_bytes=)` can hang when the reader reaches its high water (found 2026-09-16)
+## CLOSED as a mis-diagnosis: `pump(max_bytes=)` does not hang (filed and closed 2026-09-16)
 
-On the real ConPTY transport, a client that asks for a byte budget can wait forever once the reader
-pauses at the payload high water: the client waits for its full `max_bytes`, the reader stops filling
-at the high water, and the reader only resumes when the client drains -- which a client waiting for a
-budget it can never get never does. Measured: `pump(max_bytes=64 KiB)` with
-`SMARTCLI_WINPTY_HIGH_BYTES=131072`/`LOW=32768` and a child writing 256 KiB **never returned**
-(faulthandler dump inside `WinptyBackend._read_budgeted`); with the default 4 MiB high water the same
-run behaves, because a normal burst never reaches the pause. A control (`read_status()` called once
-while the child writes) returns in 0.00 s, so the io-evidence path is not the stall.
+An earlier entry here claimed that a client asking for a byte budget could wait forever once the reader
+paused at the payload high water. That was wrong, and the way it was wrong is worth keeping:
 
-Tracked as <https://github.com/dwgx/SmartCLI/issues/15>; repro in
-`D:\\Project\\SmartCLI-v3-runs\\A04\\s5-highwater\\`. **Until it is fixed: do not pass `max_bytes` to
-`pump()` on Windows, and do not lower the high water** -- an unbudgeted `pump()` takes whatever is
-ready and cannot enter the wait. Fix direction: return what is available after a bounded wait, and
-wake the reader when the client drains below the low water.
+- the probe behind it wrote **262 144 bytes in one burst**. This transport does not deliver that: measured
+  with raw `winpty.PtyProcess` and no SmartCLI code at all, a single 262 144-byte write arrives as
+  **~12 326 bytes** while a plain pipe carries all 262 160 — so the probe could never pass, whatever the
+  runtime did;
+- re-measured with a transport-fair probe (child writes 4 KiB every 20 ms, high water lowered, client
+  drains in slices) the runtime passes on unmodified HEAD: the reader really pauses
+  (`max_accounted_payload` 106 654), every byte arrives (sha256 match), and the slowest `pump` turn is
+  **7.7 ms**. No stall, no defect;
+- what the episode DID produce: the S5 tests now drive a transport that can actually pause the reader
+  (`tests/test_a04_winpty_backlog.py`), because the old fake returned instantly and made "the cap held"
+  and "the reader paused" mutually exclusive states.
+
+Repro: `verification\runs\v3\A04\s5-highwater\fair_highwater_probe.py`. Issue #15 is closed.
 
 ## Environment facts found while verifying (2026-09-16, Windows 11 + ConPTY)
 

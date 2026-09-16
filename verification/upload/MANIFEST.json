@@ -1,0 +1,258 @@
+{
+ "package": "SmartCLI v3 upload — plan v1/v2 + verified implementation + measured evidence",
+ "generated": "2026-09-16",
+ "generated_by": "local session 01a0a700 (Windows 11, CPython 3.14.7, pyte 0.8.2)",
+ "repo": {
+  "url": "https://github.com/dwgx/SmartCLI",
+  "head": "701e61f6d69aa2420617edf80b1136df8d5e8cf7",
+  "worktree": "uncommitted (7 modified + 3 new tests); no commit, no push"
+ },
+ "evidence_levels": {
+  "E1": "source read",
+  "E2": "reference model",
+  "E3": "real core, pure memory",
+  "E4": "real terminal on this host (pty/ConPTY/Linux container)",
+  "E5": "end-to-end task with independent judge",
+  "E6": "release artifact verification"
+ },
+ "content_files": 47,
+ "content_bytes": 444131,
+ "note": "this file (MANIFEST.json) is the 1 extra entry inside the zip",
+ "contents": [
+  {
+   "path": "01_plan/MASTER_PLAN_v1.md",
+   "bytes": 12519,
+   "sha256_16": "b79709192a39459e"
+  },
+  {
+   "path": "01_plan/v1_ACCEPTANCE.md",
+   "bytes": 3299,
+   "sha256_16": "5f4d62db765a484d"
+  },
+  {
+   "path": "01_plan/v1_ARCHITECTURE.md",
+   "bytes": 5259,
+   "sha256_16": "782b3e30e0015dd0"
+  },
+  {
+   "path": "01_plan/v1_audit_findings_A01_A20.json",
+   "bytes": 16522,
+   "sha256_16": "ca39a79383c7f83e"
+  },
+  {
+   "path": "01_plan/v1_TASK_CARDS_50.md",
+   "bytes": 48135,
+   "sha256_16": "f2f6f13bcb50943d"
+  },
+  {
+   "path": "01_plan/v2_A01_MINIMAL.md",
+   "bytes": 6360,
+   "sha256_16": "8c33e230a9013099"
+  },
+  {
+   "path": "01_plan/v2_A04_DESIGN.md",
+   "bytes": 8859,
+   "sha256_16": "fd26e07f0ac0832b"
+  },
+  {
+   "path": "01_plan/v2_CONFORMANCE.md",
+   "bytes": 5368,
+   "sha256_16": "07a0f4df225046d8"
+  },
+  {
+   "path": "01_plan/v2_ORDER.md",
+   "bytes": 7665,
+   "sha256_16": "44f913ded95783b1"
+  },
+  {
+   "path": "01_plan/v2_POSITIONING.md",
+   "bytes": 5242,
+   "sha256_16": "679fcba5153acbbe"
+  },
+  {
+   "path": "01_plan/v2_REVIEW_DISAGREEMENTS.md",
+   "bytes": 6362,
+   "sha256_16": "629cab6472d62315"
+  },
+  {
+   "path": "01_plan/v2_RISKS.json",
+   "bytes": 8123,
+   "sha256_16": "ab8cc387603ebfd8"
+  },
+  {
+   "path": "02_evidence/T03_posix_real_pty.json",
+   "bytes": 536,
+   "sha256_16": "2cb60000e0ec3df9"
+  },
+  {
+   "path": "02_evidence/v1_local_evidence.md",
+   "bytes": 14704,
+   "sha256_16": "63530513fde28e0e"
+  },
+  {
+   "path": "02_evidence/X2_burst_delivery.json",
+   "bytes": 1084,
+   "sha256_16": "586b0e905c272f36"
+  },
+  {
+   "path": "02_evidence/X2_steady_queue.json",
+   "bytes": 1428,
+   "sha256_16": "6836358f7ed0102d"
+  },
+  {
+   "path": "02_evidence/X2_windows_conpty.md",
+   "bytes": 3386,
+   "sha256_16": "3c00b315ee8c71b5"
+  },
+  {
+   "path": "02_evidence/X3_posix_idle.json",
+   "bytes": 652,
+   "sha256_16": "cff7ced1aecc4a77"
+  },
+  {
+   "path": "02_evidence/X3_posix_idle.md",
+   "bytes": 2825,
+   "sha256_16": "4bc1af248b14ba36"
+  },
+  {
+   "path": "03_receipts/A04P_DESIGN_DELTA.md",
+   "bytes": 5972,
+   "sha256_16": "2344f70568145b5f"
+  },
+  {
+   "path": "03_receipts/A04P_last.md",
+   "bytes": 4346,
+   "sha256_16": "ad806e7e2b8f77e9"
+  },
+  {
+   "path": "03_receipts/A04P_PROPOSAL.md",
+   "bytes": 6290,
+   "sha256_16": "72d1187d9482378a"
+  },
+  {
+   "path": "03_receipts/T03_closure.json",
+   "bytes": 4057,
+   "sha256_16": "2c028c064d2027c5"
+  },
+  {
+   "path": "03_receipts/T03_last.md",
+   "bytes": 5125,
+   "sha256_16": "1bc592c99ec3f7c2"
+  },
+  {
+   "path": "03_receipts/T04_closure.json",
+   "bytes": 3709,
+   "sha256_16": "9888e3551a9523ee"
+  },
+  {
+   "path": "03_receipts/T04_last.md",
+   "bytes": 4943,
+   "sha256_16": "440c5755c7b37436"
+  },
+  {
+   "path": "03_receipts/T04_mutation_red.log",
+   "bytes": 7051,
+   "sha256_16": "ff0b9c939d257a33"
+  },
+  {
+   "path": "03_receipts/T05_closure.json",
+   "bytes": 4135,
+   "sha256_16": "c2cb5c4fbd0e836f"
+  },
+  {
+   "path": "03_receipts/T05_last.md",
+   "bytes": 3988,
+   "sha256_16": "817ee39c4fc59036"
+  },
+  {
+   "path": "04_code/mcp_server.py_CURRENT.py",
+   "bytes": 16857,
+   "sha256_16": "c51e581b881a5f35"
+  },
+  {
+   "path": "04_code/pty_backend.py_T03_implemented.py",
+   "bytes": 14238,
+   "sha256_16": "93bb587ddfd69f3d"
+  },
+  {
+   "path": "04_code/pyproject.toml",
+   "bytes": 6658,
+   "sha256_16": "eb3635093695bf78"
+  },
+  {
+   "path": "04_code/screen_model.py_T04_implemented.py",
+   "bytes": 56375,
+   "sha256_16": "242ba3836290a910"
+  },
+  {
+   "path": "04_code/snapshot.py_T05_implemented.py",
+   "bytes": 11544,
+   "sha256_16": "3b6e10af2018c854"
+  },
+  {
+   "path": "04_code/test_cell_span_regression.py",
+   "bytes": 6861,
+   "sha256_16": "0074e5994f51cd20"
+  },
+  {
+   "path": "04_code/test_partial_write_regression.py",
+   "bytes": 9287,
+   "sha256_16": "d7e9d14772d5afb6"
+  },
+  {
+   "path": "04_code/test_sgr_stream_regression.py",
+   "bytes": 10033,
+   "sha256_16": "eb9ce2acb20bd555"
+  },
+  {
+   "path": "04_code/tui.py_CURRENT_daemon_A04_target.py",
+   "bytes": 53504,
+   "sha256_16": "21c49f39620d7ac3"
+  },
+  {
+   "path": "05_verification/conformance.py",
+   "bytes": 13363,
+   "sha256_16": "7a64ed120461ff04"
+  },
+  {
+   "path": "05_verification/mutate.py",
+   "bytes": 5230,
+   "sha256_16": "457f5725a97b6c4c"
+  },
+  {
+   "path": "05_verification/superseded_combined_test.py",
+   "bytes": 9763,
+   "sha256_16": "4214e34c5e917805"
+  },
+  {
+   "path": "05_verification/templates/CLOSURE_V2.json",
+   "bytes": 706,
+   "sha256_16": "93600b08ebd66f9c"
+  },
+  {
+   "path": "05_verification/tests_product/template_cell_span.py",
+   "bytes": 2798,
+   "sha256_16": "10d58af0becf5aba"
+  },
+  {
+   "path": "05_verification/tests_product/template_partial_write.py",
+   "bytes": 2580,
+   "sha256_16": "d95fd19ca8832df7"
+  },
+  {
+   "path": "05_verification/tests_product/template_sgr_stream.py",
+   "bytes": 3233,
+   "sha256_16": "c6ad3cbe2b322fff"
+  },
+  {
+   "path": "PROMPT_PASTE_THIS.md",
+   "bytes": 8877,
+   "sha256_16": "26def193c15b6d0c"
+  },
+  {
+   "path": "README_FIRST.md",
+   "bytes": 4280,
+   "sha256_16": "fd982184dcf5330a"
+  }
+ ]
+}

@@ -1,0 +1,9 @@
+{
+ "selection": "save",
+ "exited": true,
+ "channel": "commands_file",
+ "commands_received": [
+  "down",
+  "enter"
+ ]
+}

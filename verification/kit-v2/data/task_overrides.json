@@ -1,0 +1,59 @@
+{
+  "schema_version": 2,
+  "kind": "delta-not-state-migration",
+  "baseline_commit": "701e61f6d69aa2420617edf80b1136df8d5e8cf7",
+  "preferred_merge_order": [
+    "T05",
+    "T04",
+    "T03"
+  ],
+  "not_a_runtime_dependency_chain": true,
+  "existing_evidence_accepted": [
+    "A03-E3-local",
+    "A02-E3-local"
+  ],
+  "overrides": [
+    {
+      "id": "T05",
+      "implementation_scope": "snapshot only + twin + one test",
+      "local_original": "CONFIRMED_E3",
+      "new_work": "new-test red/green/mutation closure",
+      "max_files": 3
+    },
+    {
+      "id": "T04",
+      "implementation_scope": "stream only + twin + one test",
+      "local_original": "CONFIRMED_E3",
+      "new_work": "partition AND independent semantics + bounded recovery",
+      "max_files": 3
+    },
+    {
+      "id": "T03",
+      "implementation_scope": "minimal private write_all; no actor",
+      "local_original": "SOURCE_E1",
+      "new_work": "injected production-method tests now; native POSIX remains separate",
+      "max_files": 3,
+      "separate_receipt_scope_proposal_max_files": 5,
+      "receipt_scope_authorized": false
+    },
+    {
+      "id": "T07",
+      "implementation_scope": "preserve interleave; platform split; prototype first",
+      "local_original": "SOURCE_E1",
+      "new_work": "A04-P does not modify repo",
+      "max_files_in_prototype_repo": 0
+    }
+  ],
+  "open_experiments": [
+    "X1",
+    "X2",
+    "X3"
+  ],
+  "do_not_change": [
+    "default_engine",
+    "major_dependencies",
+    "live_harness_config",
+    "public_breaking_api",
+    "v1_state_json"
+  ]
+}

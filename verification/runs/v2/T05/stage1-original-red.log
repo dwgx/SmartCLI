@@ -1,0 +1,190 @@
+..F..FFFFFFF.FF.FF
+======================================================================
+FAIL: test_cjk_prefix_ascii_label (__main__.CellSpanRegression.test_cjk_prefix_ascii_label)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v2-runs\T05\validation\repo\tests\test_cell_span_regression.py", line 82, in test_cjk_prefix_ascii_label
+    self.check_label("中文 \x1b[7mOK\x1b[0m tail", "OK")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Project\SmartCLI-v2-runs\T05\validation\repo\tests\test_cell_span_regression.py", line 51, in check_label
+    self.assertEqual(snap.selected.text, expected, "snapshot.selected.text")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 't' != 'OK'
+- t
++ OK
+ : snapshot.selected.text
+
+======================================================================
+FAIL: test_emoji_prefix (__main__.CellSpanRegression.test_emoji_prefix)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v2-runs\T05\validation\repo\tests\test_cell_span_regression.py", line 91, in test_emoji_prefix
+    self.check_label("🚀 \x1b[7mOK\x1b[0m tail", "OK")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Project\SmartCLI-v2-runs\T05\validation\repo\tests\test_cell_span_regression.py", line 51, in check_label
+    self.assertEqual(snap.selected.text, expected, "snapshot.selected.text")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'K' != 'OK'
+- K
++ OK
+? +
+ : snapshot.selected.text
+
+======================================================================
+FAIL: test_four_byte_utf8_prefix_containing_continuation_byte (__main__.CellSpanRegression.test_four_byte_utf8_prefix_containing_continuation_byte)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v2-runs\T05\validation\repo\tests\test_cell_span_regression.py", line 105, in test_four_byte_utf8_prefix_containing_continuation_byte
+    self.check_label("丛 \x1b[7mOK\x1b[0m tail", "OK")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Project\SmartCLI-v2-runs\T05\validation\repo\tests\test_cell_span_regression.py", line 51, in check_label
+    self.assertEqual(snap.selected.text, expected, "snapshot.selected.text")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'K' != 'OK'
+- K
++ OK
+? +
+ : snapshot.selected.text
+
+======================================================================
+FAIL: test_fullwidth_digit_prefix (__main__.CellSpanRegression.test_fullwidth_digit_prefix)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v2-runs\T05\validation\repo\tests\test_cell_span_regression.py", line 88, in test_fullwidth_digit_prefix
+    self.check_label("１２３\x1b[7mOK\x1b[0m tail", "OK")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Project\SmartCLI-v2-runs\T05\validation\repo\tests\test_cell_span_regression.py", line 51, in check_label
+    self.assertEqual(snap.selected.text, expected, "snapshot.selected.text")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'ta' != 'OK'
+- ta
++ OK
+ : snapshot.selected.text
+
+======================================================================
+FAIL: test_japanese_prefix (__main__.CellSpanRegression.test_japanese_prefix)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v2-runs\T05\validation\repo\tests\test_cell_span_regression.py", line 85, in test_japanese_prefix
+    self.check_label("日本語 \x1b[7m保存\x1b[0m tail", "保存")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Project\SmartCLI-v2-runs\T05\validation\repo\tests\test_cell_span_regression.py", line 51, in check_label
+    self.assertEqual(snap.selected.text, expected, "snapshot.selected.text")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'tail' != '保存'
+- tail
++ 保存
+ : snapshot.selected.text
+
+======================================================================
+FAIL: test_label_whitespace_unchanged (__main__.CellSpanRegression.test_label_whitespace_unchanged)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v2-runs\T05\validation\repo\tests\test_cell_span_regression.py", line 120, in test_label_whitespace_unchanged
+    self.check_label("前缀 \x1b[7m 保存 \x1b[0m trailing", "保存")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Project\SmartCLI-v2-runs\T05\validation\repo\tests\test_cell_span_regression.py", line 51, in check_label
+    self.assertEqual(snap.selected.text, expected, "snapshot.selected.text")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '存  tra' != '保存'
+- 存  tra
++ 保存
+ : snapshot.selected.text
+
+======================================================================
+FAIL: test_menu_items_all_match_literal_labels (__main__.CellSpanRegression.test_menu_items_all_match_literal_labels)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v2-runs\T05\validation\repo\tests\test_cell_span_regression.py", line 75, in test_menu_items_all_match_literal_labels
+    self.assertEqual([s.text for s in snap.menu_items], ["打开", "保存", "退出"])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['打开', '3', ''] != ['打开', '保存', '退出']
+
+First differing element 1:
+'3'
+'保存'
+
+- ['打开', '3', '']
+?         ^
+
++ ['打开', '保存', '退出']
+?         ^^    ++
+
+
+======================================================================
+FAIL: test_real_chinese_menu (__main__.CellSpanRegression.test_real_chinese_menu)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v2-runs\T05\validation\repo\tests\test_cell_span_regression.py", line 60, in test_real_chinese_menu
+    self.check_label("  1) 打开   2) \x1b[7m保存\x1b[0m   3) 退出\n", "保存")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Project\SmartCLI-v2-runs\T05\validation\repo\tests\test_cell_span_regression.py", line 51, in check_label
+    self.assertEqual(snap.selected.text, expected, "snapshot.selected.text")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '3' != '保存'
+- 3
++ 保存
+ : snapshot.selected.text
+
+======================================================================
+FAIL: test_span_reaching_the_last_column (__main__.CellSpanRegression.test_span_reaching_the_last_column)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v2-runs\T05\validation\repo\tests\test_cell_span_regression.py", line 114, in test_span_reaching_the_last_column
+    self.check_label("中" * 9 + "\x1b[7mXX", "XX", cols=20)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Project\SmartCLI-v2-runs\T05\validation\repo\tests\test_cell_span_regression.py", line 51, in check_label
+    self.assertEqual(snap.selected.text, expected, "snapshot.selected.text")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '' != 'XX'
++ XX
+ : snapshot.selected.text
+
+======================================================================
+FAIL: test_span_start_is_a_cell_column (__main__.CellSpanRegression.test_span_start_is_a_cell_column)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v2-runs\T05\validation\repo\tests\test_cell_span_regression.py", line 69, in test_span_start_is_a_cell_column
+    self.assertEqual(snap.selected.text, "保存")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '3' != '保存'
+- 3
++ 保存
+
+
+======================================================================
+FAIL: test_wide_at_zero_with_following_text (__main__.CellSpanRegression.test_wide_at_zero_with_following_text)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v2-runs\T05\validation\repo\tests\test_cell_span_regression.py", line 109, in test_wide_at_zero_with_following_text
+    self.check_label("\x1b[7m中文\x1b[0mXY", "中文")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Project\SmartCLI-v2-runs\T05\validation\repo\tests\test_cell_span_regression.py", line 51, in check_label
+    self.assertEqual(snap.selected.text, expected, "snapshot.selected.text")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '中文XY' != '中文'
+- 中文XY
+?   --
++ 中文
+ : snapshot.selected.text
+
+======================================================================
+FAIL: test_zwj_emoji_prefix (__main__.CellSpanRegression.test_zwj_emoji_prefix)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v2-runs\T05\validation\repo\tests\test_cell_span_regression.py", line 94, in test_zwj_emoji_prefix
+    self.check_label("👨‍👩‍👧 \x1b[7mOK\x1b[0m tail", "OK")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Project\SmartCLI-v2-runs\T05\validation\repo\tests\test_cell_span_regression.py", line 51, in check_label
+    self.assertEqual(snap.selected.text, expected, "snapshot.selected.text")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'K' != 'OK'
+- K
++ OK
+? +
+ : snapshot.selected.text
+
+----------------------------------------------------------------------
+Ran 18 tests in 0.008s
+
+FAILED (failures=12)

@@ -1,0 +1,16 @@
+{
+  "status": "PASS",
+  "method": "ast.parse; no import/execution",
+  "files": [
+    "models/contracts.py",
+    "tools/scope_guard.py",
+    "tools/conformance.py",
+    "tools/verify_bundle.py",
+    "tests/test_handoff_data.py",
+    "tests/test_tools.py",
+    "tests/test_models.py",
+    "tests_product/test_cell_span_regression.py",
+    "tests_product/test_sgr_stream_regression.py",
+    "tests_product/test_partial_write_regression.py"
+  ]
+}

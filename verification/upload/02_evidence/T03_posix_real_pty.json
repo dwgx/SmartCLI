@@ -1,0 +1,16 @@
+{
+  "case": "T03-posix-real-pty",
+  "evidence": "E4 (real pty.fork + real kernel buffers)",
+  "io_mode": "native transport; production PosixPtyBackend.write",
+  "planned_bytes": 262144,
+  "planned_sha256": "fc605e60859112505546770ab850bfbf0243484140b42d1f6ae9556bbaa7784e",
+  "write_call_error": null,
+  "written_bytes_reported": null,
+  "write_seconds": 0.002,
+  "writability_waits": 35,
+  "child_report": {
+    "received": 262144,
+    "sha256": "fc605e60859112505546770ab850bfbf0243484140b42d1f6ae9556bbaa7784e"
+  },
+  "pass": true
+}

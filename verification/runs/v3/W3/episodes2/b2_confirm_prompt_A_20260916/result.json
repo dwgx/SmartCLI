@@ -1,0 +1,128 @@
+{
+ "run_id": "b2_confirm_prompt_A_20260916",
+ "task": "B2_confirm_prompt",
+ "track": "A",
+ "seed": 20260916,
+ "model_id": "deepseek-v4.1-flash:max (omp backend, dispatched)",
+ "budget": {
+  "episodes": 9,
+  "wall_clock_minutes": 60,
+  "usd": 0
+ },
+ "transport": "windows-conpty (WinptyBackend) + fixture control socket app channel",
+ "actions": [
+  "app_channel",
+  "snapshot",
+  "wait"
+ ],
+ "action_counts": {
+  "app_channel": 1,
+  "snapshot": 1,
+  "wait": 3
+ },
+ "claimed_complete": true,
+ "completion_basis": "child_exit_observed",
+ "completion_detail": {
+  "in_episode_check": {
+   "answer": "y",
+   "file_written": true,
+   "target": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b2_confirm_prompt_A_20260916\\episode_b2_4a28.txt",
+   "bytes": 28,
+   "content": "written after confirmation\n",
+   "program_reported_channel": true,
+   "socket_ack": "{\"ack\": true}"
+  }
+ },
+ "fixture_state": {
+  "answer": "y",
+  "file_written": true,
+  "target": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b2_confirm_prompt_A_20260916\\episode_b2_4a28.txt",
+  "bytes": 28,
+  "content": "written after confirmation\n",
+  "program_reported_channel": true,
+  "socket_ack": "{\"ack\": true}"
+ },
+ "fixture_state_source": "the program's own PTY output for the answer; filesystem read after the PTY was closed for file_written",
+ "ui_claim": false,
+ "track_note": "app-adapted (track A): the confirmation travelled over the program's own control socket, not over the UI",
+ "setup": [
+  {
+   "what": "fixture program (control-socket channel)",
+   "path": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b2_confirm_prompt_A_20260916\\confirm_socket_fixture.py",
+   "sha256": "5997a606f0c20a72dafc47cf26a6cd500958314f52d6b5e1054775795920cdb9",
+   "outside_pty": true
+  },
+  {
+   "what": "enumerated app channel",
+   "kind": "loopback control socket",
+   "endpoint": "127.0.0.1:50551",
+   "outside_pty": true
+  },
+  {
+   "what": "target file absent before the episode",
+   "path": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b2_confirm_prompt_A_20260916\\episode_b2_4a28.txt",
+   "exists": false,
+   "outside_pty": true
+  }
+ ],
+ "session": {
+  "driver": "smartcli_core.PtySession + fixture control socket",
+  "argv": [
+   "D:\\Software\\Developer\\Python314\\python.exe",
+   "-B",
+   "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b2_confirm_prompt_A_20260916\\confirm_socket_fixture.py",
+   "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b2_confirm_prompt_A_20260916\\episode_b2_4a28.txt",
+   "50551"
+  ],
+  "cols": 90,
+  "rows": 24,
+  "cancel": false,
+  "process_exited": true,
+  "exit_observed_by": "backend.is_alive() False after pumping to EOF",
+  "exit_evidence": {
+   "exited": true,
+   "observation": "backend.is_alive() False after pumping to EOF",
+   "alive_after_wait": false,
+   "waited_s": 0.0,
+   "backend_eof_latched": false,
+   "child_exitstatus": 0,
+   "backend_pid": null
+  },
+  "close_state": "closed_confirmed",
+  "close_observed": "backend close_state()={'close_requested': True, 'closing': False, 'closed_confirmed': True, 'close_unconfirmed': False, 'output_eof': False, 'last_progress': 'terminate(force=True) returned', 'generation': 1, 'basis_origin': 'runtime'}",
+  "close_state_detail": {
+   "close_requested": true,
+   "closing": false,
+   "closed_confirmed": true,
+   "close_unconfirmed": false,
+   "output_eof": false,
+   "last_progress": "terminate(force=True) returned",
+   "generation": 1,
+   "basis_origin": "runtime"
+  },
+  "observations": 4,
+  "wall_clock_s": 0.17
+ },
+ "observations": [
+  {
+   "step": "confirmation prompt on screen",
+   "reason": "MARKER",
+   "screen": "[screen 24x90] cursor=r1c0  selected=r1[0:90]\"\"(cursor_line)\n  0 | Overwrite episode_b2_4a28.txt? [y/N] CONTROL 127.0.0.1:50551 listening"
+  },
+  {
+   "step": "answer delivered on the control socket",
+   "sent": "{\"answer\": \"y\"}",
+   "reply": "{\"ack\": true}"
+  },
+  {
+   "step": "program answered and reported its own write",
+   "reason": "MARKER",
+   "screen": "[screen 24x90] cursor=r5c0  selected=r5[0:90]\"\"(cursor_line)\n  0 | Overwrite episode_b2_4a28.txt? [y/N] CONTROL 127.0.0.1:50551 listening\n  1 | ANSWER 'y'\n  2 | WROTE episode_b2_4a28.txt bytes=28 file_written=True\n  3 | CHANNEL control_socket\n  4 | BYE"
+  },
+  {
+   "step": "program exited",
+   "screen": "[screen 24x90] cursor=r5c0  selected=r5[0:90]\"\"(cursor_line)\n  0 | Overwrite episode_b2_4a28.txt? [y/N] CONTROL 127.0.0.1:50551 listening\n  1 | ANSWER 'y'\n  2 | WROTE episode_b2_4a28.txt bytes=28 file_written=True\n  3 | CHANNEL control_socket\n  4 | BYE"
+  }
+ ],
+ "wall_clock_s": 0.17
+}

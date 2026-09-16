@@ -1,0 +1,37 @@
+{
+  "package": "SmartCLI v3 production delta",
+  "date": "2026-09-16",
+  "language": "zh-CN",
+  "entrypoint": "docs/v3/BRIEFS_V3.md",
+  "requested_documents": [
+    "docs/v3/A04_PRODUCTION.md",
+    "docs/v3/BENCHMARK_MIN.md",
+    "docs/v3/BRIEFS_V3.md",
+    "docs/v3/CROSS_DOMAIN.md",
+    "docs/v3/DIVERGENCE.md",
+    "docs/v3/EVIDENCE_STANDARD.md",
+    "docs/v3/POSITION_2026Q4.md"
+  ],
+  "copy_destination": "Copy only docs/v3/*.md into the plan package's docs/v3/; do not overwrite the source repository.",
+  "reference_archive": "references/SmartCLI_v3_Upload.zip",
+  "reference_archive_sha256": "b8ea6763142a35c559c8651d04636fc79c085e2dbfc386d5676a1d91df58b9fb",
+  "prior_evidence": "T05 E3, T04 E3, T03 E3/E4, X2 E4, X3 E4 accepted as supplied; not rerun.",
+  "unresolved_provenance": [
+    {
+      "case": "T03 real PTY",
+      "source_a": "03_receipts/T03_closure.json",
+      "source_b": "02_evidence/T03_posix_real_pty.json",
+      "detail": "Narrative 44 waits / 3ms vs raw JSON 35 waits / 2ms. Preserve both. Full receive and SHA supported by both. No rerun requested."
+    }
+  ],
+  "execution_status": {
+    "SmartCLI_core": "NOT_RUN",
+    "PTY_ConPTY": "NOT_RUN",
+    "competitors": "NOT_RUN",
+    "agent_benchmark": "NOT_RUN",
+    "release_validation": "NOT_RUN",
+    "repository_modifications": "NONE"
+  },
+  "checks_scope": "Only document structure, cross references, file digests, and archive membership; not product measurements.",
+  "new_commands": "Commands explicitly marked proposed require local implementation and authorization."
+}

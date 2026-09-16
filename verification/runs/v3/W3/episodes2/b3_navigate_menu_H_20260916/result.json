@@ -1,0 +1,122 @@
+{
+ "run_id": "b3_navigate_menu_H_20260916",
+ "task": "B3_navigate_menu",
+ "track": "H",
+ "seed": 20260916,
+ "model_id": "deepseek-v4.1-flash:max (omp backend, dispatched)",
+ "budget": {
+  "episodes": 9,
+  "wall_clock_minutes": 60,
+  "usd": 0
+ },
+ "transport": "filesystem/API only (no PTY): menu commands sourced from a file",
+ "actions": [
+  "read_file",
+  "wait",
+  "write_file"
+ ],
+ "action_counts": {
+  "read_file": 1,
+  "wait": 1,
+  "write_file": 1
+ },
+ "claimed_complete": true,
+ "completion_basis": "artifact_readback_verified",
+ "completion_detail": {
+  "in_episode_check": {
+   "selection": "save",
+   "exited": true,
+   "state_file": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b3_navigate_menu_H_20260916\\episode_b3_hybrid.json",
+   "state_file_written": true,
+   "program_channel": "commands_file",
+   "program_commands_received": [
+    "down",
+    "enter"
+   ]
+  }
+ },
+ "fixture_state": {
+  "selection": "save",
+  "exited": true,
+  "state_file": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b3_navigate_menu_H_20260916\\episode_b3_hybrid.json",
+  "state_file_written": true,
+  "program_channel": "commands_file",
+  "program_commands_received": [
+   "down",
+   "enter"
+  ]
+ },
+ "fixture_state_source": "the program's own state file (written by it) plus the real OS process exit (returncode 0)",
+ "ui_claim": false,
+ "track_note": "hybrid (track H): the menu was driven from a command file and its state file read back; no terminal action was used, so this is NOT a UI pass",
+ "setup": [
+  {
+   "what": "fixture program (console-free variant of the U menu fixture)",
+   "path": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b3_navigate_menu_H_20260916\\menu_commands_fixture.py",
+   "sha256": "bce8881c9c77adc9b932a6d63f39e8025d2fcaed3d4f762da6e209096add16db",
+   "outside_pty": true
+  },
+  {
+   "what": "program state file absent before the episode",
+   "path": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b3_navigate_menu_H_20260916\\episode_b3_hybrid.json",
+   "exists": false,
+   "outside_pty": true
+  },
+  {
+   "what": "hybrid channel",
+   "kind": "command list read from a file",
+   "path": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b3_navigate_menu_H_20260916\\commands.json",
+   "outside_pty": true
+  }
+ ],
+ "session": {
+  "driver": "none (no PTY session; the program ran as a plain API call)",
+  "argv": [
+   "D:\\Software\\Developer\\Python314\\python.exe",
+   "-B",
+   "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b3_navigate_menu_H_20260916\\menu_commands_fixture.py",
+   "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b3_navigate_menu_H_20260916\\episode_b3_hybrid.json",
+   "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b3_navigate_menu_H_20260916\\commands.json"
+  ],
+  "cancel": false,
+  "process_exited": true,
+  "exit_observed_by": "subprocess returncode 0",
+  "close_state": "not_applicable",
+  "close_observed": null,
+  "observations": 3,
+  "wall_clock_s": 0.05
+ },
+ "observations": [
+  {
+   "step": "menu commands written to the channel file",
+   "path": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b3_navigate_menu_H_20260916\\commands.json",
+   "content": "[\"down\", \"enter\"]"
+  },
+  {
+   "step": "program ran console-free and exited",
+   "argv": [
+    "D:\\Software\\Developer\\Python314\\python.exe",
+    "-B",
+    "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b3_navigate_menu_H_20260916\\menu_commands_fixture.py",
+    "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b3_navigate_menu_H_20260916\\episode_b3_hybrid.json",
+    "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b3_navigate_menu_H_20260916\\commands.json"
+   ],
+   "returncode": 0,
+   "stdout": "\u001b[2J\u001b[HSELECT an action (commands file):\n[sel] > open              \n       save              \n       quit              \nselected_index=0\n\u001b[2J\u001b[HSELECT an action (commands file):\n       open              \n[sel] > save              \n       quit              \nselected_index=1\nCOMMANDS_RECEIVED ['down', 'enter']\nSELECTED: save\nWROTE episode_b3_hybrid.json bytes=126 selection=save\nBYE\n",
+   "stderr": ""
+  },
+  {
+   "step": "program state file read back",
+   "state": {
+    "selection": "save",
+    "exited": true,
+    "channel": "commands_file",
+    "commands_received": [
+     "down",
+     "enter"
+    ]
+   }
+  }
+ ],
+ "wall_clock_s": 0.05
+}

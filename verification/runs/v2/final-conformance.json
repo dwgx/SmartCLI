@@ -1,0 +1,108 @@
+{
+  "schema_version": 2,
+  "repo_head": "701e61f6d69aa2420617edf80b1136df8d5e8cf7",
+  "profile": "C0-memory",
+  "selected_cases": [
+    "screen",
+    "sgr",
+    "input",
+    "wait",
+    "reject"
+  ],
+  "python": "3.14.7 (tags/v3.14.7:823f032, Aug  5 2026, 10:51:32) [MSC v.1944 64 bit (AMD64)]",
+  "pyte": "0.8.2",
+  "repo": "D:\\Project\\SmartCLI",
+  "source_files": {
+    "smartcli_core/__init__.py": "eebe2808df95cbdf20854b1b9884e0eb84d89297ee710034ac79c059866b4ecb",
+    "smartcli_core/__main__.py": "18c45f54fd2eaee32ea8c5d437fca219e1ce688684d648a89faca7e109e697ed",
+    "smartcli_core/pty_backend.py": "93bb587ddfd69f3dd739cc83a78651021eb8f5e0963729fcb406c59ba8edac2a",
+    "smartcli_core/readiness.py": "13d741f93fb21bab4f5896fb88895f00de500b707759e16e81eeefc8bd16fa1c",
+    "smartcli_core/screen_model.py": "242ba3836290a910789cdf84471072973aed66417d234a42663b52d158e81cd7",
+    "smartcli_core/session.py": "c7e3ad70f51c8c7ff5935498bc05970a8cb11bec416e7a768e73ad801500e389",
+    "smartcli_core/snapshot.py": "3b6e10af2018c8547ee0d2ce6adec64eb4d759ede83421936c3cc3605b10746f"
+  },
+  "native_pty": "NOT_RUN",
+  "records": [
+    {
+      "case": "screen",
+      "evidence": "E3-memory",
+      "native_pty": "NOT_RUN",
+      "module_path": "D:\\Project\\SmartCLI\\smartcli_core\\__init__.py",
+      "rerun": false,
+      "status": "PASS",
+      "expected": "保存",
+      "actual": "保存",
+      "span": [
+        0,
+        15,
+        19
+      ],
+      "first_exit_code": 0,
+      "stderr": ""
+    },
+    {
+      "case": "sgr",
+      "evidence": "E3-memory",
+      "native_pty": "NOT_RUN",
+      "module_path": "D:\\Project\\SmartCLI\\smartcli_core\\__init__.py",
+      "rerun": false,
+      "status": "PASS",
+      "partitions": 109,
+      "vectors": 7,
+      "mismatches": [],
+      "semantic_oracle": "RGB ff0080; underline true; italic false",
+      "first_exit_code": 0,
+      "stderr": ""
+    },
+    {
+      "case": "input",
+      "evidence": "E3-memory",
+      "native_pty": "NOT_RUN",
+      "module_path": "D:\\Project\\SmartCLI\\smartcli_core\\__init__.py",
+      "rerun": false,
+      "status": "PASS",
+      "io_mode": "injected_os",
+      "planned_bytes": 14,
+      "received_bytes": 14,
+      "planned_sha256": "f0a3febf331978274fa96de3d185b028195a807620ece08284d546b0bee84bf7",
+      "received_sha256": "f0a3febf331978274fa96de3d185b028195a807620ece08284d546b0bee84bf7",
+      "calls": 5,
+      "waits": 1,
+      "error": null,
+      "scope": "Production method, simulated short OS writes; not native transport",
+      "first_exit_code": 0,
+      "stderr": ""
+    },
+    {
+      "case": "wait",
+      "evidence": "E3-memory",
+      "native_pty": "NOT_RUN",
+      "module_path": "D:\\Project\\SmartCLI\\smartcli_core\\__init__.py",
+      "rerun": false,
+      "status": "PASS",
+      "reason": "MARKER",
+      "basis": "rendered_text_regex",
+      "basis_origin": "conformance_adapter",
+      "claim_scope": "state_matches_only",
+      "first_exit_code": 0,
+      "stderr": ""
+    },
+    {
+      "case": "reject",
+      "evidence": "E3-memory",
+      "native_pty": "NOT_RUN",
+      "module_path": "D:\\Project\\SmartCLI\\smartcli_core\\__init__.py",
+      "rerun": false,
+      "status": "PASS",
+      "expected": "保存",
+      "actual": "3",
+      "matched": false,
+      "negative_control": "REJECTED",
+      "first_exit_code": 0,
+      "stderr": ""
+    }
+  ],
+  "rerun": false,
+  "exit_code": 0,
+  "all_selected_pass": true
+}

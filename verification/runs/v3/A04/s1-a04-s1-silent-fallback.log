@@ -1,0 +1,14 @@
+............F....
+======================================================================
+FAIL: test_requesting_a_budget_from_a_legacy_backend_refuses_before_readin (__main__.ReadBudgetS1.test_requesting_a_budget_from_a_legacy_backend_refuses_before_readin)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v3-runs\A04\validation\repo\tests\test_a04_read_budget.py", line 190, in test_requesting_a_budget_from_a_legacy_backend_refuses_before_readin
+    with self.assertRaises(ReadBudgetUnsupported):
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ReadBudgetUnsupported not raised
+
+----------------------------------------------------------------------
+Ran 17 tests in 0.034s
+
+FAILED (failures=1)

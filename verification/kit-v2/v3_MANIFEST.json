@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "package": "SmartCLI_v3_Production_2026-09-16",
+  "hash_algorithm": "sha256",
+  "scope": "all regular payload files; MANIFEST.json excluded to avoid self-reference",
+  "files": [
+    {
+      "path": "DELIVERY.json",
+      "bytes": 1557,
+      "sha256": "699947dd3ec5dc31d5f5c6d3ca765772848469a86cf95d6ec72ad4cf2402eeaa"
+    },
+    {
+      "path": "SOURCES.json",
+      "bytes": 12912,
+      "sha256": "ababf62ba3d9cc6059c9e4454af17d2bec0e4b63885cc41aaf967b1dc56f7778"
+    },
+    {
+      "path": "docs/v3/A04_PRODUCTION.md",
+      "bytes": 28603,
+      "sha256": "c6ce3f51fb9b8855bf7f508d0b31a97a55a8736cab016c514ff29a80d0157b1b"
+    },
+    {
+      "path": "docs/v3/BENCHMARK_MIN.md",
+      "bytes": 15583,
+      "sha256": "e29dd0ae278b933c4904fef8dd0e58efdfb98f187f27253c5a238afcf02d15a2"
+    },
+    {
+      "path": "docs/v3/BRIEFS_V3.md",
+      "bytes": 26566,
+      "sha256": "b03e40b3fac36d7f6356378b519c7c6d5abbd674226dd1dcce6ee880e23384ef"
+    },
+    {
+      "path": "docs/v3/CROSS_DOMAIN.md",
+      "bytes": 20135,
+      "sha256": "cfc986fe9a22f6a6bd40c83d59329bbd69fb84b85df8dcb5066ea9835507b285"
+    },
+    {
+      "path": "docs/v3/DIVERGENCE.md",
+      "bytes": 18328,
+      "sha256": "9d0622c5792bbfea534ddabe31e5de94e214bd9e0ad2c188fa9e1f43bee7fdc7"
+    },
+    {
+      "path": "docs/v3/EVIDENCE_STANDARD.md",
+      "bytes": 18604,
+      "sha256": "2f91dcc4ff79a5454ba27b654d47d3ca8c634ffe05787981964125fc347f4c77"
+    },
+    {
+      "path": "docs/v3/POSITION_2026Q4.md",
+      "bytes": 16635,
+      "sha256": "b27cb1c43f6b0058b31251c530c8e06c9580a68baf62e51f11cc8bb8d4b9373b"
+    },
+    {
+      "path": "references/SmartCLI_v3_Upload.zip",
+      "bytes": 183389,
+      "sha256": "b8ea6763142a35c559c8651d04636fc79c085e2dbfc386d5676a1d91df58b9fb"
+    }
+  ],
+  "product_execution": "NOT_RUN"
+}

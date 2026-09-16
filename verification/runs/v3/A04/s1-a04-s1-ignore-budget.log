@@ -1,0 +1,14 @@
+..............F..
+======================================================================
+FAIL: test_winpty_budgeted_read_never_exceeds_its_budget (__main__.ReadBudgetS1.test_winpty_budgeted_read_never_exceeds_its_budget)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v3-runs\A04\validation\repo\tests\test_a04_read_budget.py", line 250, in test_winpty_budgeted_read_never_exceeds_its_budget
+    self.assertTrue(all(len(c) <= 4 for c in chunks), [len(c) for c in chunks])
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : [4, 41]
+
+----------------------------------------------------------------------
+Ran 17 tests in 0.035s
+
+FAILED (failures=1)

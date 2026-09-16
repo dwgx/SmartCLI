@@ -1,0 +1,29 @@
+.....F...F.......
+======================================================================
+FAIL: test_exactly_spent_budget_is_not_reported_as_drained (__main__.ReadBudgetS1.test_exactly_spent_budget_is_not_reported_as_drained)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v3-runs\A04\validation\repo\tests\test_a04_read_budget.py", line 165, in test_exactly_spent_budget_is_not_reported_as_drained
+    self.assertEqual(sess.io_state()["io"]["local_cut"], "budget_limited")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'drained' != 'budget_limited'
+- drained
++ budget_limited
+
+
+======================================================================
+FAIL: test_offsets_advance_in_one_generation (__main__.ReadBudgetS1.test_offsets_advance_in_one_generation)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v3-runs\A04\validation\repo\tests\test_a04_read_budget.py", line 158, in test_offsets_advance_in_one_generation
+    self.assertEqual(io["local_cut"], "budget_limited")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'drained' != 'budget_limited'
+- drained
++ budget_limited
+
+
+----------------------------------------------------------------------
+Ran 17 tests in 0.035s
+
+FAILED (failures=2)

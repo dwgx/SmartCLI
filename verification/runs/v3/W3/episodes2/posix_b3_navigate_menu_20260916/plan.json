@@ -1,0 +1,11 @@
+{
+ "task": "B3_navigate_menu",
+ "track": "U",
+ "transport": "posix-pty (PosixPtyBackend, Linux/Docker) -- strict UI",
+ "seed": 20260916,
+ "model_id": "deepseek-v4.1-flash:max (omp backend, dispatched)",
+ "spend_cap": {
+  "usd": 0,
+  "note": "no paid calls: local PTY/file episodes on this box"
+ }
+}

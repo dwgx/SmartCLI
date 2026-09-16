@@ -1,0 +1,329 @@
+{
+ "benchmark": "W3 minimal benchmark (judge.py) -- episodes2: tracks A/H on this box + POSIX E6",
+ "model_id": "deepseek-v4.1-flash:max (omp backend, dispatched)",
+ "budget": {
+  "episodes": 9,
+  "wall_clock_minutes": 60,
+  "usd": 0
+ },
+ "runtime_under_test": "D:\\Project\\SmartCLI\\smartcli_core v0.3.2 (imported, never edited); Windows WinptyBackend/ConPTY for tracks A/H-episode PTYs, Linux PosixPtyBackend inside python:3.13-slim for the POSIX set",
+ "judge": "W3/judge.py (imported by this scorer; nothing re-implemented here)",
+ "judge_selftest": {
+  "ok": true,
+  "controls": 10,
+  "escaped": [],
+  "wrong_rule": []
+ },
+ "transports": {
+  "windows-conpty": "smartcli_core.PtySession -> WinptyBackend (ConPTY), host Python 3.14",
+  "posix-pty": "smartcli_core.PtySession -> PosixPtyBackend (stdlib pty/termios), python:3.13-slim container, pyte==0.8.2",
+  "filesystem/api": "no PTY opened at all (track H) -- files/APIs only"
+ },
+ "episodes": [
+  {
+   "run_id": "b1_edit_in_editor_A_20260916",
+   "task": "B1_edit_in_editor",
+   "track": "A",
+   "transport": "windows-conpty (WinptyBackend) + vim client-server app channel",
+   "verdict": "judged_pass",
+   "counts_as": "pass",
+   "reject_code": null,
+   "wall_clock_s": 0.65,
+   "actions": [
+    "app_channel",
+    "snapshot",
+    "wait"
+   ],
+   "model_id": "deepseek-v4.1-flash:max (omp backend, dispatched)",
+   "ui_claim": false,
+   "result_json": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b1_edit_in_editor_A_20260916\\result.json",
+   "fixture_state": {
+    "file_lines": 3,
+    "contains": "third line from an agent",
+    "target": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b1_edit_in_editor_A_20260916\\episode_b1_65f9.txt",
+    "bytes": 43,
+    "lines": [
+     "line one",
+     "line two",
+     "third line from an agent"
+    ],
+    "in_episode_buffer_rows": [
+     0,
+     1,
+     2
+    ],
+    "in_episode_buffer_ordered": true,
+    "append_returned": "0",
+    "editor_reported_write": true
+   }
+  },
+  {
+   "run_id": "b1_edit_in_editor_H_20260916",
+   "task": "B1_edit_in_editor",
+   "track": "H",
+   "transport": "filesystem only (no PTY, no keystrokes)",
+   "verdict": "judged_pass",
+   "counts_as": "pass",
+   "reject_code": null,
+   "wall_clock_s": 0.0,
+   "actions": [
+    "read_file",
+    "write_file"
+   ],
+   "model_id": "deepseek-v4.1-flash:max (omp backend, dispatched)",
+   "ui_claim": false,
+   "result_json": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b1_edit_in_editor_H_20260916\\result.json",
+   "fixture_state": {
+    "file_lines": 3,
+    "contains": "third line from an agent",
+    "target": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b1_edit_in_editor_H_20260916\\episode_b1_hybrid.txt",
+    "bytes": 43,
+    "lines": [
+     "line one",
+     "line two",
+     "third line from an agent"
+    ]
+   }
+  },
+  {
+   "run_id": "b2_confirm_prompt_A_20260916",
+   "task": "B2_confirm_prompt",
+   "track": "A",
+   "transport": "windows-conpty (WinptyBackend) + fixture control socket app channel",
+   "verdict": "judged_pass",
+   "counts_as": "pass",
+   "reject_code": null,
+   "wall_clock_s": 0.17,
+   "actions": [
+    "app_channel",
+    "snapshot",
+    "wait"
+   ],
+   "model_id": "deepseek-v4.1-flash:max (omp backend, dispatched)",
+   "ui_claim": false,
+   "result_json": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b2_confirm_prompt_A_20260916\\result.json",
+   "fixture_state": {
+    "answer": "y",
+    "file_written": true,
+    "target": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b2_confirm_prompt_A_20260916\\episode_b2_4a28.txt",
+    "bytes": 28,
+    "content": "written after confirmation\n",
+    "program_reported_channel": true,
+    "socket_ack": "{\"ack\": true}"
+   }
+  },
+  {
+   "run_id": "b2_confirm_prompt_H_20260916",
+   "task": "B2_confirm_prompt",
+   "track": "H",
+   "transport": "filesystem/API only (no PTY): answer file piped to the program's stdin",
+   "verdict": "judged_pass",
+   "counts_as": "pass",
+   "reject_code": null,
+   "wall_clock_s": 0.04,
+   "actions": [
+    "read_file",
+    "wait",
+    "write_file"
+   ],
+   "model_id": "deepseek-v4.1-flash:max (omp backend, dispatched)",
+   "ui_claim": false,
+   "result_json": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b2_confirm_prompt_H_20260916\\result.json",
+   "fixture_state": {
+    "answer": "y",
+    "file_written": true,
+    "target": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b2_confirm_prompt_H_20260916\\episode_b2_hybrid.txt",
+    "bytes": 28,
+    "content": "written after confirmation\n",
+    "program_returncode": 0
+   }
+  },
+  {
+   "run_id": "b3_navigate_menu_A_20260916",
+   "task": "B3_navigate_menu",
+   "track": "A",
+   "transport": "windows-conpty (WinptyBackend) + fixture control socket app channel",
+   "verdict": "judged_pass",
+   "counts_as": "pass",
+   "reject_code": null,
+   "wall_clock_s": 0.58,
+   "actions": [
+    "app_channel",
+    "snapshot",
+    "wait"
+   ],
+   "model_id": "deepseek-v4.1-flash:max (omp backend, dispatched)",
+   "ui_claim": false,
+   "result_json": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b3_navigate_menu_A_20260916\\result.json",
+   "fixture_state": {
+    "selection": "save",
+    "exited": true,
+    "state_file": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b3_navigate_menu_A_20260916\\episode_b3_a65e.json",
+    "state_file_written": true,
+    "program_channel": "control_socket",
+    "program_presses_received": [
+     "down",
+     "enter"
+    ],
+    "selected_at_open": "> open",
+    "selected_after_one_down": "> save"
+   }
+  },
+  {
+   "run_id": "b3_navigate_menu_H_20260916",
+   "task": "B3_navigate_menu",
+   "track": "H",
+   "transport": "filesystem/API only (no PTY): menu commands sourced from a file",
+   "verdict": "judged_pass",
+   "counts_as": "pass",
+   "reject_code": null,
+   "wall_clock_s": 0.05,
+   "actions": [
+    "read_file",
+    "wait",
+    "write_file"
+   ],
+   "model_id": "deepseek-v4.1-flash:max (omp backend, dispatched)",
+   "ui_claim": false,
+   "result_json": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b3_navigate_menu_H_20260916\\result.json",
+   "fixture_state": {
+    "selection": "save",
+    "exited": true,
+    "state_file": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b3_navigate_menu_H_20260916\\episode_b3_hybrid.json",
+    "state_file_written": true,
+    "program_channel": "commands_file",
+    "program_commands_received": [
+     "down",
+     "enter"
+    ]
+   }
+  },
+  {
+   "run_id": "posix_b1_edit_in_editor_20260916",
+   "task": "B1_edit_in_editor",
+   "track": "U",
+   "transport": "posix-pty (PosixPtyBackend, Linux/Docker) -- strict UI",
+   "verdict": "judged_pass",
+   "counts_as": "pass",
+   "reject_code": null,
+   "wall_clock_s": 0.71,
+   "actions": [
+    "keys",
+    "snapshot",
+    "text",
+    "wait"
+   ],
+   "model_id": "deepseek-v4.1-flash:max (omp backend, dispatched)",
+   "ui_claim": true,
+   "result_json": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\posix_b1_edit_in_editor_20260916\\result.json",
+   "fixture_state": {
+    "file_lines": 3,
+    "contains": "third line from an agent",
+    "target": "/w3/episodes2/posix_b1_edit_in_editor_20260916/episode_b1_65f9.txt",
+    "bytes": 43,
+    "lines": [
+     "line one",
+     "line two",
+     "third line from an agent"
+    ],
+    "in_episode_buffer_rows": [
+     0,
+     1,
+     2
+    ],
+    "in_episode_buffer_ordered": true,
+    "editor_reported_write": true
+   }
+  },
+  {
+   "run_id": "posix_b2_confirm_prompt_20260916",
+   "task": "B2_confirm_prompt",
+   "track": "U",
+   "transport": "posix-pty (PosixPtyBackend, Linux/Docker) -- strict UI",
+   "verdict": "judged_pass",
+   "counts_as": "pass",
+   "reject_code": null,
+   "wall_clock_s": 0.15,
+   "actions": [
+    "keys",
+    "snapshot",
+    "text",
+    "wait"
+   ],
+   "model_id": "deepseek-v4.1-flash:max (omp backend, dispatched)",
+   "ui_claim": true,
+   "result_json": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\posix_b2_confirm_prompt_20260916\\result.json",
+   "fixture_state": {
+    "answer": "y",
+    "file_written": true,
+    "target": "/w3/episodes2/posix_b2_confirm_prompt_20260916/episode_b2_4a28.txt",
+    "bytes": 27,
+    "content": "written after confirmation\n"
+   }
+  },
+  {
+   "run_id": "posix_b3_navigate_menu_20260916",
+   "task": "B3_navigate_menu",
+   "track": "U",
+   "transport": "posix-pty (PosixPtyBackend, Linux/Docker) -- strict UI",
+   "verdict": "judged_pass",
+   "counts_as": "pass",
+   "reject_code": null,
+   "wall_clock_s": 0.47,
+   "actions": [
+    "keys",
+    "snapshot",
+    "wait"
+   ],
+   "model_id": "deepseek-v4.1-flash:max (omp backend, dispatched)",
+   "ui_claim": true,
+   "result_json": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\posix_b3_navigate_menu_20260916\\result.json",
+   "fixture_state": {
+    "selection": "save",
+    "exited": true,
+    "state_file": "/w3/episodes2/posix_b3_navigate_menu_20260916/episode_b3_a65e.json",
+    "state_file_written": true,
+    "program_keys_received": [
+     "\u001bOB",
+     "\r"
+    ],
+    "program_cursor_key_form": [
+     "SS3"
+    ],
+    "selected_at_open": "> open",
+    "selected_after_one_down": "> save"
+   }
+  }
+ ],
+ "totals": {
+  "episodes_run": 9,
+  "pass": 9,
+  "failure": 0,
+  "rejected": 0,
+  "wall_clock_s": 2.82
+ },
+ "negative_controls_on_this_work": [
+  {
+   "control": "hybrid_result_relabelled_as_strict_ui",
+   "source": "b1_edit_in_editor_H_20260916",
+   "expected": "track_violation",
+   "code": "track_violation",
+   "passes_control": true
+  },
+  {
+   "control": "app_channel_result_relabelled_as_strict_ui",
+   "source": "b1_edit_in_editor_A_20260916",
+   "expected": "track_violation",
+   "code": "track_violation",
+   "passes_control": true
+  },
+  {
+   "control": "fabricated_completion_on_a_real_hybrid_run",
+   "source": "b1_edit_in_editor_H_20260916",
+   "expected": "false_completion",
+   "code": "false_completion",
+   "passes_control": true
+  }
+ ],
+ "note": "`actions` lists only what each episode did while it was running; fixture pre-state, launch argv, channel endpoints and ground-truth reads live in setup/session.  Track H results carry ui_claim=false and are not UI passes -- the control 'hybrid_result_relabelled_as_strict_ui' is what the judge does to a hybrid result presented as a UI one."
+}

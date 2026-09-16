@@ -1,0 +1,131 @@
+{
+ "run_id": "b1_edit_in_editor_20260916",
+ "task": "B1_edit_in_editor",
+ "track": "U",
+ "seed": 20260916,
+ "model_id": "deepseek-v4.1-flash:max (omp backend, dispatched)",
+ "budget": {
+  "episodes": 3,
+  "wall_clock_minutes": 45,
+  "usd": 0
+ },
+ "actions": [
+  "keys",
+  "snapshot",
+  "text",
+  "wait"
+ ],
+ "action_counts": {
+  "keys": 5,
+  "snapshot": 2,
+  "text": 3,
+  "wait": 6
+ },
+ "claimed_complete": true,
+ "completion_basis": "child_exit_observed",
+ "completion_detail": {
+  "buffer_rows_line_one_two_third": [
+   0,
+   1,
+   2
+  ],
+  "third_line_is_last_of_the_three": true,
+  "editor_status_line_reported_write": true,
+  "left_insert_mode": true,
+  "vim_exited_on_its_own_after": ":q"
+ },
+ "fixture_state": {
+  "file_lines": 3,
+  "contains": "third line from an agent",
+  "target": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes\\b1_edit_in_editor_20260916\\episode_b1_65f9.txt",
+  "bytes": 43,
+  "lines": [
+   "line one",
+   "line two",
+   "third line from an agent"
+  ],
+  "raw_repr": "line one\\nline two\\nthird line from an agent\\n",
+  "third_line_is_last": true
+ },
+ "fixture_state_source": "program's own PTY output (in-episode) for the claim; post-episode filesystem read after the PTY was closed for fixture_state",
+ "setup": [
+  {
+   "what": "fixture pre-state (seeded 2-line temp file)",
+   "path": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes\\b1_edit_in_editor_20260916\\episode_b1_65f9.txt",
+   "bytes": 18,
+   "sha256": "e9024f1a07d29d52ad3aa5e1a18e94db1f3a9fd32b89e39d47c472cd99071e13",
+   "content": "line one\nline two\n",
+   "outside_pty": true
+  }
+ ],
+ "session": {
+  "driver": "smartcli_core.PtySession directly (no drive-tui CLI on this box)",
+  "argv": [
+   "C:\\Program Files\\Git\\usr\\bin\\vim.exe",
+   "-u",
+   "NONE",
+   "-N",
+   "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes\\b1_edit_in_editor_20260916\\episode_b1_65f9.txt"
+  ],
+  "cols": 100,
+  "rows": 30,
+  "observations": 6,
+  "wall_clock_s": 0.75,
+  "cancel": false,
+  "cleanup": "PtySession.close() after the child had already exited",
+  "process_exited": true,
+  "exit_observed_by": "backend.is_alive() False after pumping to EOF",
+  "exit_evidence": {
+   "exited": true,
+   "observation": "backend.is_alive() False after pumping to EOF",
+   "alive_after_wait": false,
+   "waited_s": 0.05,
+   "backend_eof_latched": false,
+   "child_exitstatus": 0
+  },
+  "close_state": "closed_confirmed",
+  "close_observed": "backend close_state()={'close_requested': True, 'closing': False, 'closed_confirmed': True, 'close_unconfirmed': False, 'output_eof': False, 'last_progress': 'terminate(force=True) returned', 'generation': 1, 'basis_origin': 'runtime'}",
+  "close_state_detail": {
+   "close_requested": true,
+   "closing": false,
+   "closed_confirmed": true,
+   "close_unconfirmed": false,
+   "output_eof": false,
+   "last_progress": "terminate(force=True) returned",
+   "generation": 1,
+   "basis_origin": "runtime"
+  }
+ },
+ "observations": [
+  {
+   "step": "vim opened the fixture file",
+   "reason": "MARKER",
+   "screen": "[screen 30x100] cursor=r8c0  selected=r8[0:100]\"\"(cursor_line)  status=\"<pisodes/b1_edit_in_editor_20260916/episode_b1_65f9.txt\" [unix] 2L, 18B\"\n  0 | line one\n  1 | line two\n  2 | ~\n  3 | ~\n  4 | ~\n  5 | ~\n  6 | ~\n  7 | ~\n...\n 29 | <pisodes/b1_edit_in_editor_20260916/episode_b1_65f9.txt\" [unix] 2L, 18B"
+  },
+  {
+   "step": "insert mode opened on a new line 3",
+   "reason": "MARKER",
+   "screen": "[screen 30x100] cursor=r2c0  selected=r2[0:100]\"\"(cursor_line)  status=\"-- INSERT --                                                                      3,1           All\"\n  0 | line one\n  1 | line two\n...\n  3 | ~\n  4 | ~\n  5 | ~\n  6 | ~\n  7 | ~\n  8 | ~\n  9 | ~\n 10 | ~\n 11 | ~\n 12 | ~\n 13 | ~\n 14 | ~\n 15 | ~\n 16 | ~\n 17 | ~\n 18 | ~\n 19 | ~\n 20 | ~\n 21 | ~\n 22 | ~\n 23 | ~\n 24 | ~\n 25 | ~\n 26 | ~\n 27 | ~\n 28 | ~\n 29 | -- INSERT --                                                                      3,1           All"
+  },
+  {
+   "step": "third line typed into the buffer",
+   "reason": "MARKER",
+   "screen": "[screen 30x100] cursor=r2c24  selected=r2[0:100]\"third line from an agent\"(cursor_line)  status=\"-- INSERT --                                                                      3,25          All\"\n  0 | line one\n  1 | line two\n  2 | third line from an agent\n  3 | ~\n  4 | ~\n  5 | ~\n  6 | ~\n  7 | ~\n  8 | ~\n  9 | ~\n 10 | ~\n 11 | ~\n 12 | ~\n 13 | ~\n 14 | ~\n 15 | ~\n 16 | ~\n 17 | ~\n 18 | ~\n 19 | ~\n 20 | ~\n 21 | ~\n 22 | ~\n 23 | ~\n 24 | ~\n 25 | ~\n 26 | ~\n 27 | ~\n 28 | ~\n 29 | -- INSERT --                                                                      3,25          All"
+  },
+  {
+   "step": "back to normal mode",
+   "reason": "wait_stable",
+   "screen": "[screen 30x100] cursor=r2c23  selected=r2[0:100]\"third line from an agent\"(cursor_line)  status=\"                                                                        ^[\"\n  0 | line one\n  1 | line two\n  2 | third line from an agent\n  3 | ~\n  4 | ~\n  5 | ~\n  6 | ~\n  7 | ~\n  8 | ~\n  9 | ~\n 10 | ~\n 11 | ~\n 12 | ~\n 13 | ~\n 14 | ~\n 15 | ~\n 16 | ~\n 17 | ~\n 18 | ~\n 19 | ~\n 20 | ~\n 21 | ~\n 22 | ~\n 23 | ~\n 24 | ~\n 25 | ~\n 26 | ~\n 27 | ~\n 28 | ~\n 29 |                                                                         ^["
+  },
+  {
+   "step": "editor reported the write",
+   "reason": "MARKER",
+   "screen": "[screen 30x100] cursor=r2c23  selected=r2[0:100]\"third line from an agent\"(cursor_line)  status=\"<b1_edit_in_editor_20260916/episode_b1_65f9.txt\" [unix] 3L, 43B written           3,24          All\"\n  0 | line one\n  1 | line two\n  2 | third line from an agent\n  3 | ~\n  4 | ~\n  5 | ~\n  6 | ~\n  7 | ~\n  8 | ~\n  9 | ~\n 10 | ~\n 11 | ~\n 12 | ~\n 13 | ~\n 14 | ~\n 15 | ~\n 16 | ~\n 17 | ~\n 18 | ~\n 19 | ~\n 20 | ~\n 21 | ~\n 22 | ~\n 23 | ~\n 24 | ~\n 25 | ~\n 26 | ~\n 27 | ~\n 28 | ~\n 29 | <b1_edit_in_editor_20260916/episode_b1_65f9.txt\" [unix] 3L, 43B written           3,24          All"
+  },
+  {
+   "step": "editor exited",
+   "reason": "exit poll",
+   "screen": "[screen 30x100] cursor=r29c0  selected=r29[0:100]\"\"(cursor_line)  status=\"~\"\n  0 | line one\n  1 | line two\n  2 | third line from an agent\n  3 | ~\n  4 | ~\n  5 | ~\n  6 | ~\n  7 | ~\n  8 | ~\n  9 | ~\n 10 | ~\n 11 | ~\n 12 | ~\n 13 | ~\n 14 | ~\n 15 | ~\n 16 | ~\n 17 | ~\n 18 | ~\n 19 | ~\n 20 | ~\n 21 | ~\n 22 | ~\n 23 | ~\n 24 | ~\n 25 | ~\n 26 | ~\n 27 | ~\n 28 | ~"
+  }
+ ]
+}

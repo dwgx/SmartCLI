@@ -1,0 +1,30 @@
+{
+  "T05": {
+    "max_changed_files": 3,
+    "allow_paths": [
+      "smartcli_core/snapshot.py",
+      "skills/drive-tui/_vendor/smartcli_core/snapshot.py",
+      "tests/test_cell_span_regression.py"
+    ]
+  },
+  "T04": {
+    "max_changed_files": 3,
+    "allow_paths": [
+      "smartcli_core/screen_model.py",
+      "skills/drive-tui/_vendor/smartcli_core/screen_model.py",
+      "tests/test_sgr_stream_regression.py"
+    ]
+  },
+  "T03": {
+    "max_changed_files": 3,
+    "allow_paths": [
+      "smartcli_core/pty_backend.py",
+      "skills/drive-tui/_vendor/smartcli_core/pty_backend.py",
+      "tests/test_partial_write_regression.py"
+    ]
+  },
+  "A04-P": {
+    "max_changed_files": 0,
+    "allow_paths": []
+  }
+}

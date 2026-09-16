@@ -1,0 +1,15 @@
+{
+  "commit": "701e61f6d69aa2420617edf80b1136df8d5e8cf7",
+  "files": {
+    "snapshot.py": "smartcli_core/snapshot.py",
+    "screen_model.py": "smartcli_core/screen_model.py",
+    "pty_backend.py": "smartcli_core/pty_backend.py",
+    "session.py": "smartcli_core/session.py",
+    "readiness.py": "smartcli_core/readiness.py",
+    "scripts-tui.py": "skills/drive-tui/scripts/tui.py",
+    "scripts-mcp_server.py": "skills/drive-tui/scripts/mcp_server.py",
+    "pyproject.toml": "pyproject.toml",
+    "test_vendor_sync.py": "tests/test_vendor_sync.py",
+    "tests-test_terminal_fidelity.py": "tests/test_terminal_fidelity.py"
+  }
+}

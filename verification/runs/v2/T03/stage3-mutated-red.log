@@ -1,0 +1,95 @@
+F.FFFFFFFF.F
+======================================================================
+FAIL: test_bad_descriptor_is_a_zero_progress_error (__main__.PartialWriteRegression.test_bad_descriptor_is_a_zero_progress_error)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v2-runs\T03\validation\repo\tests\test_partial_write_regression.py", line 182, in test_bad_descriptor_is_a_zero_progress_error
+    self.assertIsInstance(error, IncompleteWrite)
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: OSError(9, 'injected failure') is not an instance of <class 'smartcli_core.pty_backend.IncompleteWrite'>
+
+======================================================================
+FAIL: test_deadline_reports_zero_progress_partial (__main__.PartialWriteRegression.test_deadline_reports_zero_progress_partial)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v2-runs\T03\validation\repo\tests\test_partial_write_regression.py", line 166, in test_deadline_reports_zero_progress_partial
+    self.assertIsInstance(error, IncompleteWrite)
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: BlockingIOError(11, 'injected') is not an instance of <class 'smartcli_core.pty_backend.IncompleteWrite'>
+
+======================================================================
+FAIL: test_each_byte_at_a_time (__main__.PartialWriteRegression.test_each_byte_at_a_time)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v2-runs\T03\validation\repo\tests\test_partial_write_regression.py", line 145, in test_each_byte_at_a_time
+    self.assertEqual(bytes(rec.received), PAYLOAD)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: b'A' != b'A\xe4\xb8\xad\x00B\r\n\xe4\xbf\x9d\xe5\xad\x98'
+
+======================================================================
+FAIL: test_empty_payload_is_a_noop (__main__.PartialWriteRegression.test_empty_payload_is_a_noop)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v2-runs\T03\validation\repo\tests\test_partial_write_regression.py", line 158, in test_empty_payload_is_a_noop
+    self.assertEqual(rec.calls, 0, "an empty payload must not touch the transport")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 0 : an empty payload must not touch the transport
+
+======================================================================
+FAIL: test_no_bytes_are_resent_after_eagain (__main__.PartialWriteRegression.test_no_bytes_are_resent_after_eagain)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v2-runs\T03\validation\repo\tests\test_partial_write_regression.py", line 206, in test_no_bytes_are_resent_after_eagain
+    self.assertEqual(bytes(rec.received), PAYLOAD)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: b'A\xe4\xb8\xad\x00' != b'A\xe4\xb8\xad\x00B\r\n\xe4\xbf\x9d\xe5\xad\x98'
+
+======================================================================
+FAIL: test_partial_then_error_reports_the_prefix_that_landed (__main__.PartialWriteRegression.test_partial_then_error_reports_the_prefix_that_landed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v2-runs\T03\validation\repo\tests\test_partial_write_regression.py", line 175, in test_partial_then_error_reports_the_prefix_that_landed
+    self.assertIsInstance(error, IncompleteWrite)
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: None is not an instance of <class 'smartcli_core.pty_backend.IncompleteWrite'>
+
+======================================================================
+FAIL: test_repeated_call_after_a_failure_is_not_sticky (__main__.PartialWriteRegression.test_repeated_call_after_a_failure_is_not_sticky)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v2-runs\T03\validation\repo\tests\test_partial_write_regression.py", line 188, in test_repeated_call_after_a_failure_is_not_sticky
+    self.assertIsInstance(error1, IncompleteWrite)
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: None is not an instance of <class 'smartcli_core.pty_backend.IncompleteWrite'>
+
+======================================================================
+FAIL: test_short_write_eagain_eintr (__main__.PartialWriteRegression.test_short_write_eagain_eintr)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v2-runs\T03\validation\repo\tests\test_partial_write_regression.py", line 139, in test_short_write_eagain_eintr
+    self.assertEqual(bytes(rec.received), PAYLOAD)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: b'A\xe4' != b'A\xe4\xb8\xad\x00B\r\n\xe4\xbf\x9d\xe5\xad\x98'
+
+======================================================================
+FAIL: test_short_writes_only (__main__.PartialWriteRegression.test_short_writes_only)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v2-runs\T03\validation\repo\tests\test_partial_write_regression.py", line 133, in test_short_writes_only
+    self.assertEqual(bytes(rec.received), PAYLOAD, "every byte once, in order")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: b'A\xe4' != b'A\xe4\xb8\xad\x00B\r\n\xe4\xbf\x9d\xe5\xad\x98' : every byte once, in order
+
+======================================================================
+FAIL: test_zero_progress_is_not_treated_as_completion (__main__.PartialWriteRegression.test_zero_progress_is_not_treated_as_completion)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v2-runs\T03\validation\repo\tests\test_partial_write_regression.py", line 151, in test_zero_progress_is_not_treated_as_completion
+    self.assertEqual(bytes(rec.received), PAYLOAD)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: b'' != b'A\xe4\xb8\xad\x00B\r\n\xe4\xbf\x9d\xe5\xad\x98'
+
+----------------------------------------------------------------------
+Ran 12 tests in 0.002s
+
+FAILED (failures=10)

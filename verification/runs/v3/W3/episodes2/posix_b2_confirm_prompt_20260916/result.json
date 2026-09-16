@@ -1,0 +1,114 @@
+{
+ "run_id": "posix_b2_confirm_prompt_20260916",
+ "task": "B2_confirm_prompt",
+ "track": "U",
+ "seed": 20260916,
+ "model_id": "deepseek-v4.1-flash:max (omp backend, dispatched)",
+ "budget": {
+  "episodes": 9,
+  "wall_clock_minutes": 60,
+  "usd": 0
+ },
+ "transport": "posix-pty (PosixPtyBackend, Linux/Docker) -- strict UI",
+ "actions": [
+  "keys",
+  "snapshot",
+  "text",
+  "wait"
+ ],
+ "action_counts": {
+  "keys": 1,
+  "snapshot": 1,
+  "text": 1,
+  "wait": 3
+ },
+ "claimed_complete": true,
+ "completion_basis": "child_exit_observed",
+ "completion_detail": {
+  "in_episode_check": {
+   "answer": "y",
+   "file_written": true,
+   "target": "/w3/episodes2/posix_b2_confirm_prompt_20260916/episode_b2_4a28.txt",
+   "bytes": 27,
+   "content": "written after confirmation\n"
+  }
+ },
+ "fixture_state": {
+  "answer": "y",
+  "file_written": true,
+  "target": "/w3/episodes2/posix_b2_confirm_prompt_20260916/episode_b2_4a28.txt",
+  "bytes": 27,
+  "content": "written after confirmation\n"
+ },
+ "fixture_state_source": "the program's own PTY output for the answer; filesystem read after the PTY was closed for file_written",
+ "ui_claim": true,
+ "track_note": "strict UI (track U) over the POSIX transport (E6)",
+ "setup": [
+  {
+   "what": "fixture program",
+   "path": "/w3/episodes2/posix_b2_confirm_prompt_20260916/confirm_fixture.py",
+   "sha256": "f075ac20a7d7190359cde86f9569f5f87f4c723a599de2e5670ac537862d26a4",
+   "outside_pty": true
+  },
+  {
+   "what": "target file absent before the episode",
+   "path": "/w3/episodes2/posix_b2_confirm_prompt_20260916/episode_b2_4a28.txt",
+   "exists": false,
+   "outside_pty": true
+  }
+ ],
+ "session": {
+  "driver": "smartcli_core.PtySession (PosixPtyBackend, Linux container)",
+  "argv": [
+   "/usr/local/bin/python",
+   "-B",
+   "/w3/episodes2/posix_b2_confirm_prompt_20260916/confirm_fixture.py",
+   "/w3/episodes2/posix_b2_confirm_prompt_20260916/episode_b2_4a28.txt"
+  ],
+  "cols": 90,
+  "rows": 24,
+  "cancel": false,
+  "process_exited": true,
+  "exit_observed_by": "backend.is_alive() False after pumping to EOF",
+  "exit_evidence": {
+   "exited": true,
+   "observation": "backend.is_alive() False after pumping to EOF",
+   "alive_after_wait": false,
+   "waited_s": 0.0,
+   "backend_eof_latched": true,
+   "child_exitstatus": null,
+   "backend_pid": 14
+  },
+  "close_state": "closed_confirmed",
+  "close_observed": "backend close_state()={'close_requested': True, 'closing': False, 'closed_confirmed': True, 'close_unconfirmed': False, 'output_eof': True, 'last_progress': 'reaped after SIGTERM', 'generation': 1, 'basis_origin': 'runtime'}",
+  "close_state_detail": {
+   "close_requested": true,
+   "closing": false,
+   "closed_confirmed": true,
+   "close_unconfirmed": false,
+   "output_eof": true,
+   "last_progress": "reaped after SIGTERM",
+   "generation": 1,
+   "basis_origin": "runtime"
+  },
+  "observations": 3,
+  "wall_clock_s": 0.15
+ },
+ "observations": [
+  {
+   "step": "confirmation prompt on screen",
+   "reason": "MARKER",
+   "screen": "[screen 24x90] cursor=r0c37  selected=r0[0:90]\"Overwrite episode_b2_4a28.txt? [y/N]\"(cursor_line)\n  0 | Overwrite episode_b2_4a28.txt? [y/N]"
+  },
+  {
+   "step": "program answered and reported its own write",
+   "reason": "MARKER",
+   "screen": "[screen 24x90] cursor=r4c0  selected=r4[0:90]\"\"(cursor_line)\n  0 | Overwrite episode_b2_4a28.txt? [y/N] y\n  1 | ANSWER 'y'\n  2 | WROTE episode_b2_4a28.txt bytes=27 file_written=True\n  3 | BYE"
+  },
+  {
+   "step": "program exited",
+   "screen": "[screen 24x90] cursor=r4c0  selected=r4[0:90]\"\"(cursor_line)\n  0 | Overwrite episode_b2_4a28.txt? [y/N] y\n  1 | ANSWER 'y'\n  2 | WROTE episode_b2_4a28.txt bytes=27 file_written=True\n  3 | BYE"
+  }
+ ],
+ "wall_clock_s": 0.15
+}

@@ -1,0 +1,66 @@
+{
+ "case": "N1-posix-winS5b",
+ "start_rc": 0,
+ "start": {
+  "ok": true,
+  "sid": "n1-winS5b-7004"
+ },
+ "start_stderr": "",
+ "child_before_first_request": {
+  "cpr_answered": true,
+  "cpr_wait_s": 0.164,
+  "written": 131072,
+  "done": true,
+  "cpr_reply": "'\\x1b[1;1R'",
+  "seconds": 0.177,
+  "raw_console": true
+ },
+ "child_after_first_request": {
+  "cpr_answered": true,
+  "cpr_wait_s": 0.164,
+  "written": 131072,
+  "done": true,
+  "cpr_reply": "'\\x1b[1;1R'",
+  "seconds": 0.177,
+  "raw_console": true
+ },
+ "child_final": {
+  "cpr_answered": true,
+  "cpr_wait_s": 0.164,
+  "written": 131072,
+  "done": true,
+  "cpr_reply": "'\\x1b[1;1R'",
+  "seconds": 0.177,
+  "raw_console": true
+ },
+ "io_block": {
+  "generation": 1,
+  "read_offset": 131099,
+  "fed_offset": 131099,
+  "pending": {
+   "known_payload_bytes": 0,
+   "readable_now": false,
+   "parser_incomplete": false,
+   "reply_bytes": 0,
+   "upstream": "unknown"
+  },
+  "local_cut": "drained",
+  "representation": "conpty_reconstructed_utf8",
+  "stream_error": null,
+  "basis_origin": "runtime",
+  "close": {
+   "close_requested": false,
+   "closing": false,
+   "closed_confirmed": false,
+   "close_unconfirmed": false
+  }
+ },
+ "snapshot_ok": "n/a (snapshot --json prints the Snapshot)",
+ "daemon_finished_the_fixture_unpumped": true,
+ "no_request_outcome": {
+  "cpr_answered_before_contact": true,
+  "written_before_contact": 131072,
+  "done_before_contact": true
+ },
+ "closed": true
+}

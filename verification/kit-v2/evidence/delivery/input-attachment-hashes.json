@@ -1,0 +1,21 @@
+{
+  "astra6-attachments/02_RESEARCH_DELTA.md": "41d3efb1cc619122fda9388193e1b754bd308053d467a5dc1219f6bcd266ed1d",
+  "astra6-attachments/04_ARCHITECTURE.md": "782b3e30e0015dd0341cd097cca05180c4ddad5f6d263c1124b6f4d5d849d30f",
+  "astra6-attachments/05_ACCEPTANCE.md": "5f4d62db765a484d681f6e0ac79c40b74255ad71b116b094516c3aa9b41eb8d1",
+  "astra6-attachments/MASTER_PLAN.md": "b79709192a39459e8bedb763f3ddeb6e2780cd652a7ba47b4f2d8449ddf302a1",
+  "astra6-attachments/probes/probe_core.py": "5a754b8b8d8763f0db7647fb146e3cab7487c6256217ba549f98529d47cc65d0",
+  "astra6-attachments/probes/probe_extended.py": "73e4c7c69b682c6294e635a910691a7d5f383fc0f93a21a7304d6524b783f380",
+  "astra6-attachments/probes/probe_split_rate.py": "c723eeae437134d66ec81255057ce3dded6f95bc1c4e61098529a7ee6f7a019d",
+  "astra6-attachments/smartcli-local-evidence-2026-09-16.md": "63530513fde28e0e9ec8d4c8d69fbccf62696a3f28c9b9aa08001775d2e209c0",
+  "astra6-attachments/source-at-701e61f/pty_backend.py": "1f8d9e7f95d8447bd2429912a3a788b0e29564d649b6592d6eb55ae964e0138f",
+  "astra6-attachments/source-at-701e61f/pyproject.toml": "eb3635093695bf78bfa49cd48a4515aef9d2253224763f58ad2e778d4965f854",
+  "astra6-attachments/source-at-701e61f/readiness.py": "13d741f93fb21bab4f5896fb88895f00de500b707759e16e81eeefc8bd16fa1c",
+  "astra6-attachments/source-at-701e61f/screen_model.py": "60eb5bdfb2e605baf383c8bf1ed0133dff66e2c0846d2298834506089b9f0f13",
+  "astra6-attachments/source-at-701e61f/scripts-mcp_server.py": "c51e581b881a5f35fbe55ae176721b9a18953684e8f665b7283afd61d9c7deee",
+  "astra6-attachments/source-at-701e61f/scripts-tui.py": "21c49f39620d7ac3173d4195d4cce91f9540e1bfca756ed77217d9bd212e184a",
+  "astra6-attachments/source-at-701e61f/session.py": "c7e3ad70f51c8c7ff5935498bc05970a8cb11bec416e7a768e73ad801500e389",
+  "astra6-attachments/source-at-701e61f/snapshot.py": "5a8f122c7c4b1cf906d143e22bad8584cabbcd3c020919348177b9d98fa8d269",
+  "astra6-attachments/source-at-701e61f/test_vendor_sync.py": "4147ded3cf34ec06cb1df2d4314c8312f0c50aa04c3f354f1764b0c09bb258d7",
+  "astra6-attachments/source-at-701e61f/tests-test_terminal_fidelity.py": "062c30b8ba58aadb7e91b80be219a47001d493f0e63cc4bfb67c3c7e9531e956",
+  "astra6-smartcli-upgrade-next.md": "26121f56da5cf213c1b66cfd59a336d95ad5868712f902dbab22dd092136bd3e"
+}

@@ -1,0 +1,292 @@
+{
+  "document_type": "read_only_source_index",
+  "accessed_on": "2026-09-16",
+  "note": "来源索引不是执行回执；附件E3/E4为既有证据，本轮未重新运行。",
+  "primary_sources": [
+    {
+      "id": "S02",
+      "title": "Microsoft：ClosePseudoConsole",
+      "url": "https://learn.microsoft.com/en-us/windows/console/closepseudoconsole",
+      "scope": "E1 官方文档；关闭时继续输出，build 26100 前后返回行为，输出管道排空",
+      "accessed_on": "2026-09-16"
+    },
+    {
+      "id": "S03",
+      "title": "Playwright：Auto-waiting",
+      "url": "https://playwright.dev/docs/actionability",
+      "scope": "E1 官方文档；操作前可操作性检查与结果断言是不同机制",
+      "accessed_on": "2026-09-16"
+    },
+    {
+      "id": "S04",
+      "title": "Chrome DevTools Protocol：Input.pdl",
+      "url": "https://github.com/ChromeDevTools/devtools-protocol/blob/acf4480d3e16cc3043edd87837726e10d3fe4f2a/pdl/domains/Input.pdl",
+      "scope": "E1 源码/协议；dispatchKeyEvent、insertText；固定提交，不宣称是未来最新版本",
+      "accessed_on": "2026-09-16"
+    },
+    {
+      "id": "S05",
+      "title": "SQLite：Write-Ahead Logging",
+      "url": "https://sqlite.org/wal.html",
+      "scope": "E1 官方文档 §2–2.2；commit、checkpoint、reader end mark",
+      "accessed_on": "2026-09-16"
+    },
+    {
+      "id": "S06",
+      "title": "Linux kernel：CFS Scheduler",
+      "url": "https://docs.kernel.org/scheduler/sched-design-CFS.html",
+      "scope": "E1 官方设计文档；借鉴按实际服务量记账，不声称 CFS 是当前唯一默认调度器",
+      "accessed_on": "2026-09-16"
+    },
+    {
+      "id": "S07",
+      "title": "xterm.js：Flowcontrol",
+      "url": "https://xtermjs.org/docs/guides/flowcontrol/",
+      "scope": "E1 官方文档；输入缓冲、处理回调与背压",
+      "accessed_on": "2026-09-16"
+    },
+    {
+      "id": "S08",
+      "title": "Unicode UAX #29：Unicode Text Segmentation",
+      "url": "https://unicode.org/reports/tr29/",
+      "scope": "E1 规范；字素边界不等于 glyph 或终端列宽",
+      "accessed_on": "2026-09-16"
+    },
+    {
+      "id": "S09",
+      "title": "Unicode UAX #11：East Asian Width",
+      "url": "https://unicode.org/reports/tr11/",
+      "scope": "E1 规范；现代终端需 tailoring，不是现成通用列宽算法",
+      "accessed_on": "2026-09-16"
+    },
+    {
+      "id": "S10",
+      "title": "Kitty：Comprehensive keyboard handling in terminals",
+      "url": "https://sw.kovidgoyal.net/kitty/keyboard-protocol/",
+      "scope": "E1 官方协议；协商、事件类型、主/备屏独立键盘模式栈",
+      "accessed_on": "2026-09-16"
+    },
+    {
+      "id": "S11",
+      "title": "tmux：Control Mode",
+      "url": "https://github.com/tmux/tmux/wiki/Control-Mode",
+      "scope": "E1 官方文档；%begin/%end/%error 与 %output；tmux 命令结束非 shell 子命令结束",
+      "accessed_on": "2026-09-16"
+    },
+    {
+      "id": "S12",
+      "title": "OpenTelemetry：Logs Data Model",
+      "url": "https://opentelemetry.io/docs/specs/otel/logs/data-model/",
+      "scope": "E1 规范；Timestamp、ObservedTimestamp、TraceId、SpanId",
+      "accessed_on": "2026-09-16"
+    },
+    {
+      "id": "S13",
+      "title": "NASA/JPL F Prime：Svc::Health",
+      "url": "https://fprime.jpl.nasa.gov/latest/Svc/Health/docs/sdd/",
+      "scope": "E1 官方组件设计 §2、3.2.1、6；在受监测组件自身线程回应 ping 与超时",
+      "accessed_on": "2026-09-16"
+    },
+    {
+      "id": "S14",
+      "title": "FAA：JO 7110.65 Chapter 14 Section 2，CPDLC",
+      "url": "https://www.faa.gov/air_traffic/publications/atpubs/atc_html/chap14_section_2.html",
+      "scope": "E1 官方程序；TBL 14-2-1，WILCO/UNABLE 等关闭消息，STANDBY 不是完成",
+      "accessed_on": "2026-09-16"
+    },
+    {
+      "id": "S15",
+      "title": "NIST：Confidence intervals for a proportion",
+      "url": "https://www.itl.nist.gov/div898/handbook/prc/section2/prc241.htm",
+      "scope": "E1 官方统计手册；二项比例区间，适用前提必须声明",
+      "accessed_on": "2026-09-16"
+    },
+    {
+      "id": "S16",
+      "title": "MCP：Cancellation，2025-11-25",
+      "url": "https://modelcontextprotocol.io/specification/2025-11-25/basic/utilities/cancellation",
+      "scope": "E1 固定规范版本；取消通知/竞争及 task 请求的取消边界",
+      "accessed_on": "2026-09-16"
+    },
+    {
+      "id": "S17",
+      "title": "SmartCLI：PtySession（基线未改模块）",
+      "url": "https://github.com/dwgx/SmartCLI/blob/701e61f6d69aa2420617edf80b1136df8d5e8cf7/smartcli_core/session.py",
+      "scope": "E1 源码；pump read→feed→reply，send_line 分两次写；不取代附件中三个已修改模块",
+      "accessed_on": "2026-09-16"
+    },
+    {
+      "id": "S18",
+      "title": "SmartCLI：readiness（基线未改模块）",
+      "url": "https://github.com/dwgx/SmartCLI/blob/701e61f6d69aa2420617edf80b1136df8d5e8cf7/smartcli_core/readiness.py",
+      "scope": "E1 源码；read_fn/hash/marker/on_poll；附件未附该文件，采用已读固定基线",
+      "accessed_on": "2026-09-16"
+    },
+    {
+      "id": "S19",
+      "title": "microsoft/tui-test README",
+      "url": "https://github.com/microsoft/tui-test/blob/d7e239c49a50d13e22be81fef207e7f4f85a509a/README.md",
+      "scope": "E1 README 声明；跨平台、多语言、四种等待、locator、录制，beta；非运行证明",
+      "accessed_on": "2026-09-16"
+    },
+    {
+      "id": "S20",
+      "title": "microsoft/tui-test：command_settled / wait_command",
+      "url": "https://github.com/microsoft/tui-test/blob/d7e239c49a50d13e22be81fef207e7f4f85a509a/crates/tui-test/src/engine.rs#L1981",
+      "scope": "E1 源码；无 tracker 启动信息时退回 300ms quiet；不能外推整产品取消缺陷",
+      "accessed_on": "2026-09-16"
+    },
+    {
+      "id": "S21",
+      "title": "coder/agent-tty README",
+      "url": "https://github.com/coder/agent-tty/blob/ebff2c23d8273be09812d841305a4f6246ccf47e/README.md",
+      "scope": "E1 官方仓库说明；PTY、事件日志、快照/截图/录制，参考渲染器不是原生窗口像素保证",
+      "accessed_on": "2026-09-16"
+    },
+    {
+      "id": "S22",
+      "title": "coder/agent-tty：EventLog",
+      "url": "https://github.com/coder/agent-tty/blob/ebff2c23d8273be09812d841305a4f6246ccf47e/src/host/eventLog.ts",
+      "scope": "E1 源码；序号、文件权限、串行 append 和错误传播；append 不自动等于 fsync 持久化",
+      "accessed_on": "2026-09-16"
+    },
+    {
+      "id": "S23",
+      "title": "onesuper/tui-use：Session",
+      "url": "https://github.com/onesuper/tui-use/blob/0170481831ca57974d3c7da306c654a815e57efa/src/session.ts",
+      "scope": "E1 源码；PTY onData→terminal.write→notifyListeners，屏幕和 scrollback",
+      "accessed_on": "2026-09-16"
+    },
+    {
+      "id": "S24",
+      "title": "bnomei/tmux-mcp：tmux adapter",
+      "url": "https://github.com/bnomei/tmux-mcp/blob/c4762ea36b1a288a95ba5cc125154fae65a60ad5/src/tmux.rs",
+      "scope": "E1 源码；本地/SSH tmux 适配、并发额度和退出码 buffer",
+      "accessed_on": "2026-09-16"
+    },
+    {
+      "id": "S25",
+      "title": "taria README",
+      "url": "https://github.com/y0sif/taria/blob/0178e037f302cc253170f912f488157890c028e7/README.md",
+      "scope": "E1 官方仓库说明；应用发布语义树、输入 id/ACK，需要应用配合",
+      "accessed_on": "2026-09-16"
+    },
+    {
+      "id": "S27",
+      "title": "bnomei/tmux-mcp：README 固定快照",
+      "url": "https://github.com/bnomei/tmux-mcp/blob/c4762ea36b1a288a95ba5cc125154fae65a60ad5/README.md",
+      "scope": "E1 README；tracked commands、旁路退出码、tmux/支持shell依赖、会话共享；不视为本地运行证明",
+      "accessed_on": "2026-09-16"
+    }
+  ],
+  "attachment_sources": [
+    {
+      "id": "L00",
+      "path_inside_original_archive": "README_FIRST.md",
+      "section_or_symbols": "事实基线摘要、Owner 提醒",
+      "scope": "E1/E3/E4 分别标注；HEAD 仍是基线，但本轮实现位于未提交工作树"
+    },
+    {
+      "id": "L03",
+      "path_inside_original_archive": "03_receipts/T03_closure.json",
+      "section_or_symbols": "first_results、mutation_cycle、claim",
+      "scope": "E3 注入 + E4 本机 POSIX library；叙述 44 次等待"
+    },
+    {
+      "id": "L03RAW",
+      "path_inside_original_archive": "02_evidence/T03_posix_real_pty.json",
+      "section_or_symbols": "planned_bytes、writability_waits、child_report",
+      "scope": "E4 原始收据；此文件记录 35 次等待，与摘要 44 未消歧，不改写任何一方"
+    },
+    {
+      "id": "L04",
+      "path_inside_original_archive": "03_receipts/T04_closure.json",
+      "section_or_symbols": "evidence_scope、mutation_cycle、controls",
+      "scope": "E3，已复核；不要求重跑原实验"
+    },
+    {
+      "id": "L05",
+      "path_inside_original_archive": "03_receipts/T05_closure.json",
+      "section_or_symbols": "evidence_scope、mutation_cycle、changed_files",
+      "scope": "E3，已复核；不要求重跑原实验"
+    },
+    {
+      "id": "LCB",
+      "path_inside_original_archive": "04_code/pty_backend.py_T03_implemented.py",
+      "section_or_symbols": "PtyBackend、WinptyBackend._read_loop/read_nonblocking/terminate、PosixPtyBackend.write",
+      "scope": "E1 本轮实现源码，T03 已落地；不以远端旧代码覆盖"
+    },
+    {
+      "id": "LCD",
+      "path_inside_original_archive": "04_code/tui.py_CURRENT_daemon_A04_target.py",
+      "section_or_symbols": "_serve_forever、worker、INTERLEAVE_OK、_drain_interleavable、_reply、_snapshot_response、cmd_close",
+      "scope": "E1 当前 daemon 源码；既有 interleave/resize 排除必须保留"
+    },
+    {
+      "id": "LCM",
+      "path_inside_original_archive": "04_code/mcp_server.py_CURRENT.py",
+      "section_or_symbols": "_call_session、snapshot、start/close",
+      "scope": "E1 当前 MCP 适配源码；不要把适配器自己填的依据冒充 runtime 依据"
+    },
+    {
+      "id": "LCONF",
+      "path_inside_original_archive": "05_verification/conformance.py",
+      "section_or_symbols": "run_case wait/reject、run_bounded、main、fingerprint",
+      "scope": "E1 现有 C0 runner；不覆盖六维全部能力，不能宣称新参数已实现"
+    },
+    {
+      "id": "LCP",
+      "path_inside_original_archive": "04_code/snapshot.py_T05_implemented.py",
+      "section_or_symbols": "build_snapshot：menu_items 的 cell 聚合",
+      "scope": "E1 本轮实现源码，T05 已落地；没有假设存在独立 _cell_span_text 函数"
+    },
+    {
+      "id": "LCPKG",
+      "path_inside_original_archive": "04_code/pyproject.toml",
+      "section_or_symbols": "tool.setuptools.package-dir、project.scripts",
+      "scope": "E1 smartcli_drive 指向 skills/drive-tui/scripts；改脚本也是改发行路径"
+    },
+    {
+      "id": "LCS",
+      "path_inside_original_archive": "04_code/screen_model.py_T04_implemented.py",
+      "section_or_symbols": "_ByteStream.feed/_state、ScreenModel.feed/drain_replies/visual_hash",
+      "scope": "E1 本轮实现源码，T04 已落地"
+    },
+    {
+      "id": "LP",
+      "path_inside_original_archive": "03_receipts/A04P_PROPOSAL.md",
+      "section_or_symbols": "§2 三切片、§3 未修项、§4 验收",
+      "scope": "提案不是实现证明；局部论断 E1/推断，数字引用 LX2/LX3"
+    },
+    {
+      "id": "LPD",
+      "path_inside_original_archive": "03_receipts/A04P_DESIGN_DELTA.md",
+      "section_or_symbols": "§1 模型边界、§2 符号、§3 文件清单",
+      "scope": "E2 原型结论；不是产品实现"
+    },
+    {
+      "id": "LPL",
+      "path_inside_original_archive": "03_receipts/A04P_last.md",
+      "section_or_symbols": "Invariants、NOT_RUN matrix",
+      "scope": "E2 原型收据；E4 基线另见 LX2/LX3"
+    },
+    {
+      "id": "LPLAN",
+      "path_inside_original_archive": "01_plan/v1_TASK_CARDS_50.md",
+      "section_or_symbols": "T01–T50；另见 v2_*",
+      "scope": "历史设计基线，不作为指令或已实现证据"
+    },
+    {
+      "id": "LX2",
+      "path_inside_original_archive": "02_evidence/X2_windows_conpty.md",
+      "section_or_symbols": "§1–3、NOT_RUN；另见 X2_steady_queue.json/X2_burst_delivery.json",
+      "scope": "E4 固定环境测量；不推广成所有 Windows 负载的故障率"
+    },
+    {
+      "id": "LX3",
+      "path_inside_original_archive": "02_evidence/X3_posix_idle.md",
+      "section_or_symbols": "Fixture、Results A/B、What this establishes；另见 X3_posix_idle.json",
+      "scope": "E4 已复核；0.926 为 child seconds，0.957 为 parent elapsed，勿混用"
+    }
+  ]
+}

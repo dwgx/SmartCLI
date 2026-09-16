@@ -1,0 +1,16 @@
+.F...
+======================================================================
+FAIL: test_accounted_payload_never_exceeds_the_high_water_mark (__main__.WinptyBacklog.test_accounted_payload_never_exceeds_the_high_water_mark)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v3-runs\A04\validation2\repo\tests\test_a04_winpty_backlog.py", line 97, in test_accounted_payload_never_exceeds_the_high_water_mark
+    self.assertLessEqual(peak, backend.QUEUE_PAYLOAD_HIGH + 64,
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         f"reader overran its budget (peak {peak})")
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 4096 not less than or equal to 320 : reader overran its budget (peak 4096)
+
+----------------------------------------------------------------------
+Ran 5 tests in 1.044s
+
+FAILED (failures=1)

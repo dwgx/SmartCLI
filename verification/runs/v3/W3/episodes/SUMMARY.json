@@ -1,0 +1,148 @@
+{
+ "benchmark": "W3 minimal benchmark (judge.py), track U strict-UI",
+ "model_id": "deepseek-v4.1-flash:max (omp backend, dispatched)",
+ "budget": {
+  "episodes": 3,
+  "wall_clock_minutes": 45,
+  "usd": 0
+ },
+ "runtime_under_test": "D:\\Project\\SmartCLI\\smartcli_core v0.3.2 (imported, not edited)",
+ "driver": "smartcli_core.PtySession directly (WinptyBackend/ConPTY); the drive-tui CLI is not installed on this box (`where drive-tui` -> nothing)",
+ "pty_concurrency": "episodes run SEQUENTIALLY, one PTY at a time, each session closed before the next",
+ "judge_selftest": {
+  "ok": true,
+  "controls": 10,
+  "escaped": [],
+  "wrong_rule": []
+ },
+ "judge_negative_controls_on_this_work": {
+  "fabricated_completion_b1": {
+   "ok": false,
+   "code": "false_completion"
+  },
+  "b1_with_in_track_file_read": {
+   "ok": false,
+   "code": "track_violation"
+  }
+ },
+ "episodes": [
+  {
+   "run_id": "b1_edit_in_editor_20260916",
+   "task": "B1_edit_in_editor",
+   "track": "U",
+   "seed": 20260916,
+   "model_id": "deepseek-v4.1-flash:max (omp backend, dispatched)",
+   "result_json": "episodes\\b1_edit_in_editor_20260916\\result.json",
+   "actions": [
+    "keys",
+    "snapshot",
+    "text",
+    "wait"
+   ],
+   "action_counts": {
+    "keys": 5,
+    "snapshot": 2,
+    "text": 3,
+    "wait": 6
+   },
+   "claimed_complete": true,
+   "completion_basis": "child_exit_observed",
+   "verdict": {
+    "ok": true,
+    "code": "judged_pass",
+    "counts_as": "pass"
+   },
+   "reject_code": null,
+   "wall_clock_s": 0.75,
+   "observations": 6,
+   "fixture_state": {
+    "file_lines": 3,
+    "contains": "third line from an agent"
+   },
+   "child_exit": true
+  },
+  {
+   "run_id": "b2_confirm_prompt_20260916",
+   "task": "B2_confirm_prompt",
+   "track": "U",
+   "seed": 20260916,
+   "model_id": "deepseek-v4.1-flash:max (omp backend, dispatched)",
+   "result_json": "episodes\\b2_confirm_prompt_20260916\\result.json",
+   "actions": [
+    "keys",
+    "snapshot",
+    "text",
+    "wait"
+   ],
+   "action_counts": {
+    "keys": 1,
+    "snapshot": 1,
+    "text": 1,
+    "wait": 3
+   },
+   "claimed_complete": true,
+   "completion_basis": "child_exit_observed",
+   "verdict": {
+    "ok": true,
+    "code": "judged_pass",
+    "counts_as": "pass"
+   },
+   "reject_code": null,
+   "wall_clock_s": 0.16,
+   "observations": 3,
+   "fixture_state": {
+    "answer": "y",
+    "file_written": true
+   },
+   "child_exit": true
+  },
+  {
+   "run_id": "b3_navigate_menu_20260916",
+   "task": "B3_navigate_menu",
+   "track": "U",
+   "seed": 20260916,
+   "model_id": "deepseek-v4.1-flash:max (omp backend, dispatched)",
+   "result_json": "episodes\\b3_navigate_menu_20260916\\result.json",
+   "actions": [
+    "keys",
+    "snapshot",
+    "wait"
+   ],
+   "action_counts": {
+    "keys": 2,
+    "snapshot": 1,
+    "wait": 4
+   },
+   "claimed_complete": true,
+   "completion_basis": "child_exit_observed",
+   "verdict": {
+    "ok": true,
+    "code": "judged_pass",
+    "counts_as": "pass"
+   },
+   "reject_code": null,
+   "wall_clock_s": 0.23,
+   "observations": 4,
+   "fixture_state": {
+    "selection": "save",
+    "exited": true
+   },
+   "child_exit": true
+  }
+ ],
+ "totals": {
+  "episodes_run": 3,
+  "pass": 3,
+  "failure": 0,
+  "rejected": 0,
+  "wall_clock_s": 1.14,
+  "observations": 13
+ },
+ "note": "fixture pre-state (the 2-line temp file / the absent target) and the ground-truth reads are recorded OUTSIDE the per-episode `actions` list: `actions` holds only what was done through the PTY during the episode, which is what track U constrains.",
+ "in_track_ground_truth_per_episode": {
+  "b1_edit_in_editor_20260916": "vim's own status line reported `[unix] 3L, 43B written` and buffer rows 0..2 read `line one` / `line two` / `third line from an agent`, so the line count and the text were both asserted by the program in-episode; the post-episode filesystem read corroborates (43 bytes, 3 lines, same order).",
+  "b2_confirm_prompt_20260916": "the fixture printed on its own stdout `ANSWER 'y'` and `WROTE episode_b2_4a28.txt bytes=28 file_written=True`; the filesystem read confirms the 28-byte file exists.",
+  "b3_navigate_menu_20260916": "the fixture printed `SELECTED: save` and `WROTE episode_b3_a65e.json bytes=130 selection=save`, and the state file it wrote records the raw keys it received (['\\u001bOB', '\\r']) plus cursor_key_form ['SS3'] -- i.e. the runtime sent the SS3 arrow form because the fixture had enabled DECCKM."
+ },
+ "artifact_note": "result.json files are exactly as written by each episode driver; nothing in them was edited after the run."
+}

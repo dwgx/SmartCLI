@@ -1,0 +1,121 @@
+{
+ "run_id": "b3_navigate_menu_20260916",
+ "task": "B3_navigate_menu",
+ "track": "U",
+ "seed": 20260916,
+ "model_id": "deepseek-v4.1-flash:max (omp backend, dispatched)",
+ "budget": {
+  "episodes": 3,
+  "wall_clock_minutes": 45,
+  "usd": 0
+ },
+ "actions": [
+  "keys",
+  "snapshot",
+  "wait"
+ ],
+ "action_counts": {
+  "keys": 2,
+  "snapshot": 1,
+  "wait": 4
+ },
+ "claimed_complete": true,
+ "completion_basis": "child_exit_observed",
+ "completion_detail": {
+  "selected_at_open": "> open",
+  "selected_after_one_down": "> save",
+  "program_reported_selection": true,
+  "program_reported_bye": true,
+  "child_exited": true
+ },
+ "fixture_state": {
+  "selection": "save",
+  "exited": true,
+  "state_file": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes\\b3_navigate_menu_20260916\\episode_b3_a65e.json",
+  "state_file_written": true,
+  "program_keys_received": [
+   "\u001bOB",
+   "\r"
+  ],
+  "program_cursor_key_form": [
+   "SS3"
+  ],
+  "child_exitstatus": 0
+ },
+ "fixture_state_source": "program's own PTY output (in-episode) for the claim; the program's own state file (written by it) plus the runtime's exit observation for fixture_state",
+ "setup": [
+  {
+   "what": "fixture program",
+   "path": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes\\b3_navigate_menu_20260916\\menu_fixture.py",
+   "sha256": "f505cdffa9d51a547de7f747aa31b7c0410949cccd70c86f16bc616c3d943680",
+   "outside_pty": true
+  },
+  {
+   "what": "program state file absent before the episode",
+   "path": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes\\b3_navigate_menu_20260916\\episode_b3_a65e.json",
+   "exists": false,
+   "outside_pty": true
+  }
+ ],
+ "session": {
+  "driver": "smartcli_core.PtySession directly (no drive-tui CLI on this box)",
+  "argv": [
+   "D:\\Software\\Developer\\Python314\\python.exe",
+   "-B",
+   "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes\\b3_navigate_menu_20260916\\menu_fixture.py",
+   "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes\\b3_navigate_menu_20260916\\episode_b3_a65e.json"
+  ],
+  "cols": 90,
+  "rows": 24,
+  "observations": 4,
+  "wall_clock_s": 0.23,
+  "cancel": false,
+  "cleanup": "PtySession.close() after the child had already exited",
+  "process_exited": true,
+  "exit_observed_by": "backend.is_alive() False after pumping to EOF",
+  "exit_evidence": {
+   "exited": true,
+   "observation": "backend.is_alive() False after pumping to EOF",
+   "alive_after_wait": false,
+   "waited_s": 0.0,
+   "backend_eof_latched": false,
+   "child_exitstatus": 0
+  },
+  "close_state": "closed_confirmed",
+  "close_observed": "backend close_state()={'close_requested': True, 'closing': False, 'closed_confirmed': True, 'close_unconfirmed': False, 'output_eof': False, 'last_progress': 'terminate(force=True) returned', 'generation': 1, 'basis_origin': 'runtime'}",
+  "close_state_detail": {
+   "close_requested": true,
+   "closing": false,
+   "closed_confirmed": true,
+   "close_unconfirmed": false,
+   "output_eof": false,
+   "last_progress": "terminate(force=True) returned",
+   "generation": 1,
+   "basis_origin": "runtime"
+  }
+ },
+ "observations": [
+  {
+   "step": "menu drawn, selection on the first item",
+   "reason": "MARKER",
+   "selected": "> open",
+   "screen": "[screen 24x90] cursor=r5c0  cursor:hidden  selected=r1[0:20]\"> open\"(reverse_or_bg)\n  0 | SELECT an action (arrow keys, Enter):\n  1*| > open\n  2 |    save\n  3 |    quit\n  4 | selected_index=0"
+  },
+  {
+   "step": "Down moved the selection bar",
+   "reason": "visual_change=True",
+   "selected": "> save",
+   "screen": "[screen 24x90] cursor=r5c0  cursor:hidden  selected=r2[0:20]\"> save\"(reverse_or_bg)\n  0 | SELECT an action (arrow keys, Enter):\n  1 |    open\n  2*| > save\n  3 |    quit\n  4 | selected_index=1"
+  },
+  {
+   "step": "Enter picked save; program reported and exited",
+   "reason": "MARKER",
+   "screen": "[screen 24x90] cursor=r5c0  selected=r5[0:90]\"\"(cursor_line)\n  0 | KEYS_RECEIVED ['\\x1bOB', '\\r']\n  1 | CURSOR_KEY_FORM ['SS3']\n  2 | SELECTED: save\n  3 | WROTE episode_b3_a65e.json bytes=130 selection=save\n  4 | BYE"
+  },
+  {
+   "step": "after exit",
+   "reason": "exit poll",
+   "screen": "[screen 24x90] cursor=r5c0  selected=r5[0:90]\"\"(cursor_line)\n  0 | KEYS_RECEIVED ['\\x1bOB', '\\r']\n  1 | CURSOR_KEY_FORM ['SS3']\n  2 | SELECTED: save\n  3 | WROTE episode_b3_a65e.json bytes=130 selection=save\n  4 | BYE"
+  }
+ ]
+}

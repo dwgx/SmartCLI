@@ -1,0 +1,105 @@
+{
+  "schema_version": 2,
+  "task": "T04",
+  "status": "IMPLEMENTED",
+  "note": "Replaced the per-chunk colon regex with a streaming byte filter: sequence state survives feed() boundaries, only genuine CSI ... m is rewritten, OSC/DCS payloads are never rewritten, and an unterminated CSI is bounded at 1024 bytes then abandoned (discard-until-final) instead of being drawn.",
+  "evidence_scope": {
+    "environment": "Windows 11 / CPython 3.14.7 / pyte 0.8.2",
+    "io_mode": "pure in-memory (E3)",
+    "native_pty": "NOT_RUN"
+  },
+  "changed_files": [
+    {
+      "path": "smartcli_core/screen_model.py",
+      "sha256": "242ba3836290a910789cdf84471072973aed66417d234a42663b52d158e81cd7"
+    },
+    {
+      "path": "skills/drive-tui/_vendor/smartcli_core/screen_model.py",
+      "sha256": "242ba3836290a910789cdf84471072973aed66417d234a42663b52d158e81cd7"
+    },
+    {
+      "path": "tests/test_sgr_stream_regression.py",
+      "sha256": "eb9ce2acb20bd555e544158eb34d50553627df729cb161552de5fa7765ccefb3"
+    }
+  ],
+  "first_results": [
+    {
+      "command": "D:\\Software\\Developer\\Python314\\python.exe -B tests/test_sgr_stream_regression.py",
+      "exit": 0,
+      "detail": "Ran 22 tests, OK"
+    },
+    {
+      "command": "D:\\Software\\Developer\\Python314\\python.exe -B tests/test_cell_span_regression.py",
+      "exit": 0,
+      "detail": "Ran 18 tests, OK"
+    },
+    {
+      "command": "D:\\Software\\Developer\\Python314\\python.exe -B tools/sync_vendor.py --check",
+      "exit": 0
+    },
+    {
+      "command": "D:\\Software\\Developer\\Python314\\python.exe -B tests/test_vendor_sync.py",
+      "exit": 0
+    },
+    {
+      "command": "D:\\Software\\Developer\\Python314\\python.exe -B tests/test_terminal_fidelity.py",
+      "exit": 0
+    },
+    {
+      "command": "conformance.py --case sgr --consent-execute-reviewed-code",
+      "exit": 0,
+      "detail": "109 partitions, 7 vectors, 0 mismatches; oracle RGB ff0080 / underline true / italic false"
+    }
+  ],
+  "mutation_cycle": {
+    "old_red": "stage1-original-red.log: FAILED (failures=10, errors=1) incl. fg 00ff00 != ff0080 and italics True",
+    "candidate_green": "stage2-candidate-green.log: Ran 22 tests, OK",
+    "bug_restored_red": "stage3-mutated-red.log: FAILED (failures=10, errors=1)",
+    "candidate_restored_green": "stage4-restored-green.log: Ran 22 tests, OK",
+    "unchanged_test_sha256": "eb9ce2acb20bd555e544158eb34d50553627df729cb161552de5fa7765ccefb3",
+    "isolation": "RUN/T04/validation/repo (copy; live tree untouched)",
+    "mutation": "screen_model.py:_ByteStream -> the old chunk-local _SGR_COLON.sub path",
+    "note": "the one ERROR is the white-box _csi bound assertion on a class that no longer has it"
+  },
+  "preserved": [
+    "ordinary CSI/SGR/OSC",
+    "incremental UTF-8",
+    "title/cursor/modes/alt-buffer",
+    "CPR replies",
+    "pyte capability checks",
+    "interleave",
+    "resize_deferral",
+    "vendor_sync",
+    "packaging_paths"
+  ],
+  "controls": [
+    "plain SGR",
+    "CSI cursor move",
+    "OSC title",
+    "ESC 7",
+    "plain text",
+    "alt-screen toggles",
+    "empty chunk",
+    "EOF between chunks",
+    "OSC/DCS lookalikes",
+    "UTF-8 continuation byte 0x9b",
+    "oversized CSI recovery"
+  ],
+  "not_run": [
+    {
+      "scope": "native_pty",
+      "reason": "NOT_REQUIRED_FOR_THIS_MEMORY_INCREMENT"
+    },
+    {
+      "scope": "competitor_runtime",
+      "reason": "NOT_RUN"
+    },
+    {
+      "scope": "run_all.py",
+      "reason": "heavy suites; memory gates run individually"
+    }
+  ],
+  "commit": "NOT_CREATED",
+  "push": "NOT_REQUESTED",
+  "next_task": "T03"
+}

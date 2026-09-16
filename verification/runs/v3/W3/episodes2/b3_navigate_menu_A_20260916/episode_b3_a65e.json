@@ -1,0 +1,9 @@
+{
+ "selection": "save",
+ "exited": true,
+ "channel": "control_socket",
+ "presses_received": [
+  "down",
+  "enter"
+ ]
+}

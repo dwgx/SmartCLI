@@ -1,0 +1,28 @@
+..E...F
+======================================================================
+ERROR: test_daemon_close_reports_the_state (__main__.CloseProtocol.test_daemon_close_reports_the_state)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v3-runs\A04\validation2\repo\tests\test_a04_close_state.py", line 152, in test_daemon_close_reports_the_state
+    spec.loader.exec_module(tui)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "<frozen importlib._bootstrap_external>", line 755, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 892, in get_code
+  File "<frozen importlib._bootstrap_external>", line 950, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: 'D:\\Project\\SmartCLI-v3-runs\\A04\\validation2\\repo\\skills\\drive-tui\\scripts\\tui.py'
+
+======================================================================
+FAIL: test_winpty_reports_unconfirmed_for_a_child_that_survives (__main__.CloseProtocol.test_winpty_reports_unconfirmed_for_a_child_that_survives)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Project\SmartCLI-v3-runs\A04\validation2\repo\tests\test_a04_close_state.py", line 74, in test_winpty_reports_unconfirmed_for_a_child_that_survives
+    self.assertFalse(state["closed_confirmed"],
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                     "a returned native call must never be reported as a confirmed exit")
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: True is not false : a returned native call must never be reported as a confirmed exit
+
+----------------------------------------------------------------------
+Ran 7 tests in 1.016s
+
+FAILED (failures=1, errors=1)

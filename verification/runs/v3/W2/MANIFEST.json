@@ -1,0 +1,13 @@
+{
+ "package": "W2 credible-evidence verifier (offline; no product files)",
+ "generated": "2026-09-16",
+ "role": "Rejects evidence bundles that claim more than their fields support",
+ "files": {
+  "credible_fixtures.py": "a3f2e23511152b143f1e04356954b5516810c53e0460057f38ea2ae8ca5eb065",
+  "test_credible_evidence.py": "4ccd8cf77caae968bcef6263f62377bb2eec9c7a29c9eefe7605e74251cbebe6",
+  "verify_evidence.py": "8bb1e7df9dca230f53718b181f04314539bc54f6dccecdf6363a5a3ffc1508e6"
+ },
+ "reject_rules": 8,
+ "negative_controls": 16,
+ "note": "test_conformance_contract.py and the conformance.py profile extension were NOT built in this round; the verifier is the piece the standard depends on"
+}

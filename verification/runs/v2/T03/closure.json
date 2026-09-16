@@ -1,0 +1,97 @@
+{
+  "schema_version": 2,
+  "task": "T03",
+  "status": "IMPLEMENTED_INJECTED_AND_REAL_PTY",
+  "note": "PosixPtyBackend.write keeps the old write(data)->None contract and now only returns once every byte has been accepted; otherwise it raises IncompleteWrite (an OSError subclass) carrying written_bytes/total_bytes/reason.",
+  "evidence_scope": {
+    "environment": "Windows 11 / CPython 3.14.7",
+    "io_mode": "E3 + injected os.write/select/time, plus E4 on a real POSIX pty (python:3.13-slim container, one pty.fork session)",
+    "native_pty": "PASS_LIBRARY_LEVEL"
+  },
+  "changed_files": [
+    {
+      "path": "smartcli_core/pty_backend.py",
+      "sha256": "93bb587ddfd69f3dd739cc83a78651021eb8f5e0963729fcb406c59ba8edac2a"
+    },
+    {
+      "path": "skills/drive-tui/_vendor/smartcli_core/pty_backend.py",
+      "sha256": "93bb587ddfd69f3dd739cc83a78651021eb8f5e0963729fcb406c59ba8edac2a"
+    },
+    {
+      "path": "tests/test_partial_write_regression.py",
+      "sha256": "d7e9d14772d5afb6e7d2d2e4cc4bb3591459bfd4672faaaf0bdd6f13f3f4739b"
+    },
+    {
+      "path": "tests/run_all.py",
+      "sha256": "64031224339397123dbc8b6ada3df3e08ab07b62d4d1f4e69b1665d411d33d43",
+      "why": "registration of the new gate"
+    }
+  ],
+  "first_results": [
+    {
+      "command": "D:\\Software\\Developer\\Python314\\python.exe -B tests/test_partial_write_regression.py",
+      "exit": 0,
+      "detail": "Ran 12 tests, OK"
+    },
+    {
+      "command": "conformance.py --case input --consent-execute-reviewed-code",
+      "exit": 0,
+      "detail": "14/14 bytes, sha256 match, calls=5 waits=1 (was 2/14, calls=1)"
+    },
+    {
+      "command": "D:\\Software\\Developer\\Python314\\python.exe -B tools/sync_vendor.py --check",
+      "exit": 0
+    },
+    {
+      "command": "python /runs/T03/posix/test_posix_write.py --repo /repo  (in python:3.13-slim, real pty)",
+      "exit": 0,
+      "detail": "262144 B in one write() call, child sha256 match, 44 writability waits, 3 ms; the mutated old component delivered nothing and returned success in 0 ms with 0 waits"
+    }
+  ],
+  "mutation_cycle": {
+    "old_red": "stage1-original-red.log: FAILED (failures=10) incl. b'A\\xe4' != full 14-byte payload (2 bytes delivered, call reported success)",
+    "candidate_green": "stage2-candidate-green.log: Ran 12 tests, OK",
+    "bug_restored_red": "stage3-mutated-red.log: FAILED (failures=10)",
+    "candidate_restored_green": "stage4-restored-green.log: Ran 12 tests, OK",
+    "unchanged_test_sha256": "d7e9d14772d5afb6e7d2d2e4cc4bb3591459bfd4672faaaf0bdd6f13f3f4739b",
+    "isolation": "RUN/T03/validation/repo (copy; live tree untouched)",
+    "mutation": "pty_backend.py: bounded write loop -> single os.write with the return value discarded",
+    "harness_note": "the first mutation attempt matched the ABSTRACT write() signature and was caught by its own post-conditions; anchors were hardened"
+  },
+  "preserved": [
+    "write(data)->None success semantics",
+    "OSError family for transport failures",
+    "no re-send of already-written bytes",
+    "vendor_sync",
+    "packaging_paths",
+    "interleave",
+    "resize_deferral"
+  ],
+  "controls": [
+    "short writes",
+    "EAGAIN",
+    "EINTR",
+    "zero progress",
+    "deadline (fake clock)",
+    "partial then EPIPE",
+    "EBADF",
+    "empty payload",
+    "repeat after failure",
+    "completion not undone by a later deadline",
+    "write before spawn"
+  ],
+  "not_run": [
+    {
+      "scope": "daemon_level_posix_end_to_end",
+      "reason": "NOT_RUN (needs the A04 idle-service change; not authorized)"
+    },
+    {
+      "scope": "windows_conpty_byte_exact",
+      "reason": "IMPOSSIBLE_BY_MEASUREMENT (see X2/last.md: ConPTY composes the stream)"
+    }
+  ],
+  "claim": "Library fault handling verified on a real POSIX pty (byte-exact for one 256 KiB write); daemon-level and Windows parity remain open",
+  "commit": "NOT_CREATED",
+  "push": "NOT_REQUESTED",
+  "next_task": "A04 prototype (design only)"
+}

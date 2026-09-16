@@ -1,0 +1,57 @@
+{
+ "case": "N1-posix-no-service",
+ "start_rc": 0,
+ "start": {
+  "ok": true,
+  "sid": "n1-no-service-1"
+ },
+ "start_stderr": "",
+ "child_before_first_request": {
+  "cpr_answered": false,
+  "cpr_wait_s": null,
+  "written": 0,
+  "done": false,
+  "cpr_reply": "",
+  "seconds": 0.0
+ },
+ "child_after_first_request": {
+  "cpr_answered": true,
+  "cpr_wait_s": 2.749,
+  "written": 12288,
+  "done": false,
+  "cpr_reply": "\u001b[1;1R",
+  "seconds": 2.751
+ },
+ "child_final": {
+  "cpr_answered": true,
+  "cpr_wait_s": 2.749,
+  "written": 12288,
+  "done": false,
+  "cpr_reply": "\u001b[1;1R",
+  "seconds": 2.751
+ },
+ "io_block": {
+  "generation": 1,
+  "read_offset": 4,
+  "fed_offset": 4,
+  "pending": {
+   "known_payload_bytes": null,
+   "readable_now": true,
+   "parser_incomplete": false,
+   "reply_bytes": 0,
+   "upstream": null
+  },
+  "local_cut": "unknown",
+  "representation": "posix_pty_stream",
+  "stream_error": null,
+  "basis_origin": "runtime"
+ },
+ "snapshot_ok": "n/a (snapshot --json prints the Snapshot)",
+ "daemon_finished_the_fixture_unpumped": false,
+ "no_request_outcome": {
+  "cpr_answered_before_contact": false,
+  "written_before_contact": 0,
+  "done_before_contact": false
+ },
+ "closed": true
+}

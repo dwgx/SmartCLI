@@ -1,0 +1,110 @@
+{
+ "run_id": "b2_confirm_prompt_20260916",
+ "task": "B2_confirm_prompt",
+ "track": "U",
+ "seed": 20260916,
+ "model_id": "deepseek-v4.1-flash:max (omp backend, dispatched)",
+ "budget": {
+  "episodes": 3,
+  "wall_clock_minutes": 45,
+  "usd": 0
+ },
+ "actions": [
+  "keys",
+  "snapshot",
+  "text",
+  "wait"
+ ],
+ "action_counts": {
+  "keys": 1,
+  "snapshot": 1,
+  "text": 1,
+  "wait": 3
+ },
+ "claimed_complete": true,
+ "completion_basis": "child_exit_observed",
+ "completion_detail": {
+  "answer_echoed_by_program": "y",
+  "program_reported_write": true,
+  "program_reported_bye": true,
+  "child_exited": true
+ },
+ "fixture_state": {
+  "answer": "y",
+  "file_written": true,
+  "target": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes\\b2_confirm_prompt_20260916\\episode_b2_4a28.txt",
+  "bytes": 28,
+  "content": "written after confirmation\n",
+  "fixture_program": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes\\b2_confirm_prompt_20260916\\confirm_fixture.py",
+  "fixture_sha256": "a881ebc6493819cea8c999e8d9d7c47bb61e2106ee414d5f677dfbed68e5613e"
+ },
+ "fixture_state_source": "program's own PTY output (in-episode) for the answer; post-episode filesystem read after the PTY was closed for file_written",
+ "setup": [
+  {
+   "what": "fixture program",
+   "path": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes\\b2_confirm_prompt_20260916\\confirm_fixture.py",
+   "sha256": "a881ebc6493819cea8c999e8d9d7c47bb61e2106ee414d5f677dfbed68e5613e",
+   "outside_pty": true
+  },
+  {
+   "what": "target file absent before the episode",
+   "path": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes\\b2_confirm_prompt_20260916\\episode_b2_4a28.txt",
+   "exists": false,
+   "outside_pty": true
+  }
+ ],
+ "session": {
+  "driver": "smartcli_core.PtySession directly (no drive-tui CLI on this box)",
+  "argv": [
+   "D:\\Software\\Developer\\Python314\\python.exe",
+   "-B",
+   "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes\\b2_confirm_prompt_20260916\\confirm_fixture.py",
+   "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes\\b2_confirm_prompt_20260916\\episode_b2_4a28.txt"
+  ],
+  "cols": 90,
+  "rows": 24,
+  "observations": 3,
+  "wall_clock_s": 0.16,
+  "cancel": false,
+  "cleanup": "PtySession.close() after the child had already exited",
+  "process_exited": true,
+  "exit_observed_by": "backend.is_alive() False after pumping to EOF",
+  "exit_evidence": {
+   "exited": true,
+   "observation": "backend.is_alive() False after pumping to EOF",
+   "alive_after_wait": false,
+   "waited_s": 0.0,
+   "backend_eof_latched": false,
+   "child_exitstatus": 0
+  },
+  "close_state": "closed_confirmed",
+  "close_observed": "backend close_state()={'close_requested': True, 'closing': False, 'closed_confirmed': True, 'close_unconfirmed': False, 'output_eof': False, 'last_progress': 'terminate(force=True) returned', 'generation': 1, 'basis_origin': 'runtime'}",
+  "close_state_detail": {
+   "close_requested": true,
+   "closing": false,
+   "closed_confirmed": true,
+   "close_unconfirmed": false,
+   "output_eof": false,
+   "last_progress": "terminate(force=True) returned",
+   "generation": 1,
+   "basis_origin": "runtime"
+  }
+ },
+ "observations": [
+  {
+   "step": "confirmation prompt on screen",
+   "reason": "MARKER",
+   "screen": "[screen 24x90] cursor=r0c37  selected=r0[0:90]\"Overwrite episode_b2_4a28.txt? [y/N]\"(cursor_line)\n  0 | Overwrite episode_b2_4a28.txt? [y/N]"
+  },
+  {
+   "step": "program answered and reported its own write",
+   "reason": "MARKER",
+   "screen": "[screen 24x90] cursor=r4c0  selected=r4[0:90]\"\"(cursor_line)\n  0 | Overwrite episode_b2_4a28.txt? [y/N] y\n  1 | ANSWER 'y'\n  2 | WROTE episode_b2_4a28.txt bytes=28 file_written=True\n  3 | BYE"
+  },
+  {
+   "step": "program exited",
+   "reason": "exit poll",
+   "screen": "[screen 24x90] cursor=r4c0  selected=r4[0:90]\"\"(cursor_line)\n  0 | Overwrite episode_b2_4a28.txt? [y/N] y\n  1 | ANSWER 'y'\n  2 | WROTE episode_b2_4a28.txt bytes=28 file_written=True\n  3 | BYE"
+  }
+ ]
+}

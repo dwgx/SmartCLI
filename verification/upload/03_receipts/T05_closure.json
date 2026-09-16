@@ -1,0 +1,118 @@
+{
+  "schema_version": 2,
+  "task": "T05",
+  "status": "ACCEPTED_EXISTING_AND_COMPLETED",
+  "accepted_existing": true,
+  "note": "The cell-span fix was delivered by an earlier worker (claude-sonnet-5 session 94a696e9) and reviewed by this session; the test file was split into the two task-scoped files the v2 ORDER requires and the control groups were extended.",
+  "evidence_scope": {
+    "environment": "Windows 11 / CPython 3.14.7 / pyte 0.8.2",
+    "io_mode": "pure in-memory (E3)",
+    "native_pty": "NOT_RUN"
+  },
+  "changed_files": [
+    {
+      "path": "smartcli_core/snapshot.py",
+      "sha256": "3b6e10af2018c8547ee0d2ce6adec64eb4d759ede83421936c3cc3605b10746f"
+    },
+    {
+      "path": "skills/drive-tui/_vendor/smartcli_core/snapshot.py",
+      "sha256": "3b6e10af2018c8547ee0d2ce6adec64eb4d759ede83421936c3cc3605b10746f"
+    },
+    {
+      "path": "tests/test_cell_span_regression.py",
+      "sha256": "0074e5994f51cd20f3cae085e265a2646bffa3d110eb2f66ddaa4eb595a3a284"
+    },
+    {
+      "path": "tests/run_all.py",
+      "sha256": "64031224339397123dbc8b6ada3df3e08ab07b62d4d1f4e69b1665d411d33d43",
+      "why": "registration line split into two task-scoped entries"
+    },
+    {
+      "path": "tests/test_cell_span_and_split_sgr.py",
+      "sha256": null,
+      "why": "superseded; archived to RUN/T05/superseded/ (content moved into the two v2-named files)"
+    }
+  ],
+  "first_results": [
+    {
+      "command": "D:\\Software\\Developer\\Python314\\python.exe -B tests/test_cell_span_regression.py",
+      "exit": 0,
+      "detail": "Ran 18 tests, OK"
+    },
+    {
+      "command": "D:\\Software\\Developer\\Python314\\python.exe -B tests/test_sgr_stream_regression.py",
+      "exit": 0,
+      "detail": "Ran 22 tests, OK"
+    },
+    {
+      "command": "D:\\Software\\Developer\\Python314\\python.exe -B tools/sync_vendor.py --check",
+      "exit": 0,
+      "detail": "vendor in sync"
+    },
+    {
+      "command": "D:\\Software\\Developer\\Python314\\python.exe -B tests/test_vendor_sync.py",
+      "exit": 0
+    },
+    {
+      "command": "D:\\Software\\Developer\\Python314\\python.exe -B tests/test_terminal_fidelity.py",
+      "exit": 0
+    },
+    {
+      "command": "conformance.py --case screen --consent-execute-reviewed-code",
+      "exit": 0,
+      "detail": "expected 保存, actual 保存, span [0,15,19]"
+    }
+  ],
+  "mutation_cycle": {
+    "old_red": "stage1-original-red.log: FAILED (failures=12) incl. '3' != '保存'",
+    "candidate_green": "stage2-candidate-green.log: Ran 18 tests, OK",
+    "bug_restored_red": "stage3-mutated-red.log: FAILED (failures=12)",
+    "candidate_restored_green": "stage4-restored-green.log: Ran 18 tests, OK",
+    "unchanged_test_sha256": "0074e5994f51cd20f3cae085e265a2646bffa3d110eb2f66ddaa4eb595a3a284",
+    "isolation": "RUN/T05/validation/repo (copy; the live tree was never reset/reverted)",
+    "mutation": "smartcli_core/snapshot.py: cell aggregation -> display[y][a:b]"
+  },
+  "preserved": [
+    "span half-open coordinates",
+    "label .strip() behaviour",
+    "body text",
+    "JSON fields",
+    "ASCII results",
+    "widest-highlight heuristic",
+    "cursor/status hints",
+    "interleave",
+    "resize_deferral",
+    "vendor_sync",
+    "packaging_paths"
+  ],
+  "controls": [
+    "ASCII menu",
+    "CJK prefix + ASCII label",
+    "Japanese prefix",
+    "fullwidth digits",
+    "emoji prefix",
+    "ZWJ emoji",
+    "variation selector",
+    "combining mark",
+    "4-byte UTF-8 with a 0x9b continuation byte",
+    "wide at column 0 with trailing text",
+    "span to the last column",
+    "label whitespace",
+    "repeated labels",
+    "cursor-line fallback",
+    "body text not column-sliced"
+  ],
+  "not_run": [
+    {
+      "scope": "native_pty",
+      "reason": "NOT_REQUIRED_FOR_THIS_MEMORY_INCREMENT"
+    },
+    {
+      "scope": "run_all.py",
+      "reason": "the aggregator runs the heavy PTY/effect suites; its memory gates were run individually"
+    }
+  ],
+  "commit": "NOT_CREATED",
+  "push": "NOT_REQUESTED",
+  "next_task": "T04"
+}

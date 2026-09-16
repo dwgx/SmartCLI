@@ -1,0 +1,153 @@
+{
+ "run_id": "posix_b1_edit_in_editor_20260916",
+ "task": "B1_edit_in_editor",
+ "track": "U",
+ "seed": 20260916,
+ "model_id": "deepseek-v4.1-flash:max (omp backend, dispatched)",
+ "budget": {
+  "episodes": 9,
+  "wall_clock_minutes": 60,
+  "usd": 0
+ },
+ "transport": "posix-pty (PosixPtyBackend, Linux/Docker) -- strict UI",
+ "actions": [
+  "keys",
+  "snapshot",
+  "text",
+  "wait"
+ ],
+ "action_counts": {
+  "keys": 5,
+  "snapshot": 2,
+  "text": 3,
+  "wait": 6
+ },
+ "claimed_complete": true,
+ "completion_basis": "child_exit_observed",
+ "completion_detail": {
+  "in_episode_check": {
+   "file_lines": 3,
+   "contains": "third line from an agent",
+   "target": "/w3/episodes2/posix_b1_edit_in_editor_20260916/episode_b1_65f9.txt",
+   "bytes": 43,
+   "lines": [
+    "line one",
+    "line two",
+    "third line from an agent"
+   ],
+   "in_episode_buffer_rows": [
+    0,
+    1,
+    2
+   ],
+   "in_episode_buffer_ordered": true,
+   "editor_reported_write": true
+  }
+ },
+ "fixture_state": {
+  "file_lines": 3,
+  "contains": "third line from an agent",
+  "target": "/w3/episodes2/posix_b1_edit_in_editor_20260916/episode_b1_65f9.txt",
+  "bytes": 43,
+  "lines": [
+   "line one",
+   "line two",
+   "third line from an agent"
+  ],
+  "in_episode_buffer_rows": [
+   0,
+   1,
+   2
+  ],
+  "in_episode_buffer_ordered": true,
+  "editor_reported_write": true
+ },
+ "fixture_state_source": "filesystem read after the PTY was closed; the in-episode evidence is what vim painted (buffer rows + status line)",
+ "ui_claim": true,
+ "track_note": "strict UI (track U) over the POSIX transport (E6)",
+ "setup": [
+  {
+   "what": "fixture pre-state (seeded 2-line file, written outside the PTY)",
+   "path": "/w3/episodes2/posix_b1_edit_in_editor_20260916/episode_b1_65f9.txt",
+   "bytes": 18,
+   "sha256": "e9024f1a07d29d52ad3aa5e1a18e94db1f3a9fd32b89e39d47c472cd99071e13",
+   "content": "line one\nline two\n",
+   "outside_pty": true
+  },
+  {
+   "what": "editor binary",
+   "path": "/usr/bin/vim",
+   "outside_pty": true
+  }
+ ],
+ "session": {
+  "driver": "smartcli_core.PtySession (PosixPtyBackend, Linux container)",
+  "argv": [
+   "/usr/bin/vim",
+   "-u",
+   "NONE",
+   "-N",
+   "/w3/episodes2/posix_b1_edit_in_editor_20260916/episode_b1_65f9.txt"
+  ],
+  "cols": 100,
+  "rows": 30,
+  "cancel": false,
+  "process_exited": true,
+  "exit_observed_by": "backend.is_alive() False after pumping to EOF",
+  "exit_evidence": {
+   "exited": true,
+   "observation": "backend.is_alive() False after pumping to EOF",
+   "alive_after_wait": false,
+   "waited_s": 0.05,
+   "backend_eof_latched": true,
+   "child_exitstatus": null,
+   "backend_pid": 136
+  },
+  "close_state": "closed_confirmed",
+  "close_observed": "backend close_state()={'close_requested': True, 'closing': False, 'closed_confirmed': True, 'close_unconfirmed': False, 'output_eof': True, 'last_progress': 'reaped after SIGTERM', 'generation': 1, 'basis_origin': 'runtime'}",
+  "close_state_detail": {
+   "close_requested": true,
+   "closing": false,
+   "closed_confirmed": true,
+   "close_unconfirmed": false,
+   "output_eof": true,
+   "last_progress": "reaped after SIGTERM",
+   "generation": 1,
+   "basis_origin": "runtime"
+  },
+  "observations": 6,
+  "wall_clock_s": 0.71
+ },
+ "observations": [
+  {
+   "step": "vim opened the fixture file",
+   "reason": "MARKER",
+   "screen": "[screen 30x100] cursor=r0c0  selected=r2[0:100]\"~\"(reverse_or_bg)  status=\"\"/w3/episodes2/posix_b1_edit_in_editor_20260916/episode_b1_65f9.txt\" 2L, 18B\"\n  0 | line one\n  1 | line two\n  2*| ~\n  3*| ~\n  4*| ~\n  5*| ~\n  6*| ~\n  7*| ~\n  8*| ~\n  9*| ~\n 10*| ~\n 11*| ~\n 12*| ~\n 13*| ~\n 14*| ~\n 15*| ~\n 16*| ~\n 17*| ~\n 18*| ~\n 19*| ~\n 20*| ~\n 21*| ~\n 22*| ~\n 23*| ~\n 24*| ~\n 25*| ~\n 26*| ~\n 27*| ~\n 28*| ~\n 29 | \"/w3/episodes2/posix_b1_edit_in_editor_20260916/episode_b1_65f9.txt\" 2L, 18B"
+  },
+  {
+   "step": "insert mode opened on a new line 3",
+   "reason": "MARKER",
+   "screen": "[screen 30x100] cursor=r2c0  selected=r3[0:100]\"~\"(reverse_or_bg)  status=\"-- INSERT --\"\n  0 | line one\n  1 | line two\n...\n  3*| ~\n  4*| ~\n  5*| ~\n  6*| ~\n  7*| ~\n  8*| ~\n  9*| ~\n 10*| ~\n 11*| ~\n 12*| ~\n 13*| ~\n 14*| ~\n 15*| ~\n 16*| ~\n 17*| ~\n 18*| ~\n 19*| ~\n 20*| ~\n 21*| ~\n 22*| ~\n 23*| ~\n 24*| ~\n 25*| ~\n 26*| ~\n 27*| ~\n 28*| ~\n 29*| -- INSERT --"
+  },
+  {
+   "step": "third line typed into the buffer",
+   "reason": "MARKER",
+   "screen": "[screen 30x100] cursor=r2c24  selected=r3[0:100]\"~\"(reverse_or_bg)  status=\"-- INSERT --\"\n  0 | line one\n  1 | line two\n  2 | third line from an agent\n  3*| ~\n  4*| ~\n  5*| ~\n  6*| ~\n  7*| ~\n  8*| ~\n  9*| ~\n 10*| ~\n 11*| ~\n 12*| ~\n 13*| ~\n 14*| ~\n 15*| ~\n 16*| ~\n 17*| ~\n 18*| ~\n 19*| ~\n 20*| ~\n 21*| ~\n 22*| ~\n 23*| ~\n 24*| ~\n 25*| ~\n 26*| ~\n 27*| ~\n 28*| ~\n 29*| -- INSERT --"
+  },
+  {
+   "step": "back to normal mode",
+   "reason": "wait_stable",
+   "screen": "[screen 30x100] cursor=r2c23  selected=r3[0:100]\"~\"(reverse_or_bg)  status=\"~\"\n  0 | line one\n  1 | line two\n  2 | third line from an agent\n  3*| ~\n  4*| ~\n  5*| ~\n  6*| ~\n  7*| ~\n  8*| ~\n  9*| ~\n 10*| ~\n 11*| ~\n 12*| ~\n 13*| ~\n 14*| ~\n 15*| ~\n 16*| ~\n 17*| ~\n 18*| ~\n 19*| ~\n 20*| ~\n 21*| ~\n 22*| ~\n 23*| ~\n 24*| ~\n 25*| ~\n 26*| ~\n 27*| ~\n 28*| ~"
+  },
+  {
+   "step": "editor reported the write",
+   "reason": "MARKER",
+   "screen": "[screen 30x100] cursor=r2c23  selected=r3[0:100]\"~\"(reverse_or_bg)  status=\"\"/w3/episodes2/posix_b1_edit_in_editor_20260916/episode_b1_65f9.txt\" 3L, 43B written\"\n  0 | line one\n  1 | line two\n  2 | third line from an agent\n  3*| ~\n  4*| ~\n  5*| ~\n  6*| ~\n  7*| ~\n  8*| ~\n  9*| ~\n 10*| ~\n 11*| ~\n 12*| ~\n 13*| ~\n 14*| ~\n 15*| ~\n 16*| ~\n 17*| ~\n 18*| ~\n 19*| ~\n 20*| ~\n 21*| ~\n 22*| ~\n 23*| ~\n 24*| ~\n 25*| ~\n 26*| ~\n 27*| ~\n 28*| ~\n 29 | \"/w3/episodes2/posix_b1_edit_in_editor_20260916/episode_b1_65f9.txt\" 3L, 43B written"
+  },
+  {
+   "step": "editor exited",
+   "screen": "[screen 30x100] cursor=r29c0  selected=r3[0:100]\"~\"(reverse_or_bg)  status=\"~\"\n  0 | line one\n  1 | line two\n  2 | third line from an agent\n  3*| ~\n  4*| ~\n  5*| ~\n  6*| ~\n  7*| ~\n  8*| ~\n  9*| ~\n 10*| ~\n 11*| ~\n 12*| ~\n 13*| ~\n 14*| ~\n 15*| ~\n 16*| ~\n 17*| ~\n 18*| ~\n 19*| ~\n 20*| ~\n 21*| ~\n 22*| ~\n 23*| ~\n 24*| ~\n 25*| ~\n 26*| ~\n 27*| ~\n 28*| ~"
+  }
+ ],
+ "wall_clock_s": 0.71
+}

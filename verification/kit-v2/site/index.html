@@ -1,0 +1,1317 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SmartCLI · v2 增量交接</title>
+<style>
+:root{--bg:#f4f3ef;--paper:#fff;--ink:#1c2932;--muted:#536574;--line:#d9dfdf;--accent:#155e62;--light:#e5f0ec;--nav:#172d35;--warn:#78541d}
+*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:24px}body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;font-size:16px;line-height:1.8}a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}button,input{font:inherit}.layout{display:grid;grid-template-columns:270px minmax(0,1fr);min-height:100vh}.sidebar{height:100vh;position:sticky;top:0;overflow:auto;background:var(--nav);padding:30px 22px;color:#ebf5f4}.brand{letter-spacing:.14em;font-size:14px;font-weight:800}.version{margin:8px 0 24px;color:#9fc2c5;font-size:13px}.sidebar nav{display:grid;gap:6px}.sidebar nav a{display:block;padding:9px 12px;border-radius:7px;color:#f2f6f5;line-height:1.5;font-size:14px}.sidebar nav a small{display:block;color:#9fc2c5;font-size:10px;letter-spacing:.1em}.sidebar nav a:hover{background:#24414a;text-decoration:none}.sidebar footer{font-size:12px;color:#aac1c5;border-top:1px solid #42606a;margin-top:24px;padding-top:16px}.main{padding:44px clamp(20px,4vw,66px);min-width:0;max-width:1460px}.eyebrow{text-transform:uppercase;letter-spacing:.14em;font-weight:750;color:var(--accent);font-size:12px}.hero h1{font-size:clamp(30px,3.8vw,54px);line-height:1.17;letter-spacing:-.03em;margin:14px 0 18px}.lede{font-size:18px;color:var(--muted);max-width:900px;margin:0 0 24px}.badges{display:flex;flex-wrap:wrap;gap:9px}.badge{font-size:12px;font-weight:650;padding:5px 11px;border-radius:30px;background:var(--light);color:var(--accent);border:1px solid #bdd2cb}.badge.warn{background:#f7ecd6;color:var(--warn);border-color:#e0cfab}.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:30px 0}.card{border:1px solid var(--line);padding:18px 21px;background:var(--paper);border-radius:10px}.card strong{display:block;font-size:23px;line-height:1.35}.card span{font-size:13px;color:var(--muted)}.searchbox{display:flex;align-items:center;gap:10px;margin:24px 0 10px}.searchbox input{width:100%;min-width:0;border:1px solid #98b0b1;background:white;border-radius:8px;padding:12px 15px;color:var(--ink)}.searchbox button{border:1px solid var(--line);border-radius:8px;background:white;padding:12px 16px;cursor:pointer;white-space:nowrap}.searchhint{font-size:12px;color:var(--muted);margin:0 0 24px}.noresults{display:none;background:#fff2df;border:1px solid #e3c996;padding:20px}.doc{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:26px clamp(18px,3vw,42px);margin:22px 0 30px;min-width:0;overflow-wrap:anywhere}.doc[hidden]{display:none}.doc-top{font-size:11px;letter-spacing:.08em;display:flex;justify-content:space-between;gap:12px;color:var(--muted);padding-bottom:12px;border-bottom:1px solid var(--line)}.doc h1{font-size:26px;line-height:1.45;margin:21px 0;color:#153d43}.doc h2{font-size:20px;line-height:1.5;margin:30px 0 12px}.doc h3{font-size:17px;margin:24px 0 10px}.doc p{margin:12px 0}.doc li{margin:7px 0}.doc blockquote{border-left:4px solid #8ab6ae;margin-left:0;padding:4px 18px;color:var(--muted);background:#f3f7f5}.doc code{font-family:ui-monospace,Consolas,monospace;font-size:.85em;background:#edf2f2;padding:2px 5px;border-radius:4px}.doc pre{overflow-x:auto;background:#152c35;color:#e5f1ef;padding:18px 20px;line-height:1.6;border-radius:9px;max-width:100%;white-space:pre}.doc pre code{background:none;padding:0;color:inherit}.table-scroll{overflow:auto;max-width:100%;border:1px solid var(--line);border-radius:7px;margin:18px 0}.doc table{border-collapse:collapse;min-width:570px;width:100%;font-size:13px;line-height:1.7}.doc th,.doc td{padding:11px 13px;vertical-align:top;text-align:left;border-bottom:1px solid var(--line)}.doc th{background:#eaf2ef;color:#16444a;font-weight:750}.doc tr:last-child td{border-bottom:0}.doc td code{word-break:normal}.end{padding:10px 0 35px;font-size:13px;color:var(--muted)}
+@media(max-width:900px){.layout{grid-template-columns:1fr}.sidebar{position:relative;height:auto;padding:20px}.sidebar nav{display:flex;overflow:auto;gap:6px;padding-bottom:4px}.sidebar nav a{min-width:150px}.sidebar footer{display:none}.version{margin-bottom:15px}.main{padding:28px 16px}.cards{gap:8px}.card{padding:14px 12px}.card strong{font-size:20px}.card span{font-size:12px}.doc{border-radius:9px;padding:18px 16px}.doc h1{font-size:23px}}@media(max-width:440px){.cards{grid-template-columns:1fr}.card{display:flex;align-items:center;gap:12px}.card strong{font-size:20px;min-width:135px}.hero .lede{font-size:16px}}@media print{.sidebar,.searchbox,.searchhint{display:none}.layout{display:block}.main{max-width:none;padding:0}.doc{break-inside:auto;border:0;border-top:1px solid #ccc}.doc[hidden]{display:block!important}body{background:white}.cards{break-inside:avoid}.doc pre{white-space:pre-wrap;color:black;background:#eee}}
+</style></head><body><div class="layout">
+<aside class="sidebar"><div class="brand">SMARTCLI</div><div class="version">V2 · DELTA HANDOFF<br>2026-09-16 · Asia/Tokyo</div><nav><a href="#start" data-target="start"><small>入口</small>开始交接</a><a href="#handoff" data-target="handoff"><small>入口</small>给本地主 Agent</a><a href="#order" data-target="order"><small>七项增量</small>01 · R1 顺序与红绿红</a><a href="#idle" data-target="idle"><small>七项增量</small>02 · A04 跨平台排空</a><a href="#input" data-target="input"><small>七项增量</small>03 · A01 最小状态机</a><a href="#conformance" data-target="conformance"><small>七项增量</small>04 · 一致性小套件</a><a href="#position" data-target="position"><small>七项增量</small>05 · 定位与 won’t-do</a><a href="#briefs" data-target="briefs"><small>七项增量</small>06 · Worker 派发</a><a href="#risks" data-target="risks"><small>七项增量</small>07 · 风险与改动上限</a><a href="#dissent" data-target="dissent"><small>评审</small>我反对本地结论的地方</a><a href="#w1" data-target="w1"><small>执行</small>Worker 1 · T05</a><a href="#w2" data-target="w2"><small>执行</small>Worker 2 · T04</a><a href="#w3" data-target="w3"><small>执行</small>Worker 3 · A04 原型</a><a href="#validation" data-target="validation"><small>证据</small>本次实际验证</a><a href="#sources" data-target="sources"><small>证据</small>来源与证据等级</a><a href="#local" data-target="local"><small>证据</small>本地原始证据</a><a href="#history" data-target="history"><small>证据</small>历史包保留说明</a></nav><footer>基线 701e61f…<br>不重建索引，不覆盖 v1。<br>实现可自由，验收不可弱化。</footer></aside>
+<main class="main"><header class="hero"><div class="eyebrow">Local evidence → bounded implementation</div><h1>把本地证据<br>变成下一次可靠改动。</h1><p class="lede">接受已经复现的中文高亮与 SGR 分片缺陷。保留 interleave、resize 约束和 vendor 孪生；只交付能直接执行、能证伪、能续接的 v2 增量。</p><div class="badges"><span class="badge">七项增量</span><span class="badge">三份 worker brief</span><span class="badge">18 项风险</span><span class="badge warn">真实 PTY：NOT_RUN</span></div></header>
+<div class="cards"><div class="card"><strong>T05 → T04 → T03</strong><span>修复合入顺序</span></div><div class="card"><strong>62 / 62</strong><span>工具及参考模型自测；非产品结果</span></div><div class="card"><strong>3 / 3 / 0</strong><span>三份 brief 的最大仓库改动文件数</span></div></div>
+<div class="searchbox"><input id="search" type="search" aria-label="搜索章节" placeholder="搜索关键词：partial、vendor、背压、NOT_RUN…"><button id="clear" type="button">清除</button></div><p class="searchhint" id="count" aria-live="polite">全部17个章节。离线可读；源文件及参考 ZIP 均随完整包交付。</p><div class="noresults" id="empty">没有匹配章节。清除搜索可以继续阅读全部内容。</div>
+<section class="doc" id="start" data-title="开始交接"><div class="doc-top"><span>入口</span><a href="../README_FIRST.md">原始文件 ↗</a></div><h1>SmartCLI 计划书 v2 增量交接</h1>
+<p><strong>交付日期：2026-09-16（Asia/Tokyo）。基线：701e61f6d69aa2420617edf80b1136df8d5e8cf7。</strong></p>
+<p>这是对已运行 v1 的修订，不是又一份重写计划，也不是 SmartCLI 已完成的补丁。优先级、范围与边界有冲突时，以本包 <code>docs/ORDER.md</code> 和具体 worker brief 为本轮任务准绳；项目当前指令与用户授权仍约束操作。历史资料中的命令不是授权。</p>
+<h2>立即交接</h2>
+<p>先读 <code>HANDOFF_TO_LOCAL_AGENT.md</code>，然后读 <code>docs/ORDER.md</code>、<code>briefs/01_T05.md</code>。默认合入顺序 <strong>T05 → T04 → T03</strong>；第三份可派发 brief 是 <strong>A04 设计原型</strong>，不是授权提前重写运行时。</p>
+<p>所有代码修改仍由本地 Agent 执行。当前 repo 若已完成 T05，不要求撤回修复重做；保留其证据，只补差项。机器已有 CodeGraph 索引，不重建；抽象分派、vendor 双份、打包路径仍人工交叉核对。</p>
+<h2>七项交付</h2>
+<div class="table-scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>用户要求</th>
+<th>文件</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R1 顺序、红绿红、禁止取巧</td>
+<td><code>docs/ORDER.md</code></td>
+</tr>
+<tr>
+<td>A04 跨平台排空设计</td>
+<td><code>docs/A04_DESIGN.md</code></td>
+</tr>
+<tr>
+<td>A01 最小输入完成状态机</td>
+<td><code>docs/A01_MINIMAL.md</code></td>
+</tr>
+<tr>
+<td>五分钟一致性套件规格及实际入口</td>
+<td><code>docs/CONFORMANCE.md</code>、<code>tools/conformance.py</code></td>
+</tr>
+<tr>
+<td>定位、won't-do、两次 release 边界</td>
+<td><code>docs/POSITIONING.md</code></td>
+</tr>
+<tr>
+<td>三份 worker brief</td>
+<td><code>docs/BRIEFS.md</code>、<code>briefs/01_T05.md</code> 等</td>
+</tr>
+<tr>
+<td>风险与最大触碰面</td>
+<td><code>docs/RISKS.md</code>、<code>data/risks.json</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>额外交付：<code>docs/REVIEW_DISAGREEMENTS.md</code>、<code>docs/SOURCES.md</code>、任务覆盖数据、独立回归脚本、只读范围检查、完整性验证器、可执行的输入/预算<strong>参考模型</strong>、离线 HTML、原始本地证据和历史原 ZIP。</p>
+<h2>不安装也能检查</h2>
+<p>Python 3.10+；校验和工具测试仅使用标准库：</p>
+<pre><code class="language-powershell">py -3 tools/verify_bundle.py
+# 可选工具自测：先指定已存在、获准使用的 RUN，避免写入系统临时目录。
+$env:SMARTCLI_V2_TEST_TMP = 'D:\Project\SmartCLI-v2-runs\2026-09-16'
+py -3 -B -m unittest discover -s tests -v
+</code></pre>
+<p>真实 core 一致性检查需要你已有的 pyte 环境，并须先审阅待执行代码：</p>
+<pre><code class="language-powershell">$Python = 'D:\Software\Developer\Python314\python.exe'
+&amp; $Python -B tools/conformance.py --repo 'D:\Project\SmartCLI' --consent-execute-reviewed-code
+</code></pre>
+<p>返回 1 表示发现真实不满足项，不是安装失败；返回 2 表示环境缺失/NOT_RUN；返回 0 只证明报告所列的 memory 契约。不启动 PTY、socket、Docker，不运行 run_all，不自动安装依赖，不改全局配置。</p>
+<h2>目录边界</h2>
+<p>建议 KIT=<code>D:\Project\SmartCLI-v2-handoff</code>，RUN=<code>D:\Project\SmartCLI-v2-runs\2026-09-16</code>。均不在源码仓库内，且不越过 <code>D:\Project</code>。这只是路径建议，工具不会创建该路径或修改你的机器。不要改写正在使用的 agent 前缀或派发配置；worker 不再派生 worker。</p>
+<h2>真实性</h2>
+<p>本地上传的 E3 已接受，不要求重复一遍原来的 40-seed 数字。包内工具测试与参考模型测试，不是产品 E4/E5/E6。请读 <code>evidence/delivery/VALIDATION.md</code> 查看本次实际运行、未运行和限制。</p>
+</section><section class="doc" id="handoff" data-title="给本地主 Agent"><div class="doc-top"><span>入口</span><a href="../HANDOFF_TO_LOCAL_AGENT.md">原始文件 ↗</a></div><h1>给本地主 Agent：v2 接收与继续工作</h1>
+<p>这是执行交接，不是要求再次做全项目调研。先使用你已有的CodeGraph和本地E3报告。不要重建索引、不要重跑40-seed统计、不要重写活跃prefix或全局配置。</p>
+<h2>三步</h2>
+<p><strong>第一步：接收而不覆盖。</strong> 将完整包放在<code>D:\Project\SmartCLI-v2-handoff</code>或你已获准的等价位置；校验<code>tools/verify_bundle.py</code>。读取<code>docs/ORDER.md</code>及<code>docs/REVIEW_DISAGREEMENTS.md</code>，确认当前HEAD/工作树及有无另一个writer。新证据优先，但必须保留旧基线原字节。v1的state.json不自动迁移，旧<code>next</code>建议不得覆盖v2顺序。</p>
+<p><strong>第二步：直接完成一个闭环。</strong> 按<code>briefs/01_T05.md</code>在同一会话做T05；若另一个Agent已经修好，收据与测试足够就记录accepted-existing，不再修改。只动允许的三文件，先红再绿，再在隔离验证副本回退修复证明红，恢复绿。同步仅那一个vendor孪生，不盲运行会删除整个目录的sync_vendor.refresh。</p>
+<p><strong>第三步：续接而非重启。</strong> 记录<code>RUN/T05/last.md</code>和<code>templates/CLOSURE_V2.json</code>相同结构的收据；控制组、NOT_RUN和源码hash齐全。然后顺序进入T04；T03注入式逻辑可设计，真实POSIX门保持open；A04原型按第三份brief单列，不把它混成运行时大改。</p>
+<h2>自主范围</h2>
+<p>实现办法可以更好，停止条件不能弱化。允许把不适用旧结论refute并附证据，允许在既定文件范围内补针对性测试。超过范围、新线程/队列/公开API/重大依赖要先提交小提案；不能自己把文件allowlist扩大后宣布审核通过。</p>
+<p>本轮没有授权commit/push/release、重型PTY、Docker服务启动、安装新全局依赖或派生worker。若Owner之后明确授权，按当前规则记录后执行；不要用本交接替代权限。对已授权的T05/T04小范围修改，不必每改一行再询问。</p>
+<h2>目录/工具注意</h2>
+<p>KIT和RUN都在<code>D:\Project</code>内，但不放进源码仓库。报告路径由你显式创建；工具不会部署Skill或改注册表。运行自测若需临时目录，设置本次进程的<code>SMARTCLI_V2_TEST_TMP</code>到获准RUN（非持久配置），不要修改harness配置。</p>
+<p><code>scope_guard capture</code>在每个worker开始时记录工作文件基线，<code>check</code>比较该worker的新改动；这允许上一个未commit的已验收修复留在树上，不把它误报为本worker越界。它不是沙箱，不能发现repo外或gitignored文件改动，仍需本人守界。</p>
+<h2>最大三项补验</h2>
+<p>见<code>docs/REVIEW_DISAGREEMENTS.md</code>末尾X1/X2/X3。X1可先注入式内存；X2/X3真实环境另获批且一次一个PTY。不要新增第四个重型实验来弥补不确定性。</p>
+</section><section class="doc" id="order" data-title="01 · R1 顺序与红绿红"><div class="doc-top"><span>七项增量</span><a href="../docs/ORDER.md">原始文件 ↗</a></div><h1>ORDER — v2 仅修改 R1 顺序和验收</h1>
+<p>状态：<strong>设计决定</strong>。既有 A03/A02 证据：[L1 §1–2，E3]；A01：[L1 §3，E1，旧替身 E2]。T03/T04/T05 沿用 v1 ID，不重新编号，不改历史状态文件。</p>
+<h2>1. 决定与理由</h2>
+<p><strong>实施及合入：T05 → T04 → T03。</strong> 这不是跨平台全局严重性排序，而是在目前 Windows 本机、A03 用户可见且最小可证的条件下的交付顺序。T05 已有真实 <code>保存 → 3</code>；T04 已有分片导致残渣和控制组；T03 的生产短写路径未做真实 POSIX 验证，且涉及部分输入的恢复。</p>
+<p>取消 v1“R1 三项任意并列”的执行建议；不再要求 T01 重建已存在的 CodeGraph，不把 T02 当作必须先新增一个集中大测试文件的前置。T02 的意图分别由每个变更自己的失败测试满足。</p>
+<p>可并行：只读研究和在独立 RUN 中的纯内存模型。不可并行：两个 writer 修改同一工作树／同一个 canonical 或 vendor。T03 的模拟输入状态设计可提前，但不得先合入抢占 T05/T04。</p>
+<h2>2. 共同保留项</h2>
+<p><code>INTERLEAVE_OK</code> + <code>_drain_interleavable()</code> 的快操作可响应性、session 单 owner、resize 不插进 legacy wait、token 检查、<code>on_poll</code>、双 hash、SS3、主/备屏、CPR 回复，都不是重构时可删的旧代码。[L1 §6–7；SC1–SC4，E1]</p>
+<p>canonical 改完，必须同步 vendor；scripts 路径也是安装包 <code>smartcli_drive</code>，不得通过改目录“顺手整理”。不过纯内部改动并不自动构成公共 API 或 Registry 元数据变更；真正要锁定的是可观察契约。</p>
+<h2>3. T05：cell span 标签，首先交付</h2>
+<p>最大触碰面：<strong>3 个文件</strong>：<code>smartcli_core/snapshot.py</code>、其 vendor 孪生、<code>tests/test_cell_span_regression.py</code>（新增）。不改 ScreenModel，不改启发式选中策略，不新增依赖或公开 API。</p>
+<p>最小测试必须走真实 <code>ScreenModel.feed → build_snapshot → selected/menu_items → to_json/to_text</code>，独立期望是字面量 <code>保存</code>，不是用被测 helper 计算期望。</p>
+<pre><code>  1) 打开   2) ESC[7m保存ESC[0m   3) 退出
+</code></pre>
+<p>原始输入详见 <code>tests_product/test_cell_span_regression.py</code>。同时保留 ASCII、中文前缀+ASCII 高亮、emoji 前缀、组合符前缀、0 列跨度、正文不变等控制组。原 <code>.strip()</code> 的标签清理行为保留；不能把标签文字当作 raw span 内容协议来扩需求。</p>
+<p>最小修法：从 <code>[a,b)</code> 的 cells 聚合 data，续格空串不新增空格。可以直接写一行，也可以引入 private helper；不要求新建公共 <code>cell_span_text</code>。本轮跨度规则是<strong>基字落在范围内才纳入</strong>；起点若仅命中续格，不倒取范围外的基字。ZWJ 字形宽度的全面修复不塞进本增量。</p>
+<p>验收（PowerShell，使用现有解释器）：</p>
+<pre><code class="language-powershell">&amp; $Python -B tests/test_cell_span_regression.py
+&amp; $Python -B tools/sync_vendor.py --check
+&amp; $Python -B tests/test_vendor_sync.py
+&amp; $Python -B tests/test_terminal_fidelity.py
+&amp; $Python -B $Kit/tools/conformance.py --repo $Repo --case screen --consent-execute-reviewed-code
+</code></pre>
+<p>禁止：把 <code>3</code> 加为允许答案、对中文 skip、只断言非空、硬编码菜单字符串、改变 oracle 来迁就 bug、自动重跑抹掉首次失败。</p>
+<h2>4. T04：分片不变 + 独立语义，不止“和一次 feed 一样”</h2>
+<p>最大触碰面：<strong>3 个文件</strong>：<code>smartcli_core/screen_model.py</code>、其 vendor 孪生、<code>tests/test_sgr_stream_regression.py</code>（新增）。若必须扩到通用 parser／新依赖，先停下给出最小反例及范围提案。</p>
+<p>必须分成两类 oracle：
+A. 同字节流整体／每个切点／逐字节／固定种子随机切分，比较所有 cells 的 data、公开属性、cursor、title、alt_screen、app_cursor；不是只比较第一行。
+B. 确切支持子集的独立属性断言。例如 <code>38:2::255:0:128</code> 必须是 RGB <code>ff0080</code>，<code>4:3</code> 降级成普通 underline 时不得附带 italic；不能让“整体和分片一起错”通过。[STD3，E1]</p>
+<p>必须保持普通 SGR/CSI/OSC、UTF-8 分片控制组。不把 OSC/DCS 字符串负载中的类似 <code>ESC[4:3m</code> 子串全局重写。7-bit escape 路线与 UTF-8 解码分开；不能把 UTF-8 continuation byte 当 C1 控制。</p>
+<p>实现候选：有限状态的增量 SGR 规范化层，或在现有 parser dispatch 上局部修正。仅<strong>完整且确定是 CSI SGR</strong>时改写；明确空 color-space 槽、unsupported 58 underline-color 的忽略规则，不能盲把全部冒号改成分号。未知格式只丢该属性组，不把其数字误用成 bold/italic 等其他属性。</p>
+<p>未终止 CSI 暂存上限建议 1024 字节（设计起点，非已测最优值）。超过上限进入有界 discard-until-final/abort；后续合法 <code>OK</code> 必须恢复，不把残渣绘入屏幕。不要缓存整个 OSC/DCS 负载；其处理继续交给已有流解析器。单个单元测试不需要百万字节，更不需要真实 PTY。</p>
+<pre><code class="language-powershell">&amp; $Python -B tests/test_sgr_stream_regression.py
+&amp; $Python -B tests/test_cell_span_regression.py
+&amp; $Python -B tools/sync_vendor.py --check
+&amp; $Python -B tests/test_vendor_sync.py
+&amp; $Python -B tests/test_terminal_fidelity.py
+&amp; $Python -B $Kit/tools/conformance.py --repo $Repo --case sgr --consent-execute-reviewed-code
+</code></pre>
+<p>本包的 <code>tests_product/test_sgr_stream_regression.py</code> 覆盖分片和语义核心；超限恢复/嵌套字符串等实现相关测试由 worker 补在同一新测试文件，不能因模板没有该项就省掉验收。</p>
+<h2>5. T03：可以先模拟，但不能把模拟当真 POSIX</h2>
+<p>见 <code>A01_MINIMAL.md</code>。最小库修复最大 3 文件（backend、vendor、一个测试），需跨 session 的 receipt 可放到后续独立增量，最高 5 文件，另报范围。不修改抽象 <code>write(data)-&gt;None</code> 既有成功语义：全部写完才正常返回；未完必须抛携带偏移的错误，不返回伪成功。</p>
+<p>最小 fault schedule：短写 2 字节 → EAGAIN → EINTR → 短写 1 字节 → 余下。断言接收器恰好得到输入一次、offset 单调、无 busy spin、取消/timeout 保留 partial。故障注入实际生产方法可在 Windows 做；标 <strong>E3 + injected os.write</strong>，不是 E4。真 POSIX raw-mode 单 PTY 用 child hash/length 做独立裁判，未运行则保留 NOT_RUN。</p>
+<pre><code class="language-powershell">&amp; $Python -B tests/test_partial_write_regression.py
+&amp; $Python -B $Kit/tools/conformance.py --repo $Repo --case input --consent-execute-reviewed-code
+&amp; $Python -B tools/sync_vendor.py --check
+</code></pre>
+<p>任何 real PTY、Docker/WSL 启动都不是这些命令的隐含动作。</p>
+<h2>6. 红 → 绿 → 回退修复再红 → 恢复绿</h2>
+<p>已有 E3 原版证据不用重新量化；但<strong>新测试</strong>必须证明它能抓到 bug。操作在独立经批准的验证副本，不在脏工作树执行 reset/revert/stash。旧版与候选的测试文件必须字节相同。</p>
+<ol>
+<li>原版组件 + 新测试：指定业务断言失败；import 失败、依赖缺失不算红。</li>
+<li>候选组件 + 同一测试：通过。</li>
+<li>候选测试保持不变，只还原针对性修复逻辑：同一业务断言再次失败。</li>
+<li>恢复候选，相关控制组通过，记录 diff 和文件 hash。</li>
+</ol>
+<p>T05 回退 cell 聚合为 display 字符串切片；T04 回退成按块 <code>_SGR_COLON.sub</code>；T03 回退成单次 <code>os.write</code> 丢返回值。不能删测试、改 expected、回退整个新测试一起制造“红”。若现在 refactor 使该 mutation 无法命中，记录 <code>MUTATION_NOT_APPLICABLE</code>，设计针对新实现的等价 mutation，不能填“通过”。</p>
+<p><code>templates/CLOSURE_V2.json</code> 规定四阶段结果。不同平台开列：<code>unit_memory=PASS</code> 不会自动关闭 <code>posix_pty=NOT_RUN</code>。</p>
+</section><section class="doc" id="idle" data-title="02 · A04 跨平台排空"><div class="doc-top"><span>七项增量</span><a href="../docs/A04_DESIGN.md">原始文件 ↗</a></div><h1>A04_DESIGN — 保留现有调度，分平台消除空闲故障</h1>
+<p>依据：[L1 §4，E1]；[L1 §6，E1]；[SC2/SC3/SC4，E1]。<strong>用户 Windows 上的内存增长、POSIX 子进程阻塞仍是源码支持的推断，不写成已测 RSS 或时延。</strong></p>
+<h2>1. v1 的修订，而非 actor 重写</h2>
+<p>问题不是“没有 reader”，而是：Windows 已排空到无界 queue，但无人消费到模型；POSIX 空闲时 master fd 无人读。现有 long wait 会调用 <code>pump</code>，并通过 <code>on_poll → _drain_interleavable</code> 回答快请求。这条路径必须先锁测试，再渐进改造。</p>
+<p>统一契约：<strong>只要会话仍在服务、且在配置的吞吐/资源范围内，不论有没有客户轮询，输出均按序进入模型；每次工作有预算，模型仅由单 owner 修改；过载、积压和不完整明确可见。</strong> 不能承诺无限快生产者永不被阻塞、有界内存和永不丢字节同时成立。生产者背压是合法过载行为，空闲无人服务导致停滞不是。</p>
+<h2>2. 资源边界（建议初值，不是测量）</h2>
+<div class="table-scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>项</th>
+<th style="text-align:right">初始设计</th>
+<th>精确定义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>每会话 ingress payload</td>
+<td style="text-align:right">256 KiB</td>
+<td>所有已接收、尚未被模型提交的标准化字节；包含队列和 consumer staging</td>
+</tr>
+<tr>
+<td>高/低水位</td>
+<td style="text-align:right">192 / 64 KiB</td>
+<td>高水位暂停进一步读取，低水位允许恢复；并另有硬上限</td>
+</tr>
+<tr>
+<td>入队 fragment</td>
+<td style="text-align:right">≤4 KiB</td>
+<td>以 bytes 计，不能用 Queue(maxsize=项数) 冒充 byte cap</td>
+</tr>
+<tr>
+<td>单 owner turn 解析</td>
+<td style="text-align:right">最多32 KiB、每片≤4 KiB</td>
+<td>片后检查协作时间预算；预算耗尽让出处理机会</td>
+</tr>
+<tr>
+<td>空闲唤醒</td>
+<td style="text-align:right">10ms 候选上限</td>
+<td>设计目标；可用事件唤醒优先，实际 P95/P99 另测</td>
+</tr>
+<tr>
+<td>CPU soft budget</td>
+<td style="text-align:right">2ms/turn 候选</td>
+<td>非硬抢占；一次 pyte.feed 超预算要测量/诊断，不能宣称绝不会超时</td>
+</tr>
+<tr>
+<td>请求/回复/设备应答</td>
+<td style="text-align:right">各自独立有界</td>
+<td>原型分别用小容量测试；不可只给 ingress 上限而忽略其他队列</td>
+</tr>
+<tr>
+<td>EOF/control</td>
+<td style="text-align:right">独立有限状态</td>
+<td>不能把 EOF sentinel 塞进已满 data queue 后永久等不到关闭</td>
+</tr>
+</tbody>
+</table></div>
+<p>上述是模型可计费 payload，不是进程 RSS 上限。Python 对象、decoded str、UTF-8 重编码临时副本、库内缓冲和操作系统 pipe 均另列。Windows 返回 str 时一次 native read 必须限长并审查实际返回界限；若违反，不能先无界接收再称队列有界。</p>
+<h2>3. Windows：保留现有 reader，改变流量和生命周期</h2>
+<p>reader 只读取、转换为当前后端标准化 UTF-8、提交有界片，不触摸 pyte。owner 持续从有界 buffer 取字节送入模型。队列满时使用 Condition/Event 的 stop-aware 等待，不在锁中阻塞 native read，不静默丢开头／尾部，不丢 UTF-8 或 escape 中段。</p>
+<p>当 <code>pywinpty.read</code> 返回 str，本层重编码不代表拿到了原始 ConPTY 字节。因此 <code>wire_exact=true</code> 不适用于任意二进制；本轮 byte-exact 的模拟 POSIX 测试不能顺带证明 Windows binary path。[SC2，E1]</p>
+<p>关闭：先标 CLOSING、拒绝新用户动作并唤醒所有 data/condition 等待者；继续消费可用最终输出；有限期内收尾 reader 和目标。若不支持打断 native read，超时必须留下 <code>close_unconfirmed</code>，不能让 callback 越代写入复用队列。reader 应持有本次 spawn 的 queue/proc/generation，而非在旧线程中不断解引用可被新 spawn 换掉的 <code>self._queue</code>。</p>
+<p>不要无条件把旧 ConPTY 文档泛化到所有 Windows：官方 <code>ClosePseudoConsole</code> 页面说明 Windows 11 24H2/build26100 起函数立即返回，早期版本行为不同；应用仍需要确认输出 pipe 关闭及客户端退出。实际 pywinpty/lib版本与 OS build 都写报告，不以 API 返回代替 child exited。[STD4/STD5，E1]</p>
+<h3>对首帧／CPU峰值的回答</h3>
+<p>只把 queue 设为有界，不自动降低首帧时延；等待满队列还能推迟生产者输出。必须同时有持续 owner 消费，才减少“首个 snapshot 才解析全部积压”的设计缺陷。按片解析可以约束单 turn 的工作量，但不保证 CPU 峰值下降；持续解析会把原来延迟到请求时的工作提前，并可能增加空闲运行时 CPU。</p>
+<p>应测 <code>first_byte_to_parsed_frame</code>、<code>snapshot_queue_delay</code>、每 turn bytes/time、max pending payload、进程RSS趋势，报告 baseline与candidate同负载。已有3秒ConPTY启动安静窗口是另一因素，不能把它算作此修复必然消除。</p>
+<h2>4. POSIX：只能 owner 读取 master fd</h2>
+<p>不要再起第二个 parse/pump 线程。原型让 owner 在 <code>jobs.get</code> 没任务时也执行有界 <code>service_io</code>；长 wait 的 <code>read_fn</code> 也调同一条路径。因此空闲、请求、wait 三种路径都消费同一流，但不能互相递归进入 owner。</p>
+<p>不能只在 <code>queue.Empty</code> 加 <code>sess.pump()</code> 就宣布完成：当前 <code>read_nonblocking()</code> 自身 drain-until-empty，持续生产可令一次调用几乎不返回；现有 wait 仍可能使用这条无界路径。必须给 backend read／session pump 新增<strong>可选预算</strong>，或在 private adapter 中实现同等能力，旧调用签名/返回值维持兼容。read耗尽配额后不虚构“屏幕稳定”；等待 readiness 还需检查 pending/backlog，不能拿预算截断的片段当完整 frame。</p>
+<p>CPR/DA：当前 pump 会收集回复并写回，保留该行为。设备回复也需有界；用户输入和设备回复必须在明确的写入单元边界排序，不能在一半 UTF-8/键序列/粘贴中无条件插队。若回复无法写完，应记录有界故障而非静默声称已应答；T03 是其生产完整性前置之一。</p>
+<h2>5. 两个 watcher 谁读？答案是：都不读</h2>
+<p>只读 watcher 保存各自谓词、起始 revision/geometry、deadline/cancel，不调用 <code>os.read</code> 或 ConPTY.read。owner 更新模型，产生一个不可变观察，在这同一观察上分别判断 A、B；wake A 不消费掉 B 的事件。</p>
+<p>但<strong>本原型不新建多 watcher 产品 API</strong>。先保留 legacy“一条长wait+快操作interleave”，加假时钟测试证明它未退化。多独立长 wait 属于后续 T10 的范围，不能混到 A04 修复里。</p>
+<h2>6. interleave / resize 回归矩阵</h2>
+<div class="table-scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>情况</th>
+<th>旧行为应保留</th>
+<th>原型如何证明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>长 wait 中 snapshot/alive</td>
+<td>poll gap 中响应，同一 session owner</td>
+<td>记录线程 ident；移除 hook 后测试失败</td>
+</tr>
+<tr>
+<td>长 wait 中 send_text/send_line/send_keys</td>
+<td>按已接受请求顺序处理</td>
+<td>fake backend 字节序列对比，不拆分不同请求字节</td>
+</tr>
+<tr>
+<td>并发 resize</td>
+<td>legacy wait 期间延后，不混入成功证据</td>
+<td>只有 resize、没有相关输出时不能被报告为按键成功</td>
+</tr>
+<tr>
+<td>第二个长wait</td>
+<td>现有接口仍排队</td>
+<td>不假称已经支持多 watcher</td>
+</tr>
+<tr>
+<td>慢 reply</td>
+<td>现有timeout60s是边界，不是无界</td>
+<td>原型模拟 slow writer；未解决时明确关联 A06，而非宣告全部公平</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>INTERLEAVE_OK</code> 中虽然有 <code>list</code>，当前 <code>_handle</code> 没有对应有效 list 分支；list_sessions 的实际路径在客户端。保留有效 API 不等于新增并承诺一个不可调用的 verb。[SC3，E1]</p>
+<p>每 turn 排空 interleave jobs 也必须有个数／时间预算，否则快请求洪水会耗尽 poll gap。若这要求改变旧请求顺序，单独记录测试，不在 A04 中偷偷放宽。</p>
+<h2>7. 溢出/失效规则</h2>
+<p>满队列：背压，不丢字节。长期过载：显式 <code>backpressured</code> 与 age 指标，可超时失败或由操作者终止；不存在无限磁盘兜底。若驱动报告已经丢失原始输出，置 <code>observation_incomplete</code>，拒绝该片段上需要完整性的成功确认。全屏 repaint 不保证恢复 parser/mode/两屏状态，不能随便把不完整清零。</p>
+<p>首两个 release 不新增原始全量录制器来掩盖溢出；已有日志/截图复用，不发明无限历史服务。</p>
+<h2>8. 两套最小负例及证据范围</h2>
+<p>Windows <strong>纯模型 E2</strong>：容量12、chunk4，producer 提交20字节、consumer每tick最多4字节。关掉consumer可进入backpressure但pending永不超12；启用后顺序精确；满buffer时close控制状态仍可送达，缓冲可继续排空，最终输出在EOF前仍能接收。纯模型不证明真实线程被唤醒；唤醒与native关闭必须由后续批准的并发测试证明。还原无界版本必须破坏预算断言。该测试不是RSS验证。</p>
+<p>POSIX <strong>注入式 core/loopback E3候选</strong>：fake fd 在无人请求时持续可读，owner空闲tick必须处理完有限payload并形成CPR回复；停用idle service后完成断言失败；两watcher不得增添read调用者。E4另用一个有限输出子进程+独立终止标志；不靠“sleep后没输出”当裁判。</p>
+<p>本轮 worker C 只交纯内存/假时钟原型。真实 socket线程和ConPTY/PTY实验需当前owner明确批准。生产改动按独立小增量分 backend budget → owner接线 → lifecycle，不许一次合入整套 actor。</p>
+</section><section class="doc" id="input" data-title="03 · A01 最小状态机"><div class="doc-top"><span>七项增量</span><a href="../docs/A01_MINIMAL.md">原始文件 ↗</a></div><h1>A01_MINIMAL — 最小输入完成状态，不引入完整 actor</h1>
+<p>依据：[L1 §3，E1]；[SC2/SC4，E1]；[STD1/STD2，E1]。真实 POSIX 短写尚未验证；这是明确可注入的 OS 契约缺口，不等待实机偶然触发才补 offset。</p>
+<h2>1. 五种标签不是一条可以自动升级的流水线</h2>
+<pre><code>accepted (0/n) → partially_written (0&lt;k&lt;n) → written (n/n)
+                                                    ├→ app_acknowledged (有对应ACK)
+                                                    └→ verified (有独立裁判)
+</code></pre>
+<p>accepted 后允许直接 written；空payload是明确no-op，n=0。timeout/cancel/failure是结果轴，不会把之前写出的k字节擦掉。</p>
+<p>保留三个事实轴，而不是把后两者虚构成必经阶段：</p>
+<ul>
+<li><code>write_state</code>: accepted / partially_written / written；及 <code>written_bytes,total_bytes</code>。</li>
+<li><code>app_ack</code>: unknown / acknowledged / ignored，附 action_id/generation 与来源；不是从hash变化猜出。</li>
+<li><code>verification</code>: not_run / passed / failed，附 predicate/verifier/evidence_id。</li>
+</ul>
+<p><code>phase</code> 可以作为展示摘要：verified不意味着app_ack一定存在；文件独立裁判有时能确认结果，而应用从未发ACK。不能为了展示一个最高阶段，反填所有中间事实为true。</p>
+<h2>2. 不改公共接口的第一增量</h2>
+<p>保留 <code>PtyBackend.write(data: bytes) -&gt; None</code>。POSIX 内部 private <code>_write_all</code> 维护 offset，只有全部字节确认被底层调用接收才正常返回；否则抛出带 <code>written_bytes</code>、<code>total_bytes</code>、reason的 <code>IncompleteWrite</code>（兼容 OSError/RuntimeError 家族须本地决定并测试现有调用方）。库调用者不需要立即迁移。</p>
+<p><code>accepted</code> 对同步接口是函数已通过验证、分配了本次request上下文，不是已完成；对daemon <code>{ok:true}</code> 的旧成功响应仍必须在完整write返回后发出。禁止为了异步化提前给旧客户端ok，然后把错误藏在内部日志。</p>
+<p>T03最小库修复只要 backend+vendor+测试。若要把 partial receipt 传到 CLI/MCP，则另一个独立增量，在不移除旧字段的前提下增加数据；字段缺失明确 unknown。当前通用error文本可做到“不说成功”，但不能声称已经给调用方完整恢复所需信息。该接口接线在未做前仍留 open。</p>
+<h2>3. 精确算法与边界</h2>
+<ol>
+<li>输入固定不可变bytes，创建请求id和本session incarnation绑定（内存作用域），offset=0。</li>
+<li>调用write剩余后缀；返回n且 <code>0&lt;n&lt;=len(remaining)</code> 才增加offset。大于remaining是后端协议错误；0返回不算进度，进入等待或受限失败。</li>
+<li><code>EAGAIN/EWOULDBLOCK</code>：保持offset，等待可写或取消/截止；等待可虚假唤醒，继续同一后缀。不自旋，不复制全部payload重发。</li>
+<li><code>EINTR</code>：offset不变，重新检查deadline/cancel，再尝试。Python3.5+对部分被signal打断的os调用已有重试；测试注入EINTR仍可验证组合层，不表示真实系统每次都会抛它。[STD1]</li>
+<li>每次成功和失败都检查单调deadline，不让用户字节无限占owner。cancel在n字节写出后到达时报告<code>cancelled, written_bytes=n</code>，不能撤回已写字节。</li>
+<li>最后一个成功write的返回是written事实的线性化点；若它早于owner处理cancel，输出written并注明cancel太晚。若cancel先被处理，后缀不得再写。并发cancel必须有一次仲裁，不根据墙钟比较来猜。</li>
+<li><code>EPIPE/EIO/invalid fd</code> 记partial或零进度错误。会话未知/driver没有精确返回信息时<code>written_bytes=null</code>，不要填0制造可安全重试假象。</li>
+</ol>
+<p><strong>不从 <code>BlockingIOError.characters_written</code> 推断原始 os.write 部分字节数</strong>。Python文档说明该属性用于io buffered类；raw os.write依据返回n推进，异常路径保持已知offset。[STD2]</p>
+<h2>4. 哪些可延后，哪些不能</h2>
+<div class="table-scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>事项</th>
+<th>现在可延后？</th>
+<th>诚实边界</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>完整actor框架、多个排队writer</td>
+<td>可以</td>
+<td>先单个in-flight；请求串行，partial后不得混入下一请求</td>
+</tr>
+<tr>
+<td>跨重启持久幂等／exactly-once</td>
+<td>可以且两版不承诺</td>
+<td>断线后无法确定结果时unknown，不自动重发整包</td>
+</tr>
+<tr>
+<td>通用应用ACK</td>
+<td>可以</td>
+<td>app_ack永远unknown直到有真实适配</td>
+</tr>
+<tr>
+<td>独立业务裁判</td>
+<td>可以由测试/调用者提供</td>
+<td>不把写完、quiet、屏幕变化宣称verified</td>
+</tr>
+<tr>
+<td>成功返回前write完整性</td>
+<td>不可以</td>
+<td>丢返回值仍回ok就是谎报</td>
+</tr>
+<tr>
+<td>bytes/characters单位声明</td>
+<td>不可以</td>
+<td>Windows str API不能冒充任意原始bytes通道</td>
+</tr>
+<tr>
+<td>partial后偏移与恢复策略</td>
+<td>至少错误对象必须有</td>
+<td>本轮可选择暂停会话写入并让操作者决策；不得继续乱写</td>
+</tr>
+<tr>
+<td>owner公平性</td>
+<td>最小库阶段可只保证deadline</td>
+<td>未解决同步等待阻塞时，不声称可响应所有watcher</td>
+</tr>
+</tbody>
+</table></div>
+<h2>5. 与read/backpressure的相互作用</h2>
+<p>有限时write_all可避免永久阻塞，但不能独立证明全双工无死锁。一个程序可能先写满输出再读取输入，owner若一直等写而不排空读，就会直到timeout都无进度。A04接线时使用有预算的read/write轮转，或同一owner的非重入service_io；不可在write中递归执行任意新输入请求。</p>
+<p>因此T03最小修复提供“不会假成功”，不提供“任何交互都一定继续”。这一差别写进release note，不要求本轮实现actor才能先修丢字节。</p>
+<h2>6. 关闭判据和NOT_RUN</h2>
+<p>至少八类单测：短写、EAGAIN、EINTR、0进度、超时、部分取消、最终字节与cancel竞争、错误后重复调用。每类都比较精确bytes和状态，不仅检查返回非异常。</p>
+<p>本包 <code>models/contracts.py</code> 是<strong>可执行参考模型 E2，不是生产补丁</strong>；<code>tools/conformance.py --case input</code> 调真实PosixPtyBackend.write，但把OS写接收器替换为短写fixture，证据是E3-with-injected-OS。真实POSIX验证：一个raw-mode PTY子程序收定长payload，报告length+SHA256；限制payload和runtime、关闭其自有资源，禁止在用户普通shell里发送控制字符进行测试。</p>
+<pre><code class="language-json">{&quot;task&quot;:&quot;T03&quot;,&quot;unit_memory&quot;:&quot;PASS&quot;,&quot;fault_injection&quot;:&quot;PASS&quot;,&quot;posix_pty&quot;:&quot;NOT_RUN&quot;,&quot;reason&quot;:&quot;NO_POSIX_HOST_OR_NO_EXPLICIT_PTY_APPROVAL&quot;,&quot;claim&quot;:&quot;Library fault handling only; no real PTY byte-exact claim&quot;}
+</code></pre>
+<p>这允许合入明确范围的修复，不允许关闭所有平台验收或宣传全平台byte-exact。</p>
+</section><section class="doc" id="conformance" data-title="04 · 一致性小套件"><div class="doc-top"><span>七项增量</span><a href="../docs/CONFORMANCE.md">原始文件 ↗</a></div><h1>CONFORMANCE — 陌生人可跑的“可信交互”小套件</h1>
+<p><strong>目标：已有Python+pyte环境中，审阅后用一条命令完成少量确定性检查，运行预算远小于5分钟。</strong> 五分钟不是安装依赖、配置系统或所有硬件的实测保证。不得为满足这个标题跳过失败项。</p>
+<h2>1. 两种证据，不混成一个绿勾</h2>
+<p><code>C0/memory</code> 是本包实际提供的 runner：导入指定repo的真实core，无PTY、无socket、无网络、无LLM；INPUT以fake OS接收器调用真实POSIX backend。可在Windows检查逻辑，但不能证明Windows任意byte输入或真实POSIX吞吐。</p>
+<p><code>C1/native</code> 是本规格要求、尚未提供运行器且未执行的后续小型验证：一个真实PTY/ConPTY，有明确许可，串行、有限payload、独立child裁判。当前命令不自动启动它。<code>E4 NOT_RUN</code>不能被C0通过掩盖。</p>
+<h2>2. 实际命令</h2>
+<pre><code class="language-powershell">$Kit = 'D:\Project\SmartCLI-v2-handoff'
+$Repo = 'D:\Project\SmartCLI'
+$Python = 'D:\Software\Developer\Python314\python.exe'
+&amp; $Python -B &quot;$Kit\tools\verify_bundle.py&quot;
+&amp; $Python -B &quot;$Kit\tools\conformance.py&quot; --repo $Repo --consent-execute-reviewed-code
+</code></pre>
+<p>用<code>--case screen|sgr|input|wait|reject|all</code>限制单项。选case不代表整体通过；报告注明selected_cases。每case独立子进程，默认15s截止、256KiB输出上限，不自动重跑。导入前须审阅当前源码，这不是sandbox。</p>
+<p>不写文件是默认。<code>--out</code>要求显式路径和已存在父目录，拒绝覆盖已有报告、拒绝写入目标repo/本包。报告不包含用户真实终端日志或环境变量值。</p>
+<h2>3. 四个必要场景 + 一个SGR补充</h2>
+<div class="table-scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>ID</th>
+<th>动作与oracle</th>
+<th>必須输出</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SCREEN</td>
+<td>输入真实中文菜单，第二项反色；独立字面量<code>保存</code></td>
+<td>expected、selected.text、span、PASS/FAIL</td>
+</tr>
+<tr>
+<td>INPUT</td>
+<td>真实PosixPtyBackend.write配短写/EAGAIN/EINTR接收器</td>
+<td>planned/received字节数、SHA256、call count、异常、<code>io_mode=injected_os</code></td>
+</tr>
+<tr>
+<td>WAIT</td>
+<td>真实readiness等待<code>READY</code>；匹配后返回MARKER</td>
+<td>reason、basis=<code>rendered_text_regex</code>、<code>basis_origin=conformance_adapter</code>、claim_scope=<code>state_matches_only</code></td>
+</tr>
+<tr>
+<td>REJECT</td>
+<td>屏幕只有反色<code>3</code>，要求<code>保存</code>；匹配不得成功</td>
+<td>expected、actual、matched=false、<code>negative_control=REJECTED</code></td>
+</tr>
+<tr>
+<td>SGR</td>
+<td>每切点/逐字节/固定随机分片，独立RGB/underline语义</td>
+<td>payload/cuts/control count、首个差异、属性断言、feed_errors</td>
+</tr>
+</tbody>
+</table></div>
+<p>等待basis由此小runner根据旧接口reason明确标注，<strong>不冒充旧SmartCLI已经输出该新字段</strong>。REJECT证明文字条件不满足，不冒充daemon的鉴权拒绝。只有C1或以后协议集成测试才验证产品真实wire响应。</p>
+<p>一个正确拒绝本身是测试PASS。相反，缺依赖、import异常、超时、输出超限是NOT_RUN/ERROR，不是“发现正确错误”。SCREEN的业务断言失败，不能伪装成环境未就绪。</p>
+<h2>4. 机器输出契约</h2>
+<p>每项一条JSON记录，最终一条summary。示意，不是实测：</p>
+<pre><code class="language-json">{&quot;case&quot;:&quot;screen&quot;,&quot;status&quot;:&quot;FAIL&quot;,&quot;evidence&quot;:&quot;E3-memory&quot;,&quot;expected&quot;:&quot;保存&quot;,&quot;actual&quot;:&quot;3&quot;}
+{&quot;case&quot;:&quot;input&quot;,&quot;status&quot;:&quot;FAIL&quot;,&quot;io_mode&quot;:&quot;injected_os&quot;,&quot;received_bytes&quot;:2,&quot;planned_bytes&quot;:16,&quot;native_pty&quot;:&quot;NOT_RUN&quot;}
+{&quot;case&quot;:&quot;wait&quot;,&quot;status&quot;:&quot;PASS&quot;,&quot;reason&quot;:&quot;MARKER&quot;,&quot;basis&quot;:&quot;rendered_text_regex&quot;,&quot;basis_origin&quot;:&quot;conformance_adapter&quot;,&quot;claim_scope&quot;:&quot;state_matches_only&quot;}
+{&quot;case&quot;:&quot;reject&quot;,&quot;status&quot;:&quot;PASS&quot;,&quot;matched&quot;:false,&quot;negative_control&quot;:&quot;REJECTED&quot;}
+</code></pre>
+<p>总报告必须有Python、pyte、实际模块文件路径/指纹、基线或UNKNOWN、各case结果、native_pty=NOT_RUN、首次退出码、是否重跑（固定false）。不把“MARKER”翻译成命令成功，不把输入sha匹配翻译成业务验证通过。</p>
+<p>退出码：0=所选case全PASS；1=一个或多个契约FAIL；2=NOT_RUN/ERROR/参数错误。NOT_RUN存在时即使另有FAIL，summary也返回2且保留FAIL列表。选择screen通过不会打印ALL_CONFORMANCE_PASS。</p>
+<h2>5. C1/native 的小规模规格（需单独获批）</h2>
+<p>不运行vim/htop，不开浏览器。只运行一个自有Python fixture：进入明确terminal mode，打印菜单/nonce；读取限定输入；返回实际接收长度/hash；最后发完成marker并退出。最大输入4KiB、总输出64KiB、整个会话≤15s、一次一个、finally只关闭自己的句柄。</p>
+<p>POSIX的原始字节输入需raw/no-echo，防止行规程更改NUL/CR/LF；Windows用明确UTF-8文本profile，不宣称二进制透明。屏幕输出可能有终端回写/换行差异，比较按profile定义的语义cells，不能跨平台直接比较所有wire bytes。</p>
+<p>必须还有一个假答案：发错nonce或错hash，等待不能通过。marker不是进程exit的替代；确认child exit和filesystem/return-code独立裁判，各自打印。若不支持可信command boundary，明确<code>command_finished=UNSUPPORTED</code>。</p>
+<h2>6. 反作弊与兼容</h2>
+<p>对照在同fixture、同裁判、同预算。输出不只是SUCCESS一词。禁止将随机40-seed率当发布门槛或调低阈值；本小套件不依赖真实桌面、token或模型服务。</p>
+<p>测试不修改用户文件，不调用cleanup-all。故障注入只在case自己的进程中修改os.write/select，结束自动隔离，不改仓库源码。候选实现若不再通过这些注入点，报适配失败并更新fixture审查，不许跳过INPUT来换绿。</p>
+</section><section class="doc" id="position" data-title="05 · 定位与 won’t-do"><div class="doc-top"><span>七项增量</span><a href="../docs/POSITIONING.md">原始文件 ↗</a></div><h1>POSITIONING — 两次 release 内的选择与不会做的事</h1>
+<p>依据：[CP1–CP4，E1源码/README，均未运行]。本节是<strong>产品取舍</strong>，不是新的评分或市场胜负证明；旧84/100、65/100仅在历史原包中保留。</p>
+<h2>1. 正面承认重叠</h2>
+<p>Microsoft tui-test 的当前README明确面向AI agents、终端自动化和测试，覆盖Windows/Linux/macOS、CLI/Rust/Python/JS、locator、四类wait、截图和录制，并标记beta重写。它不是“只给人类测试的工具”，原生Windows也不是SmartCLI相对它的独占优势。[CP1]</p>
+<div class="table-scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>工程</th>
+<th>已有焦点（文档/源码证据）</th>
+<th>SmartCLI取舍</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>microsoft/tui-test</td>
+<td>统一引擎、多语言调用、丰富输入、定位/断言/录制</td>
+<td>不补齐其每一种locator/语言/视频格式；优先小范围的可靠状态与Python/CLI/MCP一致性</td>
+</tr>
+<tr>
+<td>coder/agent-tty</td>
+<td>PTY、追加事件日志、Ghostty快照/图像/视频和reviewable proof</td>
+<td>不自研视频编解码和播放器；借鉴事件顺序、失败证据，复用已有导出生态</td>
+</tr>
+<tr>
+<td>onesuper/tui-use</td>
+<td>轻量CLI、持续PTY+xterm/headless、按键/屏幕/高亮</td>
+<td>不把“能操作TUI”当新卖点；差异化待通过CJK标签、分片、安全进度、明确等待依据等可复现契约证明</td>
+</tr>
+</tbody>
+</table></div>
+<p>MCP-first只是集成取舍，不是长期壁垒：别人可加MCP adapter。紧凑JSON是否更省token，Python是否更轻、更快，均未实测，不写成优势数字。真实修复目前的失败，才是下一版可声明的价值。</p>
+<h2>2. 可信交互的具体承诺（待门禁通过）</h2>
+<p>“我告诉Agent什么被选中，并且文字正确；我知道输入写出了多少；我说明等待满足的依据；不知道时不说完成。”</p>
+<p>它不保证Agent决策正确，也不保证所有应用都能发ACK。selected启发式全面校准是后续独立任务，T05修好字符串不等于实现了真正accessibility tree。</p>
+<p>继续保留现有Python/CLI/MCP、原生Windows/POSIX和轻量安装。可以逐步让receipt、observer和错误数据更统一，但不为一套理想协议破坏旧调用者。</p>
+<h2>3. 从三家具体借什么，不机械复制</h2>
+<p>Microsoft <code>command_settled</code> 在未有tracker.started时使用300ms quiet，源码等待predicate还对cancel/exit返回settled。这里只说明低层判据，不能据此断言其整个上层取消处理有bug。SmartCLI借鉴等待类别，并显式打印basis/degraded，不把竞品方法名当完成证明。[CP2]</p>
+<p>agent-tty 的追加事件/序号和失败传播可参考；其README也写清<code>run</code>不是子命令结构化exit status采集，Windows为二级且未CI测试。SmartCLI不把视频作为修复A01/A04的前置。[CP3]</p>
+<p>tui-use 的持续write-to-emulator思路可参考；xterm.write入队不是解析完毕，观察必须有处理完成边界。保留SmartCLI已有SS3和双hash，不换成更简单键表。未对其完整wait路径做新实测，不据片段指控运行竞态。[CP4/STD6]</p>
+<h2>4. 明确 won't-do</h2>
+<ol>
+<li>不重建APNG/GIF/MP4/WebM录制器、视频编辑器或新播放器；需要输出时复用现有工具/格式。</li>
+<li>不做竞品性能农场、耗token榜单或批量真实PTY压力测试；只做少量可重复的契约对照。</li>
+<li>不做无边界“全能终端平台”：远程运维、云多租户、serial/KVM、GUI远控和所有终端协议不绑进主线。</li>
+<li>不更换默认pyte引擎，不为追平别人新增Rust/JS绑定或另一个强制后台服务。</li>
+<li>不把任意TUI变DOM、不编造通用app_ack，不把cell启发式标为应用事实。</li>
+<li>不承诺跨断线/重启exactly-once、不宣称PTY是sandbox、不承诺无穷输出下同时零丢失/零阻塞/固定内存。</li>
+<li>不为了“看起来清爽”删除cmd-art/tui-ui、重命名安装包、重建CodeGraph或改live harness配置。</li>
+</ol>
+<h2>5. 两次 release（能力门，而不是日期或版本号承诺）</h2>
+<p><strong>Release A：正确读与不假成功。</strong> T05、T04先过红绿红、vendor和原门禁；T03故障注入达到明确边界再决定收录。POSIX E4尚未验证时如发布库修复，说明适用范围和NOT_RUN，不能宣传“所有平台全部确认”。最小一致性runner及逐条结果在release note可复核。</p>
+<p><strong>Release B：有界服务。</strong> A04 Windows/POSIX分开验证，保留interleave/resize边界、有限队列/关闭、按平台记录行为。A05/A06与之共同影响公平性；若慢回包仍可能占owner60s，不发布“实时可取消/所有请求有低延迟”承诺。receipt从库到CLI/MCP的新增字段做兼容性测试；源码/wheel/skill到达同一能力。</p>
+<p><strong>两版都不承诺</strong>：全终端一致、全部emoji宽度正确、所有app有ACK、通用业务验证、全量无损录制、跨机器共享租约、跨平台bit-exact原始传输、任何模型成功率提升。功能扩展若影响这两版的确定性修复，就移回future backlog，不改现有验收来赶进度。</p>
+<h2>6. 怎样证伪这个定位</h2>
+<p>若同样四个小契约在三家都已通过且接入成本相同，不能继续拿“可信”当无证据差异。届时优先成为可替换的Python/MCP适配/契约测试组件，或贡献上游，而不是继续补视频和语言种类。这个判断只需少量对照，不需要大榜单。</p>
+</section><section class="doc" id="briefs" data-title="06 · Worker 派发"><div class="doc-top"><span>七项增量</span><a href="../docs/BRIEFS.md">原始文件 ↗</a></div><h1>BRIEFS — 三份可直接交给本地编码 Agent 的任务</h1>
+<p>独立全文：<code>../briefs/01_T05.md</code>、<code>../briefs/02_T04.md</code>、<code>../briefs/03_A04_PROTOTYPE.md</code>。每份首行都有worker fence；它们是任务模板，不代表网页端已经启动任何worker。</p>
+<p>R1合入顺序：T05 → T04 → T03。第三份brief是A04原型，交的是有界模型和设计，不是生产代码；没有把T03从优先序删除。T03的最小方案在<code>A01_MINIMAL.md</code>，待相应E3逻辑与POSIX门槛决策。</p>
+<h2>共同不变量</h2>
+<p>所有worker保留：原Python/CLI/MCP入口、打包映射、canonical/vendor同步、有效interleave快操作、resize的legacy延后、认证、SS3与两屏行为。必须用明确边界而不是“约30行”控范围。少几行不代表正确，多几行测试不是收益膨胀。</p>
+<p>仅一个writer进入同一树；默认在当前Agent会话直接做，不再派发其他模型。结果写到派发者已创建的RUN子目录，不在源码树塞聊天历史。缓存前缀保持不变，后续修正追加记录。</p>
+<h2>状态写法</h2>
+<pre><code class="language-json">{&quot;task&quot;:&quot;T05&quot;,&quot;status&quot;:&quot;verified_memory&quot;,&quot;changed_files&quot;:[],&quot;old_red&quot;:{&quot;verdict&quot;:&quot;ASSERTION_FAILED&quot;,&quot;case&quot;:&quot;test_real_chinese_menu&quot;},&quot;new_green&quot;:{&quot;verdict&quot;:&quot;PASS&quot;},&quot;bug_restored_red&quot;:{&quot;verdict&quot;:&quot;ASSERTION_FAILED&quot;,&quot;case&quot;:&quot;test_real_chinese_menu&quot;},&quot;candidate_restored_green&quot;:{&quot;verdict&quot;:&quot;PASS&quot;},&quot;native_pty&quot;:{&quot;status&quot;:&quot;NOT_RUN&quot;,&quot;reason&quot;:&quot;NOT_REQUIRED_FOR_THIS_MEMORY_INCREMENT&quot;},&quot;commit&quot;:&quot;NOT_CREATED&quot;}
+</code></pre>
+<p>示例是结构，不是已执行结果。T04不能只关分片测试，独立语义及超限恢复同时满足才关闭。A04纯模型永远不写<code>runtime_fixed=true</code>。</p>
+</section><section class="doc" id="risks" data-title="07 · 风险与改动上限"><div class="doc-top"><span>七项增量</span><a href="../docs/RISKS.md">原始文件 ↗</a></div><h1>RISKS — 风险登记、停止规则与最大触碰面</h1>
+<p>这些是审查边界，不是已经发生过的全部事故。A01–A06的证据分级沿用L1；新的设计风险是推断，不能包装成实测。表中kill criteria指<strong>停止该候选方案/本次任务并报告</strong>，不是杀进程或删代码。</p>
+<div class="table-scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>ID</th>
+<th>对象</th>
+<th>风险</th>
+<th>触发</th>
+<th>早期信号</th>
+<th>处置</th>
+<th>停止条件</th>
+<th>最大触碰面</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R01</td>
+<td>T05</td>
+<td>cell坐标再次当字符下标</td>
+<td>中文/组合符前缀或0列右界</td>
+<td>label与literal不符</td>
+<td>按cell取字；保留正文/trim策略</td>
+<td>候选仍输出3或mutation不红</td>
+<td>3文件：snapshot+vendor+单测</td>
+</tr>
+<tr>
+<td>R02</td>
+<td>T04</td>
+<td>整体和分片一起错</td>
+<td>仅用whole-feed作oracle</td>
+<td>RGB/italic错误但分片一致</td>
+<td>独立语义断言+分片对照</td>
+<td>独立属性不满足</td>
+<td>3文件：screen_model+vendor+单测</td>
+</tr>
+<tr>
+<td>R03</td>
+<td>T04</td>
+<td>字符串负载/长CSI污染</td>
+<td>正则全局替换、未终止CSI</td>
+<td>OSC/DCS被改写或pending增长</td>
+<td>状态跟踪、硬cap、明确恢复</td>
+<td>控制组退化或无界暂存</td>
+<td>同T04；超范围另提案</td>
+</tr>
+<tr>
+<td>R04</td>
+<td>A04</td>
+<td>Windows队列无界/假有界</td>
+<td>只限制Queue项数或consumer另囤字节</td>
+<td>pending超byte cap或RSS趋势异常</td>
+<td>计费staging、读上限、背压</td>
+<td>靠丢字节保持内存</td>
+<td>原型4输出；生产另批≤7文件</td>
+</tr>
+<tr>
+<td>R05</td>
+<td>A04</td>
+<td>两reader/两模型owner</td>
+<td>为了watcher起第二个pump线程</td>
+<td>线程ident变化或字节重复</td>
+<td>transport单owner；observer只读快照</td>
+<td>任何并发模型写入</td>
+<td>生产预算slice最多backend+session及vendor+单测</td>
+</tr>
+<tr>
+<td>R06</td>
+<td>A04</td>
+<td>回退interleave修复</td>
+<td>重写worker忘掉on_poll</td>
+<td>长wait让snapshot再次排队</td>
+<td>先锁既有快请求服务测试</td>
+<td>移除hook负例抓不住</td>
+<td>tui+一个并发测试，独立slice</td>
+</tr>
+<tr>
+<td>R07</td>
+<td>A04</td>
+<td>resize冒充动作成功</td>
+<td>把resize插入legacy wait</td>
+<td>只resize也宣称按键成功</td>
+<td>保留延后；未来geometry epoch另设计</td>
+<td>resize-only假成功</td>
+<td>tui+一个测试，不扩公共API</td>
+</tr>
+<tr>
+<td>R08</td>
+<td>A06</td>
+<td>慢回包占owner</td>
+<td>同步sendall、非读peer</td>
+<td>每回复可占至60s</td>
+<td>单独有界回包路径及配额</td>
+<td>宣称低延迟但仍阻塞owner</td>
+<td>≤3文件：tui+两测试；无新框架</td>
+</tr>
+<tr>
+<td>R09</td>
+<td>T03</td>
+<td>短写重发/丢尾/忙等</td>
+<td>EAGAIN、EINTR、partial cancel</td>
+<td>sink hash/len不同，offset倒退</td>
+<td>只写后缀、deadline、明确partial</td>
+<td>假成功或无限attempt</td>
+<td>最小3；receipt跨session≤5</td>
+</tr>
+<tr>
+<td>R10</td>
+<td>A04</td>
+<td>全双工互锁</td>
+<td>owner等待写但child先等排输出</td>
+<td>deadline反复到期无进度</td>
+<td>有界read/write轮转，不递归用户动作</td>
+<td>把timeout当成功或新增无界线程</td>
+<td>后续生产≤7文件，须拆slice</td>
+</tr>
+<tr>
+<td>R11</td>
+<td>A04</td>
+<td>ConPTY关闭/旧reader越代</td>
+<td>满buffer、native read未退出、对象复用</td>
+<td>旧线程进入新queue或关闭不明</td>
+<td>generation绑定、EOF状态、有限收尾</td>
+<td>kill全局进程或假称已退出</td>
+<td>backend+vendor+专用test，另批E4</td>
+</tr>
+<tr>
+<td>R12</td>
+<td>Protocol</td>
+<td>ACK/verified虚构</td>
+<td>见prompt/hash变就升级状态</td>
+<td>无action/generation或verifier</td>
+<td>三事实轴；unknown保留</td>
+<td>written直接变业务verified</td>
+<td>原型models；公开接线另批≤5文件</td>
+</tr>
+<tr>
+<td>R13</td>
+<td>Packaging</td>
+<td>scripts映射被改坏</td>
+<td>重命名tui/mcp模块或console entry</td>
+<td>source绿wheel导入失败</td>
+<td>保持映射；发行矩阵独立门</td>
+<td>未经批准破坏旧入口</td>
+<td>本轮0个配置文件；发行任务另授权</td>
+</tr>
+<tr>
+<td>R14</td>
+<td>Vendor</td>
+<td>sync删除他人修改</td>
+<td>直接运行refresh/rmtree</td>
+<td>vendor存在非基线变化</td>
+<td>只拷允许孪生并跑--check</td>
+<td>覆盖独立修改/越过hook</td>
+<td>每修复恰好1孪生；不改sync工具</td>
+</tr>
+<tr>
+<td>R15</td>
+<td>Delivery</td>
+<td>清单与最终ZIP不一致</td>
+<td>manifest后再改yaml/页面</td>
+<td>元数据sha不匹配</td>
+<td>冻结→manifest→最终ZIP逐项验证</td>
+<td>任一缺失/额外/hash差异</td>
+<td>仅交付包；不重签未提供的wca包</td>
+</tr>
+<tr>
+<td>R16</td>
+<td>Evidence</td>
+<td>SKIP/模型测试冒充产品实测</td>
+<td>依赖缺失或故障注入</td>
+<td>报告说全通过但NOT_RUN被省</td>
+<td>total/pass/skip、环境/注入双标</td>
+<td>丢首次失败/假E4</td>
+<td>报告/测试；禁止改expected弱化</td>
+</tr>
+<tr>
+<td>R17</td>
+<td>A05</td>
+<td>连接和作业配额遗漏</td>
+<td>只加ingress cap</td>
+<td>readers/jobs仍无界</td>
+<td>独立reader/jobs配额+小容量负例</td>
+<td>新队列无bound及失效测试</td>
+<td>tui+一个或两个测试≤3文件</td>
+</tr>
+<tr>
+<td>R18</td>
+<td>Scope</td>
+<td>计划再次膨胀</td>
+<td>顺手新引擎/actor/视频平台</td>
+<td>变更超allowlist、没有旧失败</td>
+<td>按两版won't-do；scope_guard</td>
+<td>没有可证收益或超批准面</td>
+<td>新增实验最多4个RUN输出，不改生产</td>
+</tr>
+</tbody>
+</table></div>
+<h2>每个增量的硬边界</h2>
+<p>T05/T04各3个文件，分别一份canonical、一份vendor、一份新测试；不把共用模块重命名加进来。T03最小3，涉及receipt跨session最高5，改动理由必须明确。A04-P只在RUN产生4个文件，repo变更为零。A04后续接线最多backend/session/tui +两个core孪生 +两测试=7文件，这个上限不是本轮授权；优先再拆成更小切片。</p>
+<p>A05/A06各按tui与独立测试切开，新增线程/队列/observer必须同增量给出上界、取消/关闭策略与失效测试。不新建模块以绕过“文件数量上限”；同样不把一个文件塞成巨大平台来规避控制。任何新重大依赖、默认引擎、公共API破坏或配置变动，都需要另批。</p>
+<h2>检查方法</h2>
+<p>每个任务开始前捕获文件指纹，结束比较<strong>任务起点</strong>而非一律git HEAD（前一任务可能尚未commit）。</p>
+<pre><code class="language-powershell">&amp; $Python -B &quot;$Kit/tools/scope_guard.py&quot; capture --repo $Repo --out &quot;$Run/T05/before.json&quot;
+# 只执行brief允许的修改
+&amp; $Python -B &quot;$Kit/tools/scope_guard.py&quot; check --repo $Repo --baseline &quot;$Run/T05/before.json&quot; --brief T05
+</code></pre>
+<p>守卫不覆盖repo外/ignored文件，不是sandbox；外部权限仍须人工和已有hook执行。若HEAD变化/未知writer进入，暂停并交接，不自动stash/reset。</p>
+<h2>清单异常处理</h2>
+<p>web-chat-archive事件只记为用户报告，未接到原ZIP。不能因为只是openai.yaml就忽略验证，更不能给未知内容重算hash后“修复信任”。本包先验证目录，再验证最终ZIP全部列入清单的文件，包含元数据；外部.sha256固定最终ZIP。该校验不提供数字签名身份认证。</p>
+</section><section class="doc" id="dissent" data-title="我反对本地结论的地方"><div class="doc-top"><span>评审</span><a href="../docs/REVIEW_DISAGREEMENTS.md">原始文件 ↗</a></div><h1>我反对本地结论的地方</h1>
+<p>这不是否定本地Agent：它提供了本轮最重要的真实core证据，<code>保存→3</code>和按块SGR缺陷直接接受。以下限定的是推论强度、范围和执行方式。</p>
+<h2>1. “宽字符在前就无条件错误”太强</h2>
+<p>错误机制确定，独立fixture已经足够；但最终字符串可能因重复内容、空白trim或特定跨度而碰巧相同。从0列开始也并非普遍安全：右边界后若还有字符，字符串切片仍可能多取。附件的某个0列案例恰好一致，不是全称证明。[L1 §1]</p>
+<p>还有一个探针oracle细节：<code>probe_extended.show</code> 用cell聚合后的 <code>.rstrip()</code> 与旧规则的 <code>.strip()</code> 比较；含前导空格的行可能多出空白策略差异。这不影响端到端<code>保存→3</code>，但v2正式测试两边使用一致标签清理，独立期望用字面量。</p>
+<p>补验不需要新大实验：纳入T05同一文件的控制组，含重复标签、0列右界和空白即可。</p>
+<h2>2. “1KiB 100%”不是线上出错概率</h2>
+<p>已有数据是特定12,395-byte人工流、固定随机分片分布、每档40seed的<strong>最终screen差异率</strong>。31/40=77.5%，1/40=2.5%；原脚本零位小数输出78%和2%属于格式化效果。不能据此说真实用户4KiB read的故障率78%。它还比较最终screen，滚出viewport的早期错误未必被统计。[L1 §2；probe_split_rate.py]</p>
+<p><code>probe_split_rate.py</code> 最后打印的是reference.feed_errors，不是每个损坏trial的counter；附件另有“损坏运行feed_errors仍0”的本地结论，保留为上传报告事实，但不说这一个脚本单独证明了它。T04的新fixture会逐case采集counter；不用让本地重跑原40seed。</p>
+<h2>3. interleave 是已修复的快请求通道，不是完整多watcher</h2>
+<p>必须保护现有能力，这是v1文档缺口；但第二条长wait仍排队。resize本身是一次真实屏幕几何变化，不能被解释为某次按键成功；在legacy路径中保持延后是合理兼容策略，而不是未来永不允许resize的自然法则。[L1 §6；SC3]</p>
+<p>此外<code>list</code>在INTERLEAVE_OK集合内但不在当前_handle有效分支中，不应据集合成员宣称daemon已经支持该verb。</p>
+<h2>4. 打包有耦合，不代表每次内部改动都改变Registry契约</h2>
+<p><code>smartcli_drive</code>映射到scripts是真事实；因此改tui.py会触及安装产物和MCP共享路径，必须回归。只要导出路径、参数、响应、协议和registry metadata保持不变，内部调度修正不自动是破坏性公共变更。v2锁定观察行为，不要求每次加循环都升级注册协议。[SC5]</p>
+<p>v1并非完全没提vendor：原<code>MASTER_PLAN.md</code>第51/123行、<code>LOCAL_AGENT_PROMPT.md</code>第33行及<code>docs/08_MIGRATION.md</code>第13行都有同步要求。真正缺口是没有把孪生绝对关系/打包映射落实成每个worker的硬触碰边界；不能把“写得不够明确”说成“全文没有”。本轮逐字节保留的v1可直接复核。这不减轻interleave机制在执行架构中确实遗漏的问题。</p>
+<h2>5. “没有POSIX，就只能等T03”不必要</h2>
+<p>本机不能做POSIX E4，应保留NOT_RUN；但能用真实生产write方法+注入短写/EAGAIN/EINTR做E3逻辑测试。不要让硬件缺口阻止修复。反过来，“真PTY上patch os.write制造短写”属于E4环境中的注入故障，不等同于观察到自然发生短写；报告应双标环境和注入模式。[L1 §3/§9；STD1]</p>
+<h2>6. A04 的内存/阻塞表述是源码推断，不是已完成测量</h2>
+<p>附件自己把A04列E1且末尾要求补验，这个自我限定正确。Windows现有无界queue没有应用级配额，不保证永不背压或永不受内存限制；POSIX持续写会达到buffer边界，但触发负载/时间仍未测。新的有界queue刻意施加背压，因此不能再用“child完全不阻塞”作为统一验收。[L1 §4/§9]</p>
+<h2>7. “47项通过，1skip”必须按测试摘要记账</h2>
+<p>附件原文是<code>Ran 47 tests, OK, 1 skipped</code>的意思：按unittest通常统计应记总47、通过46、跳过1，而不是47全部通过另加1。旧包自带清单49项可验证完整性，不证明所有测试结果。v2记录total/pass/skip独立数字，不需要为此重跑本地旧套件。[L1 §8]</p>
+<h2>8. Microsoft并非“仅测试框架，不面向Agent”</h2>
+<p>当前README第一段直接写AI agents；SmartCLI不能靠这个二分定位。无MCP-first已读入口是集成差异，不是永久护城河；对不存在的所有adapter/分支不能下全称结论。[CP1]</p>
+<h2>9. 关于web-chat-archive的hash不一致</h2>
+<p>按用户报告保留“元数据hash不匹配、脚本hash正确、安装器拒绝、手动安装”的事件。<strong>该原zip不在本次附件中，不能独立确认、重签或声称修好。</strong> <code>.yaml</code>也不是理由自动忽略整包校验。新包加入元数据被篡改的负例，先冻结内容再算manifest、再从最终ZIP核验；SHA256只证明一致性，不是作者身份认证。</p>
+<h2>最多三项新的本地实验申请</h2>
+<p>只新增下面三项，不要求重跑已交E3统计；T05/T04的修复回归属于实施验收，不是额外调研。</p>
+<p><strong>X1／A01注入式字节与状态</strong>：假设原路径在短写2/EAGAIN/EINTR时漏数据或假成功，候选offset循环不漏不重。真实生产方法、fake sink、≤256-byte payload、≤32 write calls、≤1秒虚拟时间；如果candidate任一不同则判负。超过调用预算即停止，不调用真实fd。可先做E3，POSIX E4单列NOT_RUN。</p>
+<p><strong>X2／A04 Windows有界与首帧</strong>：先做容量极小的假模型，证明满queue能被cancel唤醒且字节不丢。若owner再明确批准，一次ConPTY、有限总输出、固定脚本，分别测无人snapshot期间pending和最终解析；candidate仍无界或靠丢字节保持小RSS即判负。总输出上限8MiB、总时间10s、一次一个，超限停止并只收尾自有会话；这些是实验上限，不是生产性能目标。未批准不启动。</p>
+<p><strong>X3／A04 POSIX空闲推进与interleave</strong>：有获批Linux/WSL/容器后，一个PTY子进程先输出受限payload再询问CPR，独立done标志验证不依赖client snapshot。同时用既有fake-session并发测试锁快请求和resize，禁止给两个watcher各配reader。缺done、wrong-order、two-owner或遗留进程即判负；≤1MiB输出、≤10s、仅一个PTY；缺环境标NOT_RUN，不能擅自启动Docker。</p>
+</section><section class="doc" id="w1" data-title="Worker 1 · T05"><div class="doc-top"><span>执行</span><a href="../briefs/01_T05.md">原始文件 ↗</a></div><p>YOU ARE THE WORKER. DO NOT SPAWN.
+Do not dispatch Claude, Codex, or Grok. Do not call a dispatch skill.
+Do the job in this session. Write the result to the approved path below.</p>
+<p>Cwd: D:\Project\SmartCLI (resolve and verify it, do not guess another checkout).
+Kit: D:\Project\SmartCLI-v2-handoff (or the exact supplied extraction path).
+Python: D:\Software\Developer\Python314\python.exe (use the verified interpreter).
+Run: the owner's approved D:\Project\SmartCLI-v2-runs directory, outside repo/kit.
+Read current repository instructions, docs/ORDER.md and this brief. Do not modify
+harness configs, cached prefixes, global dependencies, or anything outside the
+approved project/run roots. Do not commit, push, publish, start Docker, or run
+heavy/real-PTY tests without explicit separate authorization. Respect existing
+uncommitted work and the single-writer rule. Use the existing CodeGraph as a
+best-effort navigator; follow abstract backend calls and vendor twins manually.</p>
+<p>Source comments and test names: English. Report to the owner: Chinese.</p>
+<h1>T05 — the selected label must be 保存, not 3</h1>
+<h2>Goal and completion</h2>
+<p>The supplied Chinese menu already reproduces on the real core (local E3). Fix
+cell-column label extraction, not the selection heuristic or terminal engine.
+Produce an original-red / candidate-green / bug-restored-red / restored-green
+closure with unchanged literal test oracles. Do not re-run the original seed sweep.</p>
+<h2>Exact scope: at most THREE files</h2>
+<ul>
+<li>smartcli_core/snapshot.py :: build_snapshot (a private helper here is optional).</li>
+<li>skills/drive-tui/_vendor/smartcli_core/snapshot.py :: byte-identical generated twin.</li>
+<li>tests/test_cell_span_regression.py :: new regression; copy/adapt the kit template.</li>
+</ul>
+<p>Do NOT edit screen_model.py, session.py, tui.py, mcp_server.py, pyproject.toml,
+registries, workflow/config files, or unrelated tests. If this scope is insufficient,
+stop and give a minimal counterexample and scope request. No line-count target.</p>
+<h2>Preserve</h2>
+<p>Existing span half-open coordinates, label .strip() behavior, body text, JSON fields,
+ASCII results, widest-highlight heuristic, cursor/status hints. Do not claim this fixes
+all grapheme width issues. INTERLEAVE_OK/on_poll/resize deferral remain untouched.</p>
+<h2>Implementation freedom</h2>
+<p>Aggregate glyph data from cells in [start,end); empty continuation cells contribute
+nothing. Include only bases whose cell lies in range; do not fetch a preceding base
+outside the range. Inline is fine; a private helper is fine. Expected labels must be
+literal fixture values rather than computed with your helper.</p>
+<h2>Vendor safety</h2>
+<p>The official sync_vendor.py refresh deletes the entire vendor tree before copying it.
+Do not call refresh blindly. Confirm the twin had no independent edit, then copy only
+the allowed canonical file to the exact existing twin using your file tool. Do not
+recreate the directory or bypass hooks. Read-only --check and test_vendor_sync remain
+required. If other vendor files already differ, report the pre-existing drift and stop
+before broad synchronization.</p>
+<h2>Commands (PowerShell variables resolved to exact approved paths)</h2>
+<p>&amp; $Python -B tests/test_cell_span_regression.py
+&amp; $Python -B tools/sync_vendor.py --check
+&amp; $Python -B tests/test_vendor_sync.py
+&amp; $Python -B tests/test_terminal_fidelity.py
+&amp; $Python -B &quot;$Kit/tools/conformance.py&quot; --repo $Repo --case screen --consent-execute-reviewed-code</p>
+<p>The first command must fail for the intended business assertion against the baseline.
+For mutation, keep the new test unchanged and restore only the old display[y][a:b]
+logic in an isolated approved validation copy. Never reset/revert the user's live tree.
+Restore the candidate and re-run its affected gates. Keep first-run output.</p>
+<h2>Stop conditions</h2>
+<p>Concurrent writer, unaccounted dirty files, need for a fourth changed file, test import
+failure, surviving targeted mutation, partial-cell policy ambiguity, or a hook refusal.
+No skip, threshold relaxation, expected=3, or automatic rerun to turn red into green.</p>
+<h2>Receipt</h2>
+<p>Write RUN/T05/last.md and closure.json (parent creates the approved directory).
+Include exact paths/commands, changed file hashes, actual test counts, four-stage
+mutation evidence, vendor gate, controls, and native_pty=NOT_RUN with reason
+NOT_REQUIRED_FOR_THIS_MEMORY_INCREMENT. Report no commit created. If already fixed
+by another completed worker, verify its evidence and report accepted-existing instead
+of rewriting the solution.</p>
+</section><section class="doc" id="w2" data-title="Worker 2 · T04"><div class="doc-top"><span>执行</span><a href="../briefs/02_T04.md">原始文件 ↗</a></div><p>YOU ARE THE WORKER. DO NOT SPAWN.
+Do not dispatch Claude, Codex, or Grok. Do not call a dispatch skill.
+Do the job in this session. Write the result to the approved path below.</p>
+<p>Cwd: D:\Project\SmartCLI (resolve and verify it, do not guess another checkout).
+Kit: D:\Project\SmartCLI-v2-handoff (or the exact supplied extraction path).
+Python: D:\Software\Developer\Python314\python.exe (use the verified interpreter).
+Run: the owner's approved D:\Project\SmartCLI-v2-runs directory, outside repo/kit.
+Read current repository instructions, docs/ORDER.md and this brief. Do not modify
+harness configs, cached prefixes, global dependencies, or anything outside the
+approved project/run roots. Do not commit, push, publish, start Docker, or run
+heavy/real-PTY tests without explicit separate authorization. Respect existing
+uncommitted work and the single-writer rule. Use the existing CodeGraph as a
+best-effort navigator; follow abstract backend calls and vendor twins manually.</p>
+<p>Source comments and test names: English. Report to the owner: Chinese.</p>
+<h1>T04 — bounded streaming SGR normalization</h1>
+<h2>Prerequisite and goal</h2>
+<p>Accept T05's completed memory closure first. Fix per-read-chunk SGR normalization
+without changing the default engine. Both partition invariance and independently
+specified supported-SGR attributes must be correct. Matching a wrong whole-feed
+baseline is not success.</p>
+<h2>Exact scope: at most THREE files</h2>
+<ul>
+<li>smartcli_core/screen_model.py :: _ByteStream and strictly local helpers.</li>
+<li>skills/drive-tui/_vendor/smartcli_core/screen_model.py :: exact twin.</li>
+<li>tests/test_sgr_stream_regression.py :: copy/adapt template and extend here.</li>
+</ul>
+<p>Do not change snapshot.py/T05, session/readiness/daemon/MCP, packaging, public APIs,
+engine dependency, or workflow files. A whole parser replacement needs a new approval.</p>
+<h2>Required behavior</h2>
+<p>Keep ordinary CSI/SGR/OSC, incremental UTF-8, title/cursor/mode/alt-buffer behavior,
+CPR replies and existing pyte capability checks. A normalization layer must track the
+stream across calls, modify only genuine CSI-SGR, not rewrite lookalike bytes inside
+OSC/DCS strings, and have an explicit bounded incomplete-CSI policy.</p>
+<p>Independent semantics: 38:2::255:0:128 -&gt; fg ff0080; 4:3 may degrade to basic underline
+but MUST NOT add italic; unsupported 58 underline-color must not leak subparameters
+into ordinary SGR attributes. A fixed-size pending buffer is not permission to draw
+residue or silently claim a complete observation after loss.</p>
+<p>Allowed choices: a small incremental rewriter or narrow parser dispatch integration.
+Choose the smaller provable design. 1024-byte CSI cap is a design starting point, not
+benchmark data. Avoid C1-byte handling that misreads UTF-8 continuations.</p>
+<h2>Required tests in the one new file</h2>
+<p>All two-part split points; one-byte chunks; a few fixed-seed multi-chunks; compare all
+cells/attributes/cursor/title/modes. Independent attributes. ASCII/ordinary escape
+controls. Incomplete/oversized CSI with recovery; OSC/DCS lookalike protection. Empty
+chunk and EOF behavior. Preserve T05 tests. No 40-seed large-stream remeasurement needed.</p>
+<h2>Commands</h2>
+<p>&amp; $Python -B tests/test_sgr_stream_regression.py
+&amp; $Python -B tests/test_cell_span_regression.py
+&amp; $Python -B tools/sync_vendor.py --check
+&amp; $Python -B tests/test_vendor_sync.py
+&amp; $Python -B tests/test_terminal_fidelity.py
+&amp; $Python -B &quot;$Kit/tools/conformance.py&quot; --repo $Repo --case sgr --consent-execute-reviewed-code</p>
+<p>Use targeted byte-copy for this vendor twin; do not erase/recreate the vendor tree.
+For the negative proof restore only the old chunk-local regex path in an isolated
+approved validation copy, keep tests unchanged, observe the intended failures, then
+restore candidate green. Import failure does not count as a killed mutation.</p>
+<h2>Stop/NOT_RUN</h2>
+<p>Stop for scope expansion, lack of a bounded recovery policy, unexpected control-group
+regressions, a mutation that survives, or uncertain full-color subparameter semantics.
+Do not “solve” by stripping all ANSI or disabling non-ASCII tests.
+Report native_pty=NOT_RUN and competitor_runtime=NOT_RUN. These are not needed to
+prove memory invariance, but release compatibility remains separately open.
+Write RUN/T04/last.md and closure.json with exact first-run results, scope and hashes.</p>
+</section><section class="doc" id="w3" data-title="Worker 3 · A04 原型"><div class="doc-top"><span>执行</span><a href="../briefs/03_A04_PROTOTYPE.md">原始文件 ↗</a></div><p>YOU ARE THE WORKER. DO NOT SPAWN.
+Do not dispatch Claude, Codex, or Grok. Do not call a dispatch skill.
+Do the job in this session. Write the result to the approved path below.</p>
+<p>Cwd: D:\Project\SmartCLI (resolve and verify it, do not guess another checkout).
+Kit: D:\Project\SmartCLI-v2-handoff (or the exact supplied extraction path).
+Python: D:\Software\Developer\Python314\python.exe (use the verified interpreter).
+Run: the owner's approved D:\Project\SmartCLI-v2-runs directory, outside repo/kit.
+Read current repository instructions, docs/ORDER.md and this brief. Do not modify
+harness configs, cached prefixes, global dependencies, or anything outside the
+approved project/run roots. Do not commit, push, publish, start Docker, or run
+heavy/real-PTY tests without explicit separate authorization. Respect existing
+uncommitted work and the single-writer rule. Use the existing CodeGraph as a
+best-effort navigator; follow abstract backend calls and vendor twins manually.</p>
+<p>Source comments and test names: English. Report to the owner: Chinese.</p>
+<h1>A04-P — bounded idle-service design prototype, NOT a production rewrite</h1>
+<h2>Goal</h2>
+<p>Demonstrate the unified byte-budget contract with TWO platform models, while retaining
+the real daemon's existing interleave and resize constraints in the migration design.
+Use docs/A04_DESIGN.md, the attached real source, and models/contracts.py as a small
+reference, not as proof the product is fixed. Distinguish static facts from measured
+behavior.</p>
+<h2>Exact write scope: RUN/A04-P only, at most FOUR files</h2>
+<ul>
+<li>prototype.py (pure injected-I/O / virtual-clock model, no real process or socket).</li>
+<li>test_prototype.py (bounded failure controls, no busy loops).</li>
+<li>DESIGN_DELTA.md (symbol-level production migration and max-touch proposal).</li>
+<li>last.md (actual results and NOT_RUN matrix).
+No production repository files may change. No thread/PTY/ConPTY/socket/Docker is
+created in this first prototype. Do not implement a generic actor framework.</li>
+</ul>
+<h2>Must demonstrate</h2>
+<p>Windows: already has a reader; model byte-budgeted queue and stop-aware capacity,
+not “add another reader”. POSIX: model owner servicing idle reads and device replies,
+not “spawn a second model writer”. Observers never consume transport bytes.</p>
+<p>Use small capacities (e.g.12 bytes,4-byte fragments) and finite input. Show max_pending
+never exceeds cap, every accepted byte is delivered once/in order, full capacity yields
+backpressure, EOF/close cannot wait forever behind data, and one parse turn is budgeted.
+No promise that an infinitely fast producer can never block.</p>
+<p>Preserve existing fast verbs during one long wait via on_poll/interleave; exclude
+resize from legacy wait attribution. Model two read-only watcher predicates on one
+committed observation, while acknowledging that the current public daemon does NOT
+already support two independent long waits. Do not invent support for the &quot;list&quot;
+string just because it appears in the interleave set.</p>
+<h2>Negative controls</h2>
+<p>Remove idle service -&gt; finite POSIX fixture cannot complete without polling.
+Remove byte cap -&gt; high-water invariant fails.
+Remove interleave -&gt; fast request cannot meet the logical service-turn bound.
+Allow resize to satisfy an action-specific wait -&gt; causality assertion fails.
+Different observers reading -&gt; owner identity/read-count assertion fails.
+These are model failures, not native timing measurements.</p>
+<h2>Commands</h2>
+<p>&amp; $Python -B -m unittest discover -s &quot;$Run/A04-P&quot; -p &quot;test_prototype.py&quot; -v
+&amp; $Python -B &quot;$Kit/tools/scope_guard.py&quot; check --repo $Repo --baseline $Before --brief A04-P
+The scope command uses an EMPTY repository allowlist for A04-P. Any repository
+change fails this prototype's scope gate. Do not call run_all.</p>
+<h2>Migration deliverable</h2>
+<p>Name the exact future symbols: WinptyBackend._read_loop/read_nonblocking,
+PosixPtyBackend.read_nonblocking, PtySession.pump, tui._serve_forever worker and the
+on_poll route. List current _reply timeout60s and unbounded jobs/readers as remaining
+A05/A06 risks; don't claim total fairness solved by ingress budgeting.
+A proposed production slice may touch backend+session+tui+their core twins+two tests
+(max7), but it is NOT authorized by this prototype brief. Split further if possible.</p>
+<h2>Stop and report</h2>
+<p>Stop if real I/O, new dependency, production edits, or broader permissions seem needed.
+Write results as E2-reference-model; Windows_ConPTY=NOT_RUN,
+POSIX_PTY=NOT_RUN, actual_daemon_loopback=NOT_RUN. Never runtime_fixed=true.
+Only owner-approved X2/X3 may later raise evidence levels. Leave the candidate design,
+failure mutations and open questions in RUN/A04-P/last.md.</p>
+</section><section class="doc" id="validation" data-title="本次实际验证"><div class="doc-top"><span>证据</span><a href="../evidence/delivery/VALIDATION.md">原始文件 ↗</a></div><h1>本次交付验证记录</h1>
+<p>交付日期2026-09-16（Asia/Tokyo）。本节记录<strong>执行过什么</strong>，而不是待办门禁。</p>
+<h2>实际结果</h2>
+<div class="table-scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>检查</th>
+<th>结果</th>
+<th>能证明／不能证明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>新交付工具与参考模型 unittest</td>
+<td><strong>62 total / 62 passed / 0 skipped / 0 failures / 0 errors</strong></td>
+<td>仅工具及E2注入模型；不是SmartCLI产品通过</td>
+</tr>
+<tr>
+<td>本轮初次工具测试</td>
+<td>60/60，通过</td>
+<td>初次日志保留；后来增加2项边界检查，不是失败自动重跑</td>
+</tr>
+<tr>
+<td>新写Python语法解析</td>
+<td>10文件，PASS</td>
+<td>ast.parse，不等于实际core接口已测试</td>
+</tr>
+<tr>
+<td>v1原ZIP内清单</td>
+<td>49/49一致</td>
+<td>只校验旧包完整性，没有在这里重跑它的47项测试</td>
+</tr>
+<tr>
+<td>选取的任务附件与PROMPTS.zip</td>
+<td>19份，逐字节一致</td>
+<td>不转发与SmartCLI无关的live harness配置</td>
+</tr>
+<tr>
+<td>单独上传MD与ZIP内MD</td>
+<td>逐字节一致</td>
+<td>本地E3报告保持原文</td>
+</tr>
+<tr>
+<td>新产品回归模板／C0 real-core runner对SmartCLI</td>
+<td><strong>NOT_RUN</strong></td>
+<td>本执行容器未安装pyte；不把缺依赖当失败复现或成功</td>
+</tr>
+<tr>
+<td>SmartCLI真实PTY、ConPTY、daemon loopback</td>
+<td><strong>NOT_RUN</strong></td>
+<td>不宣称A01/A04/A05/A06实机验证</td>
+</tr>
+<tr>
+<td>竞品运行、性能或模型成功率</td>
+<td><strong>NOT_RUN</strong></td>
+<td>仅重读官方文档/指定源码</td>
+</tr>
+<tr>
+<td>离线页面结构、搜索、移动端布局</td>
+<td><strong>PASS（内存HTML渲染）</strong></td>
+<td>17章节；50链接路径/锚点检查；390px无整页溢出；不包含file://导航测试</td>
+</tr>
+<tr>
+<td>用户本地库、HEAD、全局设置</td>
+<td><strong>未修改</strong></td>
+<td>新文件只在本次交付工作目录</td>
+</tr>
+</tbody>
+</table></div>
+<p>最终工具测试命令（本次容器使用独立工作临时目录）：</p>
+<pre><code class="language-sh">SMARTCLI_V2_TEST_TMP=/mnt/data/smartcli_v2_work python -B -m unittest discover -s tests -v
+</code></pre>
+<p>本轮为Linux、Python 3.13.5；不是用户Windows机器。详情见<code>provenance.json</code>、<code>tool-tests-final-62.log</code>。不要将这里0 skip反推为Windows symlink测试也会通过；本地账号不允许symlink时该一项明确SKIP，报告total/pass/skip。</p>
+<h2>回归模板的状态</h2>
+<p><code>tests_product/test_cell_span_regression.py</code>有9个test方法；SGR模板有5个；短写模板有2个。它们是交给本地的<strong>候选回归文件</strong>，均未在此容器对真实core执行；需要本地红绿红与现有门禁。T04模板尚需worker在同文件增加溢出/字符串负载的实现相关断言，T03也需增加deadline/cancel错误对象断言。</p>
+<p>实际小runner覆盖SCREEN、SGR、INPUT、WAIT、REJECT五类。只有INPUT使用真实生产方法上的注入OS；没有原生fd/PTY。标准库runner测试使用故意缺依赖的fixture，证明NOT_RUN不被当成PASS，<strong>不是导入真实SmartCLI</strong>。</p>
+<h2>参考模型边界</h2>
+<p>字节偏移、EAGAIN/EINTR、partial取消、真实错误对象、byte cap和close请求/EOF分离可被E2模型测试。模型没有原生线程/Condition/socket，不能证明线程被唤醒、RSS上界、全双工进度或close不会卡死。close请求后仍允许最终输出，只有EOF及排空才进入drained；这也不等于进程exit。</p>
+<h2>可用性限制与真实性</h2>
+<p>尝试通过容器网络获取缺失依赖没有成功，因此没有安装或补造pyte结果；网上文档可通过专用浏览工具读取，不代表本地执行容器有网络。没有让这些限制阻止交付设计、标准库工具和已提供的本地证据。</p>
+<p>工具不是sandbox。审查代码并显式consent后，Python代码仍拥有执行用户权限；范围守卫不覆盖repo外或gitignored路径。C0超时回收的是自己的直接子进程，不构成任意进程树隔离。禁止用于未知不可信仓库后宣称安全隔离。</p>
+<h2>页面验证边界</h2>
+<p>专用Playwright浏览器未预装，改用已存在的系统Chromium；系统政策禁止file://导航，没有改变该政策。生成的HTML通过内存set_content完成渲染、搜索、空结果/清除、移动端宽度检查；相对下载链接用路径/锚点静态检查，未在浏览器执行文件导航。初次环境失败记录和最终验证记录分别保留在browser-initial-attempt.json及browser-check.json。</p>
+<h2>清单与最终ZIP</h2>
+<p>最终文件冻结后生成MANIFEST.json，再从目录和最终ZIP各验证一次；核验结果随外部交付回执提供，避免把“最终ZIP的hash”循环嵌入ZIP本身。所有metadata、YAML、页面与Python均纳入；仅忽略解释器缓存。外部<code>.zip.sha256</code>用于校验最终压缩包，SHA256不提供发行者数字签名。</p>
+<p>用户提及web-chat-archive元数据失配属收到的事故报告；原ZIP未提供，所以本轮未修复、未重新签名，也不会以“只是元数据”为理由忽略它。新校验器的YAML篡改负例确实在本轮执行。</p>
+</section><section class="doc" id="sources" data-title="来源与证据等级"><div class="doc-top"><span>证据</span><a href="../docs/SOURCES.md">原始文件 ↗</a></div><h1>v2 证据索引与已读范围</h1>
+<p>日期2026-09-16；E0–E6是本项目自定义证据等级，不是ISO标准或外部认证。E1=source/spec，E2=reference/stand-in，E3=实际core的内存/注入式测试，E4=单个真实PTY，E5=固定预算端到端与独立裁判，E6=发行/平台矩阵。若含注入，另写<code>io_mode</code>，不能仅靠等级名隐藏环境。</p>
+<h2>输入资料（本包原字节保留）</h2>
+<ul>
+<li><strong>L1</strong>：<code>evidence/incoming/astra6-attachments/smartcli-local-evidence-2026-09-16.md</code>，§1/§2本地E3、其余按原标注。附件独立MD与ZIP中MD逐字节相同。</li>
+<li><strong>L2</strong>：同目录<code>probes/probe_extended.py</code>、<code>probe_split_rate.py</code>、<code>probe_core.py</code>。已读源代码，未在本轮重跑本地统计。</li>
+<li><strong>L3</strong>：<code>evidence/incoming/astra6-smartcli-upgrade-next.md</code>，交付要求；不是工具能力或机器权限的自动授权。</li>
+<li><strong>V1</strong>：<code>reference/v1_original.zip</code>。旧<code>docs/04_ARCHITECTURE.md</code>、<code>docs/05_ACCEPTANCE.md</code>及50任务原样封存。</li>
+</ul>
+<h2>SmartCLI：源码固定在701e61f…</h2>
+<p>以下均为E1；实际代码正文见<code>evidence/incoming/astra6-attachments/source-at-701e61f/</code>，文件名不同的映射在<code>data/source_map.json</code>。</p>
+<ul>
+<li><strong>SC1 snapshot</strong>：<code>smartcli_core/snapshot.py:build_snapshot</code>，cell→string切片、selected启发式。</li>
+<li><strong>SC2 backend</strong>：<code>smartcli_core/pty_backend.py:WinptyBackend/PosixPtyBackend</code>，reader queue、非阻塞read/write、生命周期。</li>
+<li><strong>SC3 daemon</strong>：<code>skills/drive-tui/scripts/tui.py:_serve_forever/_handle/_reply</code>，interleave、resize、60s回包、list分支边界。</li>
+<li><strong>SC4 session/readiness</strong>：<code>PtySession.pump/send_keys/wait*</code>与readiness的on_poll。</li>
+<li><strong>SC5 packaging</strong>：<code>pyproject.toml</code>中<code>packages/package-dir</code>映射及MCP脚本。</li>
+<li><strong>SC6 vendor</strong>：<a target="_blank" rel="noopener noreferrer" href="https://github.com/dwgx/SmartCLI/blob/701e61f6d69aa2420617edf80b1136df8d5e8cf7/tools/sync_vendor.py">sync_vendor.py</a> 全文重读：refresh先rmtree整个vendor再copytree；--check只读。不要把它当一个只改双胞胎文件的writer。</li>
+<li><strong>SC7 baseline</strong>：<a target="_blank" rel="noopener noreferrer" href="https://api.github.com/repos/dwgx/SmartCLI/branches/main">main endpoint</a>本轮确认仍701e61f…；不证明用户机器目前也未被其他Agent修改。</li>
+</ul>
+<h2>竞品：本轮只读，没跑性能</h2>
+<ul>
+<li><strong>CP1</strong>：<a target="_blank" rel="noopener noreferrer" href="https://github.com/microsoft/tui-test/blob/d7e239c49a50d13e22be81fef207e7f4f85a509a/README.md">microsoft/tui-test README</a>已读1–240行与public当前页面；<a target="_blank" rel="noopener noreferrer" href="https://github.com/microsoft/tui-test/blob/d7e239c49a50d13e22be81fef207e7f4f85a509a/bindings/python/README.md">Python reference</a>。多平台/多接口/定位/录制/beta信息来自README，不是实测。</li>
+<li><strong>CP2</strong>：<a target="_blank" rel="noopener noreferrer" href="https://github.com/microsoft/tui-test/blob/d7e239c49a50d13e22be81fef207e7f4f85a509a/crates/tui-test/src/engine.rs#L1970-L2055">engine.rs L1970–2055</a>已重读command_settled/wait_command/wait_exit；无tracker时quiet300ms。更高层cancel映射未完整审计。</li>
+<li><strong>CP3</strong>：<a target="_blank" rel="noopener noreferrer" href="https://github.com/coder/agent-tty">coder/agent-tty</a>当前README；<a target="_blank" rel="noopener noreferrer" href="https://github.com/coder/agent-tty/blob/ebff2c23d8273be09812d841305a4f6246ccf47e/src/host/eventLog.ts">既有固定事件源码</a>为v1已读来源，未称本轮重读全部实现。README引用边界与Windows支持等级。</li>
+<li><strong>CP4</strong>：<a target="_blank" rel="noopener noreferrer" href="https://github.com/onesuper/tui-use">onesuper/tui-use</a>当前仓库页；<a target="_blank" rel="noopener noreferrer" href="https://github.com/onesuper/tui-use/blob/main/src/session.ts">v1已读session</a>与highlights.ts为历史源码参照；未新跑完整项目。定位中的不确定性已标明。</li>
+</ul>
+<h2>官方规范与运行库</h2>
+<ul>
+<li><strong>STD1</strong>：<a target="_blank" rel="noopener noreferrer" href="https://docs.python.org/3/library/os.html#os.write">Python os.write</a>，返回实际写入字节数；EINTR重试说明。</li>
+<li><strong>STD2</strong>：<a target="_blank" rel="noopener noreferrer" href="https://docs.python.org/3/library/exceptions.html#BlockingIOError">BlockingIOError</a>，characters_written用于buffered io，不套用到raw os.write。</li>
+<li><strong>STD3</strong>：<a target="_blank" rel="noopener noreferrer" href="https://invisible-island.net/xterm/ctlseqs/ctlseqs.html">xterm control sequences</a>，SGR、CSI、string控制协议；本轮SGR只承诺明确支持子集，不以文档存在等同pyte支持。</li>
+<li><strong>STD4</strong>：<a target="_blank" rel="noopener noreferrer" href="https://learn.microsoft.com/en-us/windows/console/creating-a-pseudoconsole-session">Creating a Pseudoconsole session</a>，通信/收尾边界。</li>
+<li><strong>STD5</strong>：<a target="_blank" rel="noopener noreferrer" href="https://learn.microsoft.com/en-us/windows/console/closepseudoconsole">ClosePseudoConsole</a>，Win11 24H2/build26100前后差异；不能由“Windows11”推断具体build。</li>
+<li><strong>STD6</strong>：<a target="_blank" rel="noopener noreferrer" href="https://xtermjs.org/docs/guides/flowcontrol/">xterm flow control</a>及<a target="_blank" rel="noopener noreferrer" href="https://xtermjs.org/docs/api/terminal/classes/terminal/">Terminal.write</a>，缓冲/解析callback语义；文档吞吐数字未作为SmartCLI阈值。</li>
+</ul>
+<h2>分析与执行边界</h2>
+<p>v2的队列初值、release取舍、最大文件数、停止规则是建议，不是测量。七份增量不隐式导入竞品代码；参考模型是新写示例而不是生产补丁。用户提供的源文件保持原hash，其他live harness配置不转发。</p>
+<p>本次运行环境依赖缺失和下载失败均记在delivery报告；没有把工作台标准库测试包装成产品测试。原始web-chat-archive.zip未提供，其hash事件只保留为用户报告。</p>
+</section><section class="doc" id="local" data-title="本地原始证据"><div class="doc-top"><span>证据</span><a href="../evidence/incoming/astra6-attachments/smartcli-local-evidence-2026-09-16.md">原始文件 ↗</a></div><h1>SmartCLI — local ground truth, 2026-09-16</h1>
+<p>Purpose: give a web model (no shell, no local repo) the facts it could not obtain from
+reading the repository. Everything below was executed on this Windows box against the
+real working tree, or read at an exact line. Nothing here is copied from the plan
+package; where the plan already covers a fact, that is stated so the reader does not
+treat agreement as new information.</p>
+<ul>
+<li>Repository: <code>D:\Project\SmartCLI</code> (git remote <code>https://github.com/dwgx/SmartCLI.git</code>)</li>
+<li>HEAD: <code>701e61f6d69aa2420617edf80b1136df8d5e8cf7</code> — identical to the plan's baseline
+(<code>MASTER_PLAN.md</code> §1). Working tree clean; only <code>.codegraph/</code> (gitignored) is local.</li>
+<li>Interpreter used: CPython 3.14.7 (<code>D:\Software\Developer\Python314\python.exe</code>),
+<code>pyte</code> installed globally (0.8.2). No repo virtualenv.</li>
+<li>CodeGraph index: <code>.codegraph/codegraph.db</code>, 199 files / 3 532 nodes / 9 359 edges,
+<code>codegraph sync</code> → &quot;Already up to date&quot; (2026-09-16).</li>
+<li>Not available on this box: a running Docker daemon (<code>docker</code> CLI 29.7.2 present,
+<code>dockerDesktopLinuxEngine</code> pipe absent) and any POSIX shell. All POSIX-only paths
+below are therefore marked <strong>static only</strong>.</li>
+</ul>
+<p>Evidence levels follow the plan's own ladder (<code>docs/05_ACCEPTANCE.md</code>): E3 = real core
+imported, pure in-memory; E2 = extracted logic or stand-in; E1 = source/spec read.</p>
+<hr />
+<h2>1. A03 — cell-column slicing of a Unicode display line (reproduced end to end)</h2>
+<p>Plan reference: A03 / T05. Status: <strong>confirmed, E3, unconditionally wrong for any row
+containing a wide character before a highlighted span.</strong></p>
+<p><code>smartcli_core/snapshot.py:254</code> builds highlighted-span text with a Python string slice:
+<code>menu_items.append(Span(y, a, b, display[y][a:b].strip()))</code>, where <code>a</code>/<code>b</code> came from
+<code>_contiguous_spans(hi_cols)</code> — i.e. <strong>terminal cell columns</strong> — while <code>display[y]</code> is a
+string whose length is <code>cols</code> minus the number of wide characters (each wide glyph is
+one character but two cells; its continuation cell holds <code>&quot;&quot;</code>).</p>
+<p>Command: <code>python probe_extended.py D:\Project\SmartCLI</code> (probe source attached).</p>
+<pre><code>== which rows break the display[a:b] rule (snapshot.py line ~264) ==
+  pure ASCII                   cells[9:11] want='OK'       snapshot-rule-gives='OK'       same
+  CJK prefix                   cells[4:7]  want=' OK'      snapshot-rule-gives='K'        WRONG
+  Japanese + ASCII             cells[12:14] want=' O'      snapshot-rule-gives=''         WRONG
+  emoji before                 cells[4:7]  want=' OK'      snapshot-rule-gives='K'        WRONG
+  combining mark               cells[6:8]  want=''         snapshot-rule-gives=''         same
+  full-width digits            cells[5:7]  want='O'        snapshot-rule-gives=''         WRONG
+  wide inside span             cells[0:6]  want='中文OK'    snapshot-rule-gives='中文OK'    same
+</code></pre>
+<p>End-to-end through <code>build_snapshot</code> — a three-item Chinese menu with item 2 in
+reverse video, fed as UTF-8 bytes into a real <code>ScreenModel</code>:</p>
+<pre><code>  menu, reverse video over '保存'
+    span r0[15:19] reported='3' truth='保存' WRONG
+    selected.text='3' truth='保存'
+</code></pre>
+<p>This is the single most damaging local finding: <code>Snapshot.selected.text</code> and
+<code>regions.menu_items[].text</code> — the fields that exist precisely so an agent does not have
+to guess which menu item is active — are wrong for a Chinese UI. The agent is told
+&quot;selected = 3&quot; when the highlighted label is 保存. The plain body text (<code>to_text</code> lines,
+<code>to_json().lines</code>) is unaffected; only the column-sliced fields are.</p>
+<p>One offset row (<code>wide inside span</code>, span starting at column 0) happens to agree: the
+error is a per-wide-character shift accumulated from the left, so it is invisible on
+pure-ASCII fixtures and on spans that start at column 0 after no wide characters. Any
+ASCII-only test suite passes while the defect is live. Confirmed: no test in <code>tests/</code>
+slices a <code>display</code> row by cell column for a non-ASCII row.</p>
+<h2>2. A02 — SGR sub-parameter normalisation is per-read-chunk, not per-stream</h2>
+<p>Plan reference: A02 / T04. Status: <strong>confirmed, E3, quantified.</strong></p>
+<p><code>smartcli_core/screen_model.py:77-81</code>:</p>
+<pre><code class="language-python">def feed(self, data: bytes) -&gt; None:
+    if b&quot;:&quot; in data:
+        data = self._SGR_COLON.sub(
+            lambda m: b&quot;\x1b[&quot; + m.group(1).replace(b&quot;:&quot;, b&quot;;&quot;) + b&quot;m&quot;, data)
+    super().feed(data)
+</code></pre>
+<p>The regex <code>\x1b\[([\d;:]*:[\d;:]*)m</code> only matches when the <strong>whole</strong> sequence is inside
+one <code>feed()</code> call. A read boundary inside <code>ESC[4:3m</code> or <code>ESC[38:2::R:G:Bm</code> passes the
+bytes through untouched, pyte then aborts the sequence at <code>':'</code> and draws the remainder
+as text.</p>
+<p>Command: <code>python probe_extended.py D:\Project\SmartCLI</code></p>
+<pre><code>== A02: SGR split sweep across every byte boundary (all payloads) ==
+  curly underline            BROKEN at 5/6 cuts         first_bad=1
+  truecolor fg               BROKEN at 15/16 cuts       first_bad=1
+  truecolor bg               BROKEN at 15/16 cuts       first_bad=1
+  underline colour           BROKEN at 13/14 cuts       first_bad=1
+  plain SGR (control)        SPLIT-SAFE
+  CSI cursor move (control)  SPLIT-SAFE
+  OSC title (control)        SPLIT-SAFE
+</code></pre>
+<p>Controls matter: plain SGR, CSI movement and OSC titles are already split-safe, so the
+defect is specific to the colon pre-pass, not to pyte's own streaming.</p>
+<p>How often it bites in practice — <code>python probe_split_rate.py D:\Project\SmartCLI</code>, a
+12 395-byte stream of 200 lines, each line carrying one truecolor and one curly-underline
+SGR (the Neovim/kitty/delta output the pre-pass exists for), fed in random chunks, 40
+seeds per chunk size:</p>
+<pre><code>  chunk&lt;=      1 bytes : 40/40 streams corrupted ( 100%)
+  chunk&lt;=     64 bytes : 40/40 streams corrupted ( 100%)
+  chunk&lt;=   1024 bytes : 40/40 streams corrupted ( 100%)
+  chunk&lt;=   4096 bytes : 31/40 streams corrupted (  78%)
+  chunk&lt;=  65536 bytes :  1/40 streams corrupted (   2%)
+</code></pre>
+<p><code>feed_errors</code> stays <code>0</code> in the corrupted runs: pyte tolerates the debris, so the
+existing &quot;systemic parse failure&quot; counter does not fire and nothing in the product
+notices.</p>
+<p>Sample corruption (chunk ≤ 7 bytes, seed 7):</p>
+<pre><code>    trial 0: '2::255:0:0m红色 3m下划线 done   ...'
+    reference='红色 下划线 done                ...'
+</code></pre>
+<p>Existing coverage that does <strong>not</strong> catch it: <code>tests/test_terminal_fidelity.py:309-316</code>
+feeds <code>b&quot;\x1b[4:3mU\x1b[0m&quot;</code> and <code>b&quot;\x1b[38:2::255:0:128mU\x1b[0m&quot;</code> as whole sequences
+only. The invariant that is actually violated (&quot;any split of the same byte stream yields
+the same cells&quot;) has no test.</p>
+<h2>3. A01 — POSIX non-blocking write ignores the byte count</h2>
+<p>Plan reference: A01 / T03. Status: <strong>confirmed by source read (E1), not executed here.</strong></p>
+<pre><code class="language-python"># smartcli_core/pty_backend.py:220  (PosixPtyBackend.write)
+os.write(self._fd, data)
+</code></pre>
+<p>and <code>spawn()</code> sets the fd non-blocking at line 184 (<code>os.set_blocking(master_fd, False)</code>).
+<code>os.write</code> returns the number of bytes written; the value is discarded. There is no
+retry loop, no <code>EAGAIN</code> wait, no deadline. <code>WinptyBackend.write</code> (line 125) delegates to
+<code>pywinpty</code> and is unaffected.</p>
+<p>Not verifiable on this host: no POSIX shell, Docker daemon stopped. The repository
+already ships a POSIX harness (<code>tests/_sandbox_posix_backend.py</code>) that drives a real
+<code>pty.fork()</code>; it does <strong>not</strong> exercise short writes. The plan's claim (extracted-logic
+stand-in: &quot;planned abcdefgh, received abc, 1 call&quot;) is consistent with the source but is
+E2, not E4 — nobody has yet seen this on a real Linux pty.</p>
+<h2>4. A04 — the idle daemon never drains the PTY (platform-dependent consequence)</h2>
+<p>Plan reference: A04 / T07. Status: <strong>confirmed by source read, E1.</strong></p>
+<p><code>skills/drive-tui/scripts/tui.py:534-538</code> (worker thread of <code>_serve_forever</code>):</p>
+<pre><code class="language-python">try:
+    item = jobs.get(timeout=0.2)
+except queue.Empty:
+    continue            # &lt;- no sess.pump() on this path
+</code></pre>
+<p>Only request handlers call <code>sess.pump()</code> (<code>_handle</code>, lines 291 / 344 / 700). So while no
+client is asking, nothing reads the child's output. The consequence differs by backend:</p>
+<ul>
+<li><strong>Windows (<code>WinptyBackend</code>)</strong>: a dedicated reader thread already drains ConPTY
+(<code>_read_loop</code>, line 96-107) into <code>self._queue = queue.Queue()</code> (lines 72 / 83) — an
+<strong>unbounded</strong> queue with no byte budget. The child does not block; the daemon's RSS
+grows with total output while idle, and pyte never parses it, so the first later
+<code>snapshot</code> pays one huge <code>feed()</code>.</li>
+<li><strong>POSIX (<code>PosixPtyBackend</code>)</strong>: nobody reads the master fd at all while idle; a child
+that keeps writing fills the pty buffer and blocks. Device-query replies are also
+answered only from inside <code>pump()</code>, so a child waiting for a cursor-position report
+while the agent is away stays stuck.</li>
+</ul>
+<p>The plan states this as &quot;idle daemon has no continuous pumping; POSIX drain and Windows
+queue lack budgets&quot;. The refinement that matters for the fix and its test: on Windows it
+is a memory/tail-latency defect, on POSIX it is a liveness defect. The two need different
+negative tests, and only the Windows half is runnable on this host.</p>
+<h2>5. A05 — &quot;64&quot; is a filter, not an admission cap</h2>
+<p>Plan reference: A05. Status: <strong>confirmed by source read, E1.</strong></p>
+<p><code>skills/drive-tui/scripts/tui.py:601-603</code>:</p>
+<pre><code class="language-python">readers.append(t)
+if len(readers) &gt; 64:  # bound the thread count; finished ones drop out
+    readers = [x for x in readers if x.is_alive()]
+</code></pre>
+<p>Threads are appended unconditionally; exceeding 64 only prunes finished entries. A peer
+that connects and holds the socket open (the read path has <code>PRE_AUTH_TIMEOUT = 2.0</code>,
+line 374, which bounds the <em>pre-auth</em> read but not the thread's lifetime after a failed
+auth, and not the eventual <code>_reply</code> <code>sendall</code>) keeps its thread alive and the list grows.
+There is no refusal path here; the only real cap is <code>SMARTCLI_MAX_SESSIONS</code>
+(daemon count, default 8, max 128), which is a different resource.</p>
+<h2>6. A06 — worker-thread reply path, and one mitigation the plan does not mention</h2>
+<p>Plan reference: A06. Status: <strong>partly confirmed, E1; the plan understates one existing fix.</strong></p>
+<p><code>_reply</code> (line 418) does <code>conn.settimeout(POST_AUTH_TIMEOUT)</code> then <code>conn.sendall(...)</code> on
+the caller's thread; <code>POST_AUTH_TIMEOUT = 60.0</code> (line 376). A peer that stops reading can
+therefore stall the single session worker for up to 60 s per reply. Bounded, but not
+small.</p>
+<p>What the plan does not mention anywhere (<code>grep -rn interleave docs/ MASTER_PLAN.md LOCAL_AGENT_PROMPT.md</code> → no hits): the daemon <strong>already</strong> implements partial
+multi-watcher behaviour. <code>_serve_forever</code> defines</p>
+<pre><code class="language-python">INTERLEAVE_OK = frozenset({&quot;snapshot&quot;, &quot;alive&quot;, &quot;list&quot;, &quot;send_text&quot;, &quot;send_line&quot;, &quot;send_keys&quot;})
+</code></pre>
+<p>and <code>_drain_interleavable()</code> (lines ~485-530) answers exactly those verbs from inside the
+running wait's poll gap, on the worker's own thread, keeping the single-writer invariant.
+<code>resize</code> is deliberately excluded with a documented reason (a resize changes the content
+hash and would make a concurrent <code>wait_change</code> report the caller's own resize as a
+screen change). Any R2 redesign of the owner loop must preserve both behaviours and the
+documented rationale, or it regresses a fixed defect. This is the clearest case where the
+plan's architecture section is written as if <code>tui.py</code> were still the naive version.</p>
+<h2>7. Repository facts the plan's <code>01_REPOSITORY_TOUR</code> does not state</h2>
+<ul>
+<li><strong>The core is duplicated.</strong> <code>smartcli_core/</code> is canonical and
+<code>skills/drive-tui/_vendor/smartcli_core/</code> is a vendored copy; <code>tests/test_vendor_sync.py</code>
+is the gate and <code>tools/sync_vendor.py</code> the writer. Every fix in <code>smartcli_core/</code> must be
+synced or the gate fails. <code>codegraph impact PosixPtyBackend.write</code> returns only the
+vendor twin, which is a useful reminder that CodeGraph's call graph is best-effort
+(the production call path is <code>PtySession.send_text → backend.write</code> via the abstract
+base, which it does not resolve).</li>
+<li><strong>Size</strong>, measured with <code>git ls-files '*.py'</code> + line counts: 497 tracked files, 177
+Python files, 34 356 Python lines total, split <code>tests/</code> 9 991 (53 files), <code>skills/tui-ui</code>
+5 553 (24), <code>skills/cmd-art</code> 4 600 (42), <code>tools/</code> 4 544 (20), <code>skills/drive-tui</code> 3 850
+(17), <code>_vendor</code> copy 2 495 (7), <code>smartcli_core/</code> 2 495 (7), examples 157 (1). The
+vendored core is byte-for-byte the same size as the canonical one. <code>HANDOFF.md</code> alone is
+158 KB and <code>NEXT-STEPS.md</code> 55 KB — the plan is right that these must be read by section.</li>
+<li><strong>Documentation search outcome</strong>: <code>grep -n &quot;short write|partial write&quot; HANDOFF.md NEXT-STEPS.md README.md CLAUDE.md AUDIT-REPORT.md</code> → <strong>no hits</strong>; likewise for CJK cell
+span. Neither A01 nor A03 is recorded anywhere in the repository's own history, so
+neither is a re-discovery of a known issue.</li>
+</ul>
+<h2>8. Plan package: what actually runs on this box</h2>
+<ul>
+<li><code>python tools/agentctl.py verify-kit</code> → <code>{&quot;ok&quot;: true, &quot;checked_files&quot;: 49, &quot;mismatches&quot;: []}</code> (also implies the <code>--run</code> directory discipline can be applied).</li>
+<li><code>python -m unittest discover -s tests -v</code> in the plan package → <strong>47 tests, OK,
+1 skipped</strong> (&quot;symlinks not permitted by this OS account&quot;). The plan's &quot;47 self-tests
+passed&quot; claim is accurate on this machine.</li>
+<li>The 20 audit findings (A01–A20) are present as machine-readable records in
+<code>legacy/audit_findings.json</code>, each with <code>location</code>, <code>evidence</code>, <code>impact</code>, <code>fix</code>,
+<code>acceptance</code>. The <code>docs/02_CODE_AUDIT.md</code> file referenced in the original chat answer
+is <strong>not</strong> in this zip, but <code>legacy/audit_findings.json</code> carries the same content in a
+more useful form — no re-download needed.</li>
+<li>Missing from <code>C:\Users\dwgx1\Downloads</code> (referenced in the chat but never saved):
+<code>SmartCLI_Audit_and_Upgrade_Handoff_2026-09-15.zip</code>, <code>SmartCLI_SCORECARD.xlsx</code>,
+<code>AI_HANDOFF.md</code>, and <code>Agent_Terminal_Research_2026-09-15.zip</code> (the 58-entry atlas).
+The scorecard is the only unique content there; the audit and the atlas are superseded
+by <code>legacy/audit_findings.json</code> and by <code>docs/12_SOURCES.md</code>.</li>
+</ul>
+<h2>9. What is still unverified after this pass</h2>
+<div class="table-scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Claim</th>
+<th>Level now</th>
+<th>Needs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A01 short write on a real pty</td>
+<td>E1</td>
+<td>a Linux container or WSL run of <code>_sandbox_posix_backend.py</code> with a short-write stand-in</td>
+</tr>
+<tr>
+<td>A04 child-blocking while idle (POSIX)</td>
+<td>E1</td>
+<td>same Linux run, child writing continuously with no client polling</td>
+</tr>
+<tr>
+<td>A04 unbounded Windows queue growth</td>
+<td>E1</td>
+<td>a loopback/fake session test asserting a byte budget</td>
+</tr>
+<tr>
+<td>A05 thread growth past 64</td>
+<td>E1</td>
+<td>loopback test holding connections open</td>
+</tr>
+<tr>
+<td>A06 60 s worker stall</td>
+<td>E1</td>
+<td>loopback test with a non-reading peer</td>
+</tr>
+<tr>
+<td>Real ConPTY session behaviour end to end</td>
+<td>not run</td>
+<td>this host can do it, one PTY at a time, only with explicit approval</td>
+</tr>
+<tr>
+<td>Competitor rows in the scorecard</td>
+<td>doc-level only</td>
+<td>nobody on this box has run any competitor</td>
+</tr>
+</tbody>
+</table></div>
+</section><section class="doc" id="history" data-title="历史包保留说明"><div class="doc-top"><span>证据</span><a href="../reference/README.md">原始文件 ↗</a></div><h1>历史原包，不是 v2 的执行顺序</h1>
+<p><code>v1_original.zip</code> 与本次可访问的旧计划 ZIP 字节相同，未改其 49 项清单。<code>earlier_audit_original.zip</code> 保留旧审计、旧评分工作簿与修正目录，解决本地未下载资料的缺口。</p>
+<p>这些是历史快照：旧数字不是新测量，旧任务调度不覆盖 v2。不要运行旧 <code>agentctl next</code> 就跳过 <code>docs/ORDER.md</code>；本轮不自动迁移或覆盖你已经存在的 state.json。旧包解压后的使用仍受当前本机权限限制。</p>
+<p>v2 七份增量位于顶层 <code>docs/</code>，原计划仍原样封存。需要放回旧计划目录时，建立 <code>docs/v2/</code> 和独立 <code>v2-tools/</code>；不要覆盖旧 MANIFEST、入口或缓存前缀。最简单的是整包独立使用。</p>
+<h2>原评分表位置（旧评估，不是新跑分）</h2>
+<ul>
+<li><code>earlier_audit_original.zip</code> 内：<code>SmartCLI_Handoff_2026-09-15/SmartCLI_SCORECARD.xlsx</code></li>
+</ul>
+</section><p class="end">先验证完整性，再读 ORDER 和 Worker 1。以当前本地代码与明确授权为准，不用旧计划重新覆盖已经完成的修复。</p></main></div>
+<script>
+(()=>{const input=document.getElementById('search'),docs=[...document.querySelectorAll('.doc')],count=document.getElementById('count'),empty=document.getElementById('empty');const index=docs.map(d=>d.textContent.toLocaleLowerCase());function search(){const q=input.value.trim().toLocaleLowerCase();let n=0;docs.forEach((d,i)=>{d.hidden=!!q&&!index[i].includes(q);if(!d.hidden)n++});count.textContent=q?`找到 ${n} / ${docs.length} 个匹配章节。`:`全部 ${docs.length} 个章节。离线可读；源文件及参考 ZIP 均随完整包交付。`;empty.style.display=n?'none':'block'}input.addEventListener('input',search);document.getElementById('clear').addEventListener('click',()=>{input.value='';search();input.focus()});document.querySelectorAll('[data-target]').forEach(a=>a.addEventListener('click',()=>{input.value='';search()}));if(location.hash){input.value='';search()}})();
+</script></body></html>

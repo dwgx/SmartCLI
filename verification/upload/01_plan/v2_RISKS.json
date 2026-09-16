@@ -1,0 +1,200 @@
+[
+  {
+    "id": "R01",
+    "task": "T05",
+    "title": "cell坐标再次当字符下标",
+    "trigger": "中文/组合符前缀或0列右界",
+    "early_signal": "label与literal不符",
+    "mitigation": "按cell取字；保留正文/trim策略",
+    "kill_criteria": "候选仍输出3或mutation不红",
+    "max_touch": "3文件：snapshot+vendor+单测",
+    "evidence": "source-supported risk / proposed guard; not a new runtime measurement"
+  },
+  {
+    "id": "R02",
+    "task": "T04",
+    "title": "整体和分片一起错",
+    "trigger": "仅用whole-feed作oracle",
+    "early_signal": "RGB/italic错误但分片一致",
+    "mitigation": "独立语义断言+分片对照",
+    "kill_criteria": "独立属性不满足",
+    "max_touch": "3文件：screen_model+vendor+单测",
+    "evidence": "source-supported risk / proposed guard; not a new runtime measurement"
+  },
+  {
+    "id": "R03",
+    "task": "T04",
+    "title": "字符串负载/长CSI污染",
+    "trigger": "正则全局替换、未终止CSI",
+    "early_signal": "OSC/DCS被改写或pending增长",
+    "mitigation": "状态跟踪、硬cap、明确恢复",
+    "kill_criteria": "控制组退化或无界暂存",
+    "max_touch": "同T04；超范围另提案",
+    "evidence": "source-supported risk / proposed guard; not a new runtime measurement"
+  },
+  {
+    "id": "R04",
+    "task": "A04",
+    "title": "Windows队列无界/假有界",
+    "trigger": "只限制Queue项数或consumer另囤字节",
+    "early_signal": "pending超byte cap或RSS趋势异常",
+    "mitigation": "计费staging、读上限、背压",
+    "kill_criteria": "靠丢字节保持内存",
+    "max_touch": "原型4输出；生产另批≤7文件",
+    "evidence": "source-supported risk / proposed guard; not a new runtime measurement"
+  },
+  {
+    "id": "R05",
+    "task": "A04",
+    "title": "两reader/两模型owner",
+    "trigger": "为了watcher起第二个pump线程",
+    "early_signal": "线程ident变化或字节重复",
+    "mitigation": "transport单owner；observer只读快照",
+    "kill_criteria": "任何并发模型写入",
+    "max_touch": "生产预算slice最多backend+session及vendor+单测",
+    "evidence": "source-supported risk / proposed guard; not a new runtime measurement"
+  },
+  {
+    "id": "R06",
+    "task": "A04",
+    "title": "回退interleave修复",
+    "trigger": "重写worker忘掉on_poll",
+    "early_signal": "长wait让snapshot再次排队",
+    "mitigation": "先锁既有快请求服务测试",
+    "kill_criteria": "移除hook负例抓不住",
+    "max_touch": "tui+一个并发测试，独立slice",
+    "evidence": "source-supported risk / proposed guard; not a new runtime measurement"
+  },
+  {
+    "id": "R07",
+    "task": "A04",
+    "title": "resize冒充动作成功",
+    "trigger": "把resize插入legacy wait",
+    "early_signal": "只resize也宣称按键成功",
+    "mitigation": "保留延后；未来geometry epoch另设计",
+    "kill_criteria": "resize-only假成功",
+    "max_touch": "tui+一个测试，不扩公共API",
+    "evidence": "source-supported risk / proposed guard; not a new runtime measurement"
+  },
+  {
+    "id": "R08",
+    "task": "A06",
+    "title": "慢回包占owner",
+    "trigger": "同步sendall、非读peer",
+    "early_signal": "每回复可占至60s",
+    "mitigation": "单独有界回包路径及配额",
+    "kill_criteria": "宣称低延迟但仍阻塞owner",
+    "max_touch": "≤3文件：tui+两测试；无新框架",
+    "evidence": "source-supported risk / proposed guard; not a new runtime measurement"
+  },
+  {
+    "id": "R09",
+    "task": "T03",
+    "title": "短写重发/丢尾/忙等",
+    "trigger": "EAGAIN、EINTR、partial cancel",
+    "early_signal": "sink hash/len不同，offset倒退",
+    "mitigation": "只写后缀、deadline、明确partial",
+    "kill_criteria": "假成功或无限attempt",
+    "max_touch": "最小3；receipt跨session≤5",
+    "evidence": "source-supported risk / proposed guard; not a new runtime measurement"
+  },
+  {
+    "id": "R10",
+    "task": "A04",
+    "title": "全双工互锁",
+    "trigger": "owner等待写但child先等排输出",
+    "early_signal": "deadline反复到期无进度",
+    "mitigation": "有界read/write轮转，不递归用户动作",
+    "kill_criteria": "把timeout当成功或新增无界线程",
+    "max_touch": "后续生产≤7文件，须拆slice",
+    "evidence": "source-supported risk / proposed guard; not a new runtime measurement"
+  },
+  {
+    "id": "R11",
+    "task": "A04",
+    "title": "ConPTY关闭/旧reader越代",
+    "trigger": "满buffer、native read未退出、对象复用",
+    "early_signal": "旧线程进入新queue或关闭不明",
+    "mitigation": "generation绑定、EOF状态、有限收尾",
+    "kill_criteria": "kill全局进程或假称已退出",
+    "max_touch": "backend+vendor+专用test，另批E4",
+    "evidence": "source-supported risk / proposed guard; not a new runtime measurement"
+  },
+  {
+    "id": "R12",
+    "task": "Protocol",
+    "title": "ACK/verified虚构",
+    "trigger": "见prompt/hash变就升级状态",
+    "early_signal": "无action/generation或verifier",
+    "mitigation": "三事实轴；unknown保留",
+    "kill_criteria": "written直接变业务verified",
+    "max_touch": "原型models；公开接线另批≤5文件",
+    "evidence": "source-supported risk / proposed guard; not a new runtime measurement"
+  },
+  {
+    "id": "R13",
+    "task": "Packaging",
+    "title": "scripts映射被改坏",
+    "trigger": "重命名tui/mcp模块或console entry",
+    "early_signal": "source绿wheel导入失败",
+    "mitigation": "保持映射；发行矩阵独立门",
+    "kill_criteria": "未经批准破坏旧入口",
+    "max_touch": "本轮0个配置文件；发行任务另授权",
+    "evidence": "source-supported risk / proposed guard; not a new runtime measurement"
+  },
+  {
+    "id": "R14",
+    "task": "Vendor",
+    "title": "sync删除他人修改",
+    "trigger": "直接运行refresh/rmtree",
+    "early_signal": "vendor存在非基线变化",
+    "mitigation": "只拷允许孪生并跑--check",
+    "kill_criteria": "覆盖独立修改/越过hook",
+    "max_touch": "每修复恰好1孪生；不改sync工具",
+    "evidence": "source-supported risk / proposed guard; not a new runtime measurement"
+  },
+  {
+    "id": "R15",
+    "task": "Delivery",
+    "title": "清单与最终ZIP不一致",
+    "trigger": "manifest后再改yaml/页面",
+    "early_signal": "元数据sha不匹配",
+    "mitigation": "冻结→manifest→最终ZIP逐项验证",
+    "kill_criteria": "任一缺失/额外/hash差异",
+    "max_touch": "仅交付包；不重签未提供的wca包",
+    "evidence": "source-supported risk / proposed guard; not a new runtime measurement"
+  },
+  {
+    "id": "R16",
+    "task": "Evidence",
+    "title": "SKIP/模型测试冒充产品实测",
+    "trigger": "依赖缺失或故障注入",
+    "early_signal": "报告说全通过但NOT_RUN被省",
+    "mitigation": "total/pass/skip、环境/注入双标",
+    "kill_criteria": "丢首次失败/假E4",
+    "max_touch": "报告/测试；禁止改expected弱化",
+    "evidence": "source-supported risk / proposed guard; not a new runtime measurement"
+  },
+  {
+    "id": "R17",
+    "task": "A05",
+    "title": "连接和作业配额遗漏",
+    "trigger": "只加ingress cap",
+    "early_signal": "readers/jobs仍无界",
+    "mitigation": "独立reader/jobs配额+小容量负例",
+    "kill_criteria": "新队列无bound及失效测试",
+    "max_touch": "tui+一个或两个测试≤3文件",
+    "evidence": "source-supported risk / proposed guard; not a new runtime measurement"
+  },
+  {
+    "id": "R18",
+    "task": "Scope",
+    "title": "计划再次膨胀",
+    "trigger": "顺手新引擎/actor/视频平台",
+    "early_signal": "变更超allowlist、没有旧失败",
+    "mitigation": "按两版won't-do；scope_guard",
+    "kill_criteria": "没有可证收益或超批准面",
+    "max_touch": "新增实验最多4个RUN输出，不改生产",
+    "evidence": "source-supported risk / proposed guard; not a new runtime measurement"
+  }
+]

@@ -1,0 +1,35 @@
+{
+  "case": "idle-posix",
+  "result": {
+    "pumped": false,
+    "elapsed_s": 2.0,
+    "child": {
+      "written": 12288,
+      "done": false,
+      "blocked_at": null,
+      "cpr_answered": false,
+      "steps": 3,
+      "seconds": 0.0
+    },
+    "session_alive": true,
+    "parsed_chars": 3029
+  }
+}
+{
+  "case": "owner-loop-posix",
+  "result": {
+    "pumped": true,
+    "elapsed_s": 0.957,
+    "child": {
+      "written": 524288,
+      "done": true,
+      "blocked_at": 167936,
+      "cpr_answered": true,
+      "steps": 128,
+      "seconds": 0.926,
+      "cpr_reply": "\u001b[30;89R"
+    },
+    "session_alive": true,
+    "parsed_chars": 3029
+  }
+}

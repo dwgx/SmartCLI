@@ -1,0 +1,145 @@
+{
+ "run_id": "b3_navigate_menu_A_20260916",
+ "task": "B3_navigate_menu",
+ "track": "A",
+ "seed": 20260916,
+ "model_id": "deepseek-v4.1-flash:max (omp backend, dispatched)",
+ "budget": {
+  "episodes": 9,
+  "wall_clock_minutes": 60,
+  "usd": 0
+ },
+ "transport": "windows-conpty (WinptyBackend) + fixture control socket app channel",
+ "actions": [
+  "app_channel",
+  "snapshot",
+  "wait"
+ ],
+ "action_counts": {
+  "app_channel": 2,
+  "snapshot": 2,
+  "wait": 4
+ },
+ "claimed_complete": true,
+ "completion_basis": "child_exit_observed",
+ "completion_detail": {
+  "in_episode_check": {
+   "selection": "save",
+   "exited": true,
+   "state_file": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b3_navigate_menu_A_20260916\\episode_b3_a65e.json",
+   "state_file_written": true,
+   "program_channel": "control_socket",
+   "program_presses_received": [
+    "down",
+    "enter"
+   ],
+   "selected_at_open": "> open",
+   "selected_after_one_down": "> save"
+  }
+ },
+ "fixture_state": {
+  "selection": "save",
+  "exited": true,
+  "state_file": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b3_navigate_menu_A_20260916\\episode_b3_a65e.json",
+  "state_file_written": true,
+  "program_channel": "control_socket",
+  "program_presses_received": [
+   "down",
+   "enter"
+  ],
+  "selected_at_open": "> open",
+  "selected_after_one_down": "> save"
+ },
+ "fixture_state_source": "the program's own state file (written by it) plus the runtime's exit observation; the screen corroborates the navigation",
+ "ui_claim": false,
+ "track_note": "app-adapted (track A): both presses travelled over the program's own control socket; no keystroke entered the UI",
+ "setup": [
+  {
+   "what": "fixture program (control-socket channel)",
+   "path": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b3_navigate_menu_A_20260916\\menu_socket_fixture.py",
+   "sha256": "016ab0e18935730297c94022a3b1271baee7fe7c88c129c958bd04a7f9cff60e",
+   "outside_pty": true
+  },
+  {
+   "what": "enumerated app channel",
+   "kind": "loopback control socket",
+   "endpoint": "127.0.0.1:50563",
+   "outside_pty": true
+  },
+  {
+   "what": "program state file absent before the episode",
+   "path": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b3_navigate_menu_A_20260916\\episode_b3_a65e.json",
+   "exists": false,
+   "outside_pty": true
+  }
+ ],
+ "session": {
+  "driver": "smartcli_core.PtySession + fixture control socket",
+  "argv": [
+   "D:\\Software\\Developer\\Python314\\python.exe",
+   "-B",
+   "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b3_navigate_menu_A_20260916\\menu_socket_fixture.py",
+   "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b3_navigate_menu_A_20260916\\episode_b3_a65e.json",
+   "50563"
+  ],
+  "cols": 90,
+  "rows": 24,
+  "cancel": false,
+  "process_exited": true,
+  "exit_observed_by": "backend.is_alive() False after pumping to EOF",
+  "exit_evidence": {
+   "exited": true,
+   "observation": "backend.is_alive() False after pumping to EOF",
+   "alive_after_wait": false,
+   "waited_s": 0.0,
+   "backend_eof_latched": false,
+   "child_exitstatus": 0,
+   "backend_pid": null
+  },
+  "close_state": "closed_confirmed",
+  "close_observed": "backend close_state()={'close_requested': True, 'closing': False, 'closed_confirmed': True, 'close_unconfirmed': False, 'output_eof': False, 'last_progress': 'terminate(force=True) returned', 'generation': 1, 'basis_origin': 'runtime'}",
+  "close_state_detail": {
+   "close_requested": true,
+   "closing": false,
+   "closed_confirmed": true,
+   "close_unconfirmed": false,
+   "output_eof": false,
+   "last_progress": "terminate(force=True) returned",
+   "generation": 1,
+   "basis_origin": "runtime"
+  },
+  "observations": 4,
+  "wall_clock_s": 0.58
+ },
+ "observations": [
+  {
+   "step": "menu drawn, selection on the first item",
+   "reason": "MARKER",
+   "selected": "> open",
+   "screen": "[screen 24x90] cursor=r3c0  cursor:hidden  selected=r1[0:20]\"> open\"(reverse_or_bg)\n  0 | SELECT an action (control socket, Enter):\n  1*| > open\n  2 |    save"
+  },
+  {
+   "step": "down over the control socket moved the selection bar",
+   "channel_round_trip": {
+    "press": "down",
+    "ack": "{\"ack\": \"down\", \"selected_index\": 1}"
+   },
+   "selected": "> save",
+   "screen": "[screen 24x90] cursor=r5c0  cursor:hidden  selected=r2[0:20]\"> save\"(reverse_or_bg)\n  0 | SELECT an action (control socket, Enter):\n  1 |    open\n  2*| > save\n  3 |    quit\n  4 | selected_index=1"
+  },
+  {
+   "step": "enter over the control socket picked save",
+   "channel_round_trip": {
+    "press": "enter",
+    "ack": "{\"ack\": \"enter\", \"selected\": \"save\"}"
+   },
+   "reason": "MARKER",
+   "screen": "[screen 24x90] cursor=r4c0  selected=r4[0:90]\"\"(cursor_line)\n  0 | PRESSES_RECEIVED ['down', 'enter']\n  1 | SELECTED: save\n  2 | WROTE episode_b3_a65e.json bytes=126 selection=save\n  3 | BYE"
+  },
+  {
+   "step": "after exit",
+   "screen": "[screen 24x90] cursor=r4c0  selected=r4[0:90]\"\"(cursor_line)\n  0 | PRESSES_RECEIVED ['down', 'enter']\n  1 | SELECTED: save\n  2 | WROTE episode_b3_a65e.json bytes=126 selection=save\n  3 | BYE"
+  }
+ ],
+ "wall_clock_s": 0.58
+}

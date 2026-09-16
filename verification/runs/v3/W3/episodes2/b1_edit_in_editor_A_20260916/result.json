@@ -1,0 +1,183 @@
+{
+ "run_id": "b1_edit_in_editor_A_20260916",
+ "task": "B1_edit_in_editor",
+ "track": "A",
+ "seed": 20260916,
+ "model_id": "deepseek-v4.1-flash:max (omp backend, dispatched)",
+ "budget": {
+  "episodes": 9,
+  "wall_clock_minutes": 60,
+  "usd": 0
+ },
+ "transport": "windows-conpty (WinptyBackend) + vim client-server app channel",
+ "actions": [
+  "app_channel",
+  "snapshot",
+  "wait"
+ ],
+ "action_counts": {
+  "app_channel": 5,
+  "snapshot": 2,
+  "wait": 4
+ },
+ "claimed_complete": true,
+ "completion_basis": "child_exit_observed",
+ "completion_detail": {
+  "in_episode_check": {
+   "file_lines": 3,
+   "contains": "third line from an agent",
+   "target": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b1_edit_in_editor_A_20260916\\episode_b1_65f9.txt",
+   "bytes": 43,
+   "lines": [
+    "line one",
+    "line two",
+    "third line from an agent"
+   ],
+   "in_episode_buffer_rows": [
+    0,
+    1,
+    2
+   ],
+   "in_episode_buffer_ordered": true,
+   "append_returned": "0",
+   "editor_reported_write": true
+  }
+ },
+ "fixture_state": {
+  "file_lines": 3,
+  "contains": "third line from an agent",
+  "target": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b1_edit_in_editor_A_20260916\\episode_b1_65f9.txt",
+  "bytes": 43,
+  "lines": [
+   "line one",
+   "line two",
+   "third line from an agent"
+  ],
+  "in_episode_buffer_rows": [
+   0,
+   1,
+   2
+  ],
+  "in_episode_buffer_ordered": true,
+  "append_returned": "0",
+  "editor_reported_write": true
+ },
+ "fixture_state_source": "filesystem read after the PTY was closed; the in-episode evidence is the app channel's own return values plus the editor's status line",
+ "ui_claim": false,
+ "track_note": "app-adapted (track A): the edit, the write and the quit travelled over vim's client-server channel; counted as app_channel actions",
+ "setup": [
+  {
+   "what": "fixture pre-state (seeded 2-line file, written outside the PTY)",
+   "path": "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b1_edit_in_editor_A_20260916\\episode_b1_65f9.txt",
+   "bytes": 18,
+   "sha256": "e9024f1a07d29d52ad3aa5e1a18e94db1f3a9fd32b89e39d47c472cd99071e13",
+   "content": "line one\nline two\n",
+   "outside_pty": true
+  },
+  {
+   "what": "enumerated app channel",
+   "kind": "vim clientserver",
+   "servername": "OMPA165F9",
+   "outside_pty": true
+  }
+ ],
+ "session": {
+  "driver": "smartcli_core.PtySession + vim clientserver",
+  "argv": [
+   "C:\\Program Files\\Git\\usr\\bin\\vim.exe",
+   "-u",
+   "NONE",
+   "-N",
+   "--servername",
+   "OMPA165F9",
+   "D:\\Project\\SmartCLI-v3-runs\\W3\\episodes2\\b1_edit_in_editor_A_20260916\\episode_b1_65f9.txt"
+  ],
+  "cols": 100,
+  "rows": 30,
+  "cancel": false,
+  "process_exited": true,
+  "exit_observed_by": "backend.is_alive() False after pumping to EOF",
+  "exit_evidence": {
+   "exited": true,
+   "observation": "backend.is_alive() False after pumping to EOF",
+   "alive_after_wait": false,
+   "waited_s": 0.051,
+   "backend_eof_latched": false,
+   "child_exitstatus": 0,
+   "backend_pid": null
+  },
+  "close_state": "closed_confirmed",
+  "close_observed": "backend close_state()={'close_requested': True, 'closing': False, 'closed_confirmed': True, 'close_unconfirmed': False, 'output_eof': False, 'last_progress': 'terminate(force=True) returned', 'generation': 1, 'basis_origin': 'runtime'}",
+  "close_state_detail": {
+   "close_requested": true,
+   "closing": false,
+   "closed_confirmed": true,
+   "close_unconfirmed": false,
+   "output_eof": false,
+   "last_progress": "terminate(force=True) returned",
+   "generation": 1,
+   "basis_origin": "runtime"
+  },
+  "observations": 5,
+  "wall_clock_s": 0.65
+ },
+ "observations": [
+  {
+   "step": "vim opened the fixture file",
+   "reason": "MARKER",
+   "screen": "[screen 30x100] cursor=r8c0  selected=r8[0:100]\"\"(cursor_line)  status=\"<odes2/b1_edit_in_editor_A_20260916/episode_b1_65f9.txt\" [unix] 2L, 18B\"\n  0 | line one\n  1 | line two\n  2 | ~\n  3 | ~\n  4 | ~\n  5 | ~\n  6 | ~\n  7 | ~\n...\n 29 | <odes2/b1_edit_in_editor_A_20260916/episode_b1_65f9.txt\" [unix] 2L, 18B"
+  },
+  {
+   "step": "third line appended to the buffer over the app channel",
+   "append": {
+    "kind": "remote-expr",
+    "expr": "append(2, 'third line from an agent')",
+    "rc": 0,
+    "stdout": "0",
+    "stderr": ""
+   },
+   "buffer_after": {
+    "kind": "remote-expr",
+    "expr": "join(getline(1, '$'), ' | ')",
+    "rc": 0,
+    "stdout": "line one | line two | third line from an agent",
+    "stderr": ""
+   }
+  },
+  {
+   "step": "screen after the channel edit",
+   "redraw": {
+    "kind": "remote-send",
+    "keys": ":redraw<CR>",
+    "rc": 0,
+    "stdout": "",
+    "stderr": ""
+   },
+   "screen": "[screen 30x100] cursor=r0c0  selected=r0[0:100]\"line one\"(cursor_line)  status=\":redraw                                                                           1,1           All\"\n  0 | line one\n  1 | line two\n  2 | third line from an agent\n  3 | ~\n  4 | ~\n  5 | ~\n  6 | ~\n  7 | ~\n  8 | ~\n  9 | ~\n 10 | ~\n 11 | ~\n 12 | ~\n 13 | ~\n 14 | ~\n 15 | ~\n 16 | ~\n 17 | ~\n 18 | ~\n 19 | ~\n 20 | ~\n 21 | ~\n 22 | ~\n 23 | ~\n 24 | ~\n 25 | ~\n 26 | ~\n 27 | ~\n 28 | ~\n 29 | :redraw                                                                           1,1           All"
+  },
+  {
+   "step": "editor reported the write after the channel :w",
+   "write": {
+    "kind": "remote-send",
+    "keys": ":w<CR>",
+    "rc": 0,
+    "stdout": "",
+    "stderr": ""
+   },
+   "reason": "MARKER",
+   "screen": "[screen 30x100] cursor=r0c0  selected=r0[0:100]\"line one\"(cursor_line)  status=\"<_edit_in_editor_A_20260916/episode_b1_65f9.txt\" [unix] 3L, 43B written           1,1           All\"\n  0 | line one\n  1 | line two\n  2 | third line from an agent\n  3 | ~\n  4 | ~\n  5 | ~\n  6 | ~\n  7 | ~\n  8 | ~\n  9 | ~\n 10 | ~\n 11 | ~\n 12 | ~\n 13 | ~\n 14 | ~\n 15 | ~\n 16 | ~\n 17 | ~\n 18 | ~\n 19 | ~\n 20 | ~\n 21 | ~\n 22 | ~\n 23 | ~\n 24 | ~\n 25 | ~\n 26 | ~\n 27 | ~\n 28 | ~\n 29 | <_edit_in_editor_A_20260916/episode_b1_65f9.txt\" [unix] 3L, 43B written           1,1           All"
+  },
+  {
+   "step": "editor exited",
+   "quit": {
+    "kind": "remote-send",
+    "keys": ":q<CR>",
+    "rc": 0,
+    "stdout": "",
+    "stderr": ""
+   },
+   "screen": "[screen 30x100] cursor=r29c0  selected=r29[0:100]\"\"(cursor_line)  status=\"~\"\n  0 | line one\n  1 | line two\n  2 | third line from an agent\n  3 | ~\n  4 | ~\n  5 | ~\n  6 | ~\n  7 | ~\n  8 | ~\n  9 | ~\n 10 | ~\n 11 | ~\n 12 | ~\n 13 | ~\n 14 | ~\n 15 | ~\n 16 | ~\n 17 | ~\n 18 | ~\n 19 | ~\n 20 | ~\n 21 | ~\n 22 | ~\n 23 | ~\n 24 | ~\n 25 | ~\n 26 | ~\n 27 | ~\n 28 | ~"
+  }
+ ],
+ "wall_clock_s": 0.65
+}

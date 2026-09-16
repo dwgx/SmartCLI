@@ -1,0 +1,87 @@
+{
+ "samples": [
+  {
+   "t": 0.0,
+   "chunk": 0,
+   "total": 0
+  },
+  {
+   "t": 0.25,
+   "chunk": 23,
+   "total": 23
+  },
+  {
+   "t": 0.5,
+   "chunk": 0,
+   "total": 23
+  },
+  {
+   "t": 0.75,
+   "chunk": 0,
+   "total": 23
+  },
+  {
+   "t": 1.0,
+   "chunk": 0,
+   "total": 23
+  },
+  {
+   "t": 1.25,
+   "chunk": 0,
+   "total": 23
+  },
+  {
+   "t": 1.5,
+   "chunk": 0,
+   "total": 23
+  },
+  {
+   "t": 1.75,
+   "chunk": 0,
+   "total": 23
+  },
+  {
+   "t": 2.0,
+   "chunk": 0,
+   "total": 23
+  },
+  {
+   "t": 2.25,
+   "chunk": 0,
+   "total": 23
+  },
+  {
+   "t": 2.5,
+   "chunk": 0,
+   "total": 23
+  },
+  {
+   "t": 2.75,
+   "chunk": 0,
+   "total": 23
+  },
+  {
+   "t": 3.0,
+   "chunk": 0,
+   "total": 23
+  },
+  {
+   "t": 3.25,
+   "chunk": 12306,
+   "total": 12329
+  },
+  {
+   "t": 3.5,
+   "chunk": 0,
+   "total": 12329
+  },
+  {
+   "t": 3.76,
+   "chunk": 0,
+   "total": 12329
+  }
+ ],
+ "total_bytes": 12329,
+ "first_nonzero_at": 0.25,
+ "note": "read_nonblocking() was the only consumer; no parsing happened"
+}
