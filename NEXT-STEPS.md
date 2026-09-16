@@ -827,3 +827,24 @@ Every task above is done under these rules. They override any faster-looking sho
 
 
 
+
+## 2026-09-16 — the A04 production round (0.3.0)
+
+Shipped and verified (receipts in `D:\Project\SmartCLI-v3-runs\`): budgeted reads with an honest
+`io` block (S1), `STABLE` gated on `drained` (S2), mid-sequence visibility (S2p), daemon service turns
+plus the io surface over CLI/MCP (S3), a confirmed-or-admitted close protocol (S4), a bounded Windows
+payload (S5), the write-path scheduling edges N2 found (trickle deadline, `select` failures, reply
+visibility), an offline evidence verifier that rejects 16 falsified bundles by their own rules (W2),
+and a benchmark judge proven before any model budget is spent (W3 offline).
+
+Measured on the real transports (N1 A/B): POSIX `ESC[6n` answered 0.169 s with no client polling,
+262 144 B completed unprompted; removing the service turn stalls the same fixture at 12 288 B.
+Windows/ConPTY: 0.164 s, 131 072 B unprompted, `conpty_reconstructed_utf8`.
+
+**Still open, and named in the skill's limitations log:** S6 device-reply progress (a partial reply is
+best-effort), A05 (the daemon reader's "64" is a filter, not an admission cap), A06 (`_reply` can stall
+the single worker for up to 60 s), the W2 conformance profile extension, the W3 episode runner (needs
+an approved model identity and spend cap), and E6 release verification on a second runtime.
+
+Release: `bea017b` (0.3.0), `c043eda` (examples/probes), `82ba096` (N2), tag `v0.3.0`; the aggregator is
+55/55 (`python tests/run_all.py`).

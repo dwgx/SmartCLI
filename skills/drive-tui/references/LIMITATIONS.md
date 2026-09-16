@@ -220,3 +220,41 @@ regression run (drive-probes + `_sandbox_posix_backend.py` on Linux).
   returned native call is never treated as an exit. Still open: a partial device-reply write is
   best-effort, the daemon's reader "cap" is a filter rather than an admission limit, and `_reply` can
   stall the single worker for up to 60 s on a peer that stops reading.
+
+## Write-path scheduling edges (N2, 2026-09-16)
+
+Three edges the 256 KiB real-pty test never reached were reachable on a real daemon, and all three
+were defects in `PosixPtyBackend.write` / the reply path:
+
+- **A trickling writer ran past the deadline.** The offset advances on every call, so a loop that
+  checks its deadline only in the EAGAIN/EINTR/zero-progress branches never reached the check: 64
+  one-byte calls completed past a deadline that expired after the third and still reported success.
+  The deadline is now re-checked before EVERY write. A completed write is still never downgraded.
+- **A `select.select` failure lost the receipt.** The exception propagated raw, so a caller could not
+  tell whether 0 or 4095 bytes had landed; EINTR was not retried at all. Waiting is now bounded and
+  converts: a signal retries the SAME suffix (never a re-send from zero, which would duplicate bytes),
+  any other error reports the earned prefix as `IncompleteWrite(offset, total, reason)`.
+- **A reply that could not be written was invisible.** A bare `except: pass` swallowed it, so a child
+  blocked on a device query looked like a child that ignored the input. It is now reported as
+  `io.pending.reply_error` with the known prefix subtracted from `reply_bytes`, attempted once (a
+  blind whole-payload retry would duplicate a partial reply), and cleared by the next healthy write.
+
+Verification: `tests/test_partial_write_edges.py` (7 cases, injected `os.write`/`select`/clock, no PTY)
+failed 5/7 before the change and passes after; the real-pty test still delivers 262 144 B exactly once
+(sha256 match, 32 writability waits). The wait count is scheduling-dependent -- 32/35/44 across
+identical runs -- so never read it as a fixed property of the transport.
+
+## Environment facts found while verifying (2026-09-16, Windows 11 + ConPTY)
+
+- **A Git-for-Windows vim and this box's `less` never switch to the alternate screen** under ConPTY.
+  `esc[?1049h` decoded out of a synthetic stream still sets `alt_screen=True`, so the model is fine:
+  the programs simply never enter it here. Checks that demand `alt_screen is True` fail for the
+  environment, so `examples/drive_vim.py` and `tests/_mcp_probe.py` now assert that the model AGREES
+  with what the program did (entered it -> True, never entered it -> False). Where a program does
+  enter the alternate screen, a False reading still fails.
+- **`tests/_tmux_launcher_probe.py` SKIPs on Windows** -- there is no `termios`/`pty` at all, so the
+  probe cannot run; it now says so instead of failing the aggregator. Run it on a POSIX host with tmux
+  to get the 18/18 verification the script needs.
+- **pywinpty `shlex.split`s a string command.** `session.start(r'"C:\Program Files\...\vim.exe" -u NONE')`
+  never starts (the error is `The command was not found or was not executable: C:\Program`). Pass an
+  ARGV LIST instead: `session.start([vim, "-u", "NONE", ...])`.
