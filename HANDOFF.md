@@ -1376,7 +1376,11 @@ released; v0.2.1 remains the published version and these sit unreleased on `main
    that the pre-token transport is "bounded ... so an unauthenticated loopback peer
    cannot exhaust memory or kill the daemon" was true and beside the point. Split into
    `PRE_AUTH_TIMEOUT` (2s, re-armed against a **fixed deadline** so a dribbling peer
-   cannot renew its welcome) and `POST_AUTH_TIMEOUT` (60s, authenticated replies only).
+   cannot renew its welcome) and `POST_AUTH_TIMEOUT` (60s, authenticated replies only) —
+   and since A06 that 60s is a **ceiling a reading caller still gets**, not the send's
+   blocking budget: the reply goes out non-blocking under it plus a no-progress window,
+   `SMARTCLI_REPLY_STALL_SECONDS` (2s default), which a peer that stops reading is
+   released on and a slow-but-reading peer renews byte by byte (`tests/test_liveness_gaps.py`).
    **Measured: nine held connections went from 9×60 = 540s to 18s. That is a 30×
    reduction and NOT a fix** — the residual is inherent to the serial loop and an
    attacker who keeps reconnecting still degrades service. Per-connection threads are
