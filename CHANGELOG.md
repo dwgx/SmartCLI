@@ -5,6 +5,70 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-09-16
+
+A trust-and-liveness release for the driving loop: what the runtime *observed*, what it has *not*
+read yet*, and what it can *confirm* are now separate, testable facts.
+
+### Fixed
+- **A highlighted label was read from the wrong column.** `build_snapshot` sliced the rendered
+  string with terminal CELL coordinates, so any wide glyph to the left of a highlighted span shifted
+  the text: a three-item Chinese menu reported its selected label as `3` when the highlighted item
+  was `保存`. Span text is now aggregated over the cell array. ASCII screens and spans starting at
+  column 0 happened to be correct before, which is why the defect survived a green suite.
+- **SGR sub-parameters were normalised per read chunk, and wrongly.** `ESC[4:3m` became `4;3` —
+  underline *plus italic* — `ESC[38:2::255:0:128m` lost its colour-space slot and produced the wrong
+  colour, and `ESC[58:2::1:2:3m` leaked `2/1/2/3` into dim/bold/italic. The rewrite is now a
+  streaming filter: state survives `feed()` boundaries, only a complete and definite CSI SGR is
+  rewritten, OSC/DCS payloads are never touched, an unterminated CSI is bounded (1024 bytes) and then
+  abandoned rather than drawn, and a later valid sequence still works. `38:2::R:G:B` now yields the
+  real colour; `4:3` degrades to a plain underline without italic.
+- **A short PTY write was reported as success.** `PosixPtyBackend.write` called `os.write` once and
+  discarded its return value while the fd is non-blocking, so a long payload could be silently
+  truncated. It now keeps an offset, waits for writability on `EAGAIN`, retries the same suffix on
+  `EINTR`, honours a deadline, and raises `IncompleteWrite(OSError)` carrying
+  `written_bytes`/`total_bytes`/`reason` instead of returning normally. Verified on a real POSIX pty:
+  262 144 bytes delivered exactly once with 44 writability waits, where the previous code returned
+  "success" in 0 ms with the child never receiving the payload.
+
+### Added
+- **Byte-budgeted transport.** The built-in backends declare a private budgeted-read capability
+  (`_read_budgeted`/`read_status`); `PtySession.pump(max_bytes=...)` accepts a budget and a session
+  without the capability is refused *before* any read (`ReadBudgetUnsupported`). A turn that spends
+  exactly its budget is reported as `budget_limited`, never as `drained`.
+- **`io` evidence on every observation.** `generation`, `read_offset`, `fed_offset`, `pending`
+  (`known_payload_bytes`/`readable_now`/`parser_incomplete`/`reply_bytes`/`upstream`), `local_cut`,
+  `representation` (`posix_pty_stream` vs `conpty_reconstructed_utf8`), `stream_error`, `basis_origin`
+  and the close state. Unknown values are `null`, never `0`, and the CLI/MCP wrappers only forward it
+  (`basis_origin=runtime`) instead of filling it in themselves.
+- **The daemon services the transport itself.** Every worker iteration runs one byte-bounded I/O turn
+  (idle, between requests, and inside a long wait's poll gap), so an agent that asks nothing no longer
+  means a child that is not being read. Measured on a real POSIX pty: a child's `ESC[6n` is answered
+  in 0.169 s with no client polling and a 256 KiB fixture completes unprompted; with the service turn
+  removed the same fixture stalls at 12 288 B exactly as before.
+- **`STABLE` now requires a drained observation.** `wait_until_stable`/`wait_ready` accept an optional
+  `io_fn`; a budget-limited, unknown, erroring, or mid-sequence observation can no longer be reported
+  as a settled screen, and progress made by a poll hook invalidates the quiet candidate.
+- **`ScreenModel.stream_incomplete()`** reports whether the byte-to-text path is mid-sequence (the
+  streaming filter *or* pyte's incremental UTF-8 decoder), returning `null` rather than a confident
+  `False` when it cannot tell.
+- **Bounded Windows delivery backlog.** The ConPTY reader stops pulling at a payload high-water mark
+  (queue + chunk in hand + held suffix) and resumes below the low mark, waiting on a stop-aware
+  condition instead of growing without limit (measured before: 271 307 bytes of unparsed backlog in
+  7.5 s with no client polling). Bytes are never dropped; the reader refuses to pull instead.
+- **Close protocol.** `close_requested` → `closing` → `closed_confirmed` | `close_unconfirmed` with the
+  last progress, on both backends and in the daemon's close reply. A returned native call is never
+  reported as a confirmed exit.
+
+### Platform notes
+- Windows/ConPTY remains **not** wire-byte-exact: a 1 MiB burst reaches the client as ~12 KB of
+  composed stream, and the cap manages only what this runtime has received
+  (`source_wire_exact=false`; `delivered_stream_preserved` and `screen_model_consistent` are what the
+  tests actually claim).
+- Still open and named as such: device-reply progress (a partial reply is best-effort and its failure
+  is not yet surfaced), the daemon's reader "cap" that is only a filter, and the 60 s reply stall on
+  the single worker.
+
 ## [0.2.3] - 2026-08-09
 
 A control-plane concurrency release. The headline is a security fix that v0.2.2

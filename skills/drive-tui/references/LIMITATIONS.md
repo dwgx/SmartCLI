@@ -202,3 +202,21 @@ regression run (drive-probes + `_sandbox_posix_backend.py` on Linux).
   screen or a delete-characters case looks wrong after a dependency upgrade,
   check the installed pyte version and these two flags before assuming a
   regression here.
+
+## Service, budgets and close (A04, 0.3.0)
+
+- **The daemon services the session on its own.** Every worker iteration spends one byte-bounded I/O
+  turn, so a child keeps running (and its device queries keep being answered) even when no client
+  asks anything. Measured: `ESC[6n` answered 0.169 s after the child sent it with no polling, and a
+  256 KiB fixture completed unprompted; with the turn removed the same fixture stalls at 12 288 B.
+- **A timeout is not an answer.** `io.local_cut` distinguishes `drained` from `budget_limited`,
+  `unknown` and `error`, and `pending` carries `null` (not `0`) when a transport cannot count. A
+  `STABLE` verdict requires `drained`; a caller that ignores `io` is back to guessing.
+- **Windows is not wire-byte-exact.** ConPTY composes the stream it delivers (a 1 MiB burst arrived
+  as ~12 KB), so `representation=conpty_reconstructed_utf8` and `source_wire_exact=false`. The
+  payload cap bounds what this runtime has received -- it does not bound ConPTY, and it does not
+  apply backpressure to the child.
+- **Close is confirmed or admitted.** `close_unconfirmed` with `last_progress` is a real answer; a
+  returned native call is never treated as an exit. Still open: a partial device-reply write is
+  best-effort, the daemon's reader "cap" is a filter rather than an admission limit, and `_reply` can
+  stall the single worker for up to 60 s on a peer that stops reading.

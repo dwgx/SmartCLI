@@ -9,7 +9,7 @@ description: >-
   spinners, password fields, curses UIs), or when a piped command hangs or
   prints nothing.
 allowed-tools: Bash, Read
-version: 0.2.3
+version: 0.3.0
 ---
 
 # drive-tui
@@ -139,6 +139,22 @@ Never open a visible terminal window to "let the user watch" — that is the int
 - Header: `cursor=rNcM`, optional `alt_screen`, `selected=...`, `status="..."`, `title`, `errors=N`, `screen_reverse`. `alt_screen` is inserted first among the flags — it changes what an action MEANS: a full-screen program (vim/less/htop) owns the screen, so keys are commands rather than text, the body is that program's frame rather than scrollback, and the token disappears when the primary screen is restored on exit.
 - Body: `<row><*>| text`. A `*` marks a selected/highlighted row. Blank runs collapse to `...`.
 - **`selected_line` is the key menu signal.** In an arrow-key menu the highlighted (reverse-video / colored) row is the current choice — the snapshot surfaces it as the `*` row and in the header `selected`. Use it to know where the cursor sits before pressing Up/Down.
+
+### Is the screen actually current? (`io`, since 0.3.0)
+
+Every observing verb (CLI `--json`, MCP tools) also returns an `io` block produced by the runtime:
+`local_cut` is `drained` | `budget_limited` | `unknown` | `error`, `pending` says what is still known
+to be outstanding (`known_payload_bytes`, `readable_now`, `parser_incomplete`, `reply_bytes`), and
+`read_offset`/`fed_offset` are byte watermarks for this session generation. Unknown values are `null`,
+never `0`.
+
+- `local_cut: budget_limited` or a positive `pending.known_payload_bytes` means **more is coming** —
+  do not treat the text you just read as final. Waits already enforce this for `STABLE`; if you poll
+  snapshots yourself, check `io` before deciding.
+- `representation: conpty_reconstructed_utf8` means Windows: the bytes are what ConPTY chose to
+  deliver, not the child's raw output (`source_wire_exact=false`), so never compare lengths with what
+  a program claims to have printed.
+- The daemon services the session itself, so a quiet screen now means *quiet*, not *nobody read it*.
 
 ## Deciding: classify the screen
 - Full-screen program (`alt_screen` in the header) → the body is that program's frame, not scrollback. Drive with keys (`keys q`, `keys Escape`), do not `send-line` text, and prefer `wait-visual-change` after navigation keys.

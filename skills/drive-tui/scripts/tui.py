@@ -67,6 +67,17 @@ DEFAULT_MAX_SESSIONS = 8
 MAX_COLS = 1000
 MAX_ROWS = 500
 MAX_CELLS = 100_000
+
+# --- A04-S3 service budgets (design values, not measurements) ---------------
+# A single "read everything that is there" call is what let an idle daemon
+# discover 271 KB of unparsed output at its first client contact and what let a
+# request-triggered pump swallow a whole backlog at once. These bound one service
+# turn; production defaults can be revised from a local measurement, and the
+# values are deliberately small enough to test.
+IO_TURN_BYTES = int(os.environ.get("SMARTCLI_IO_TURN_BYTES", "65536"))
+#: Fast verbs answered inside one poll gap, so a flood of quick requests cannot
+#: consume the whole gap and starve the transport.
+JOBS_PER_TURN = int(os.environ.get("SMARTCLI_JOBS_PER_TURN", "4"))
 _SID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 _ENV_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
@@ -234,6 +245,23 @@ def _call(sid: str, req: dict, timeout: float = 30.0) -> dict:
 
 # --- daemon: owns the live PtySession, serves requests on a socket ----------
 
+def _io_block(sess) -> dict | None:
+    """The runtime's io evidence, or None when this session cannot produce it.
+
+    A04-S3: produced by the runtime (``basis_origin=runtime``) and only forwarded
+    by the daemon and its CLI/MCP wrappers. An older session object without the
+    method gets no ``io`` key at all -- never a synthesized one, because a claim
+    that looks measured but was invented is worse than an absent field.
+    """
+    fn = getattr(sess, "io_block", None)
+    if fn is None:
+        return None
+    try:
+        return fn()
+    except Exception:
+        return None
+
+
 def _snapshot_response(sess: PtySession, snap, **fields) -> dict:
     """Build one consistent text/JSON/hash response for every observing verb."""
     content_hash = sess.model.content_hash()
@@ -241,9 +269,15 @@ def _snapshot_response(sess: PtySession, snap, **fields) -> dict:
     structured = json.loads(snap.to_json())
     structured["hash"] = content_hash
     structured["visual_hash"] = visual_hash
+    io_block = _io_block(sess)
+    if io_block is not None:
+        # What the runtime knows about the transport -- cut, watermarks, and what is
+        # still pending -- so a caller can tell "quiet" from "not read yet".
+        structured["io"] = io_block
     return {
         "ok": True,
         "alive": sess.is_alive(),
+
         # Whether a full-screen program owns the screen changes what the next
         # action MEANS (does `q` quit or type a letter?), so it travels with every
         # observation rather than only inside the JSON payload.
@@ -252,6 +286,7 @@ def _snapshot_response(sess: PtySession, snap, **fields) -> dict:
         "json": json.dumps(structured, ensure_ascii=False),
         "hash": content_hash,
         "visual_hash": visual_hash,
+        **({"io": io_block} if io_block is not None else {}),
         **fields,
     }
 
@@ -362,7 +397,12 @@ def _handle(sess: PtySession, req: dict, expected_token: str,
         return {"ok": True}
 
     if action == "close":
-        return {"ok": True, "_shutdown": True}
+        # A04-S4: answer with what was actually CONFIRMED. The session's close is
+        # bounded (each backend confirms within a fixed window) and the state
+        # travels back so a caller can distinguish "requested" from "gone"; a
+        # close that could not be confirmed is still a shutdown, never a claimed
+        # success. The teardown in _run_daemon is idempotent.
+        return {"ok": True, "_shutdown": True, "close": sess.close()}
 
     return {"ok": False, "error": f"unknown action '{action}'"}
 
@@ -500,8 +540,10 @@ def _serve_forever(srv: socket.socket, sess, token: str,
         Requests that are NOT interleavable are put back for normal ordering.
         """
         deferred = []
+        served = 0
         try:
-            while True:
+            service_io()
+            while served < JOBS_PER_TURN:
                 try:
                     item = jobs.get_nowait()
                 except queue.Empty:
@@ -523,6 +565,7 @@ def _serve_forever(srv: socket.socket, sess, token: str,
                         except OSError:
                             pass
                     jobs.task_done()
+                    served += 1
                 else:
                     deferred.append(item)
                     jobs.task_done()
@@ -530,14 +573,42 @@ def _serve_forever(srv: socket.socket, sess, token: str,
             for item in deferred:
                 jobs.put(item)
 
+    #: Does this session declare the budgeted-read profile? Decided ONCE, from the
+    #: session's own state, never by calling and catching TypeError: a TypeError
+    #: raised *inside* pump would then be mistaken for a signature mismatch and
+    #: swallow a real failure (or read the transport twice).
+    budgeted = isinstance(getattr(sess, "io_turn_bytes", None), int)
+
+    def service_io() -> None:
+        """One bounded I/O turn owned by the worker thread (A04-S3).
+
+        The worker is the only writer of the screen model, so it is also the only
+        place I/O may advance. Byte-bounded and never recursive: a turn cannot run
+        another wait, so no request can be delayed by more than one budget.
+        """
+        try:
+            if budgeted:
+                sess.pump(max_bytes=IO_TURN_BYTES)
+            else:
+                sess.pump()          # a session that predates the budget profile
+        except Exception:
+            # A read error must not kill the daemon: the io block reports it.
+            pass
+
     def worker() -> None:
         while not shutdown.is_set():
             try:
                 item = jobs.get(timeout=0.2)
             except queue.Empty:
+                # Idle: keep the child alive and its queries answered even when no
+                # client is asking anything (the X3 stall was exactly this path).
+                service_io()
                 continue
             if item is None:
                 break
+            # Busy: one bounded turn per iteration, so a continuously non-empty
+            # request queue cannot starve the transport either.
+            service_io()
             conn, req = item
             try:
                 resp = _handle(sess, req, token,
@@ -630,6 +701,9 @@ def _run_daemon(
         os.environ.update(child_env)
 
     sess = PtySession(cols=cols, rows=rows)
+    # A04-S3: this session's own waits read through the same byte budget as the
+    # worker's service turns, so a long wait cannot drain an unbounded backlog.
+    sess.io_turn_bytes = IO_TURN_BYTES
     sess.start(cmd)
     _write_reg(sid, {"sid": sid, "port": port, "pid": os.getpid(),
                      "cmd": cmd, "cols": cols, "rows": rows,

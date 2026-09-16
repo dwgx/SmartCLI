@@ -21,7 +21,7 @@ import json
 import re
 from dataclasses import dataclass, field
 
-from .screen_model import ScreenModel
+from .screen_model import CellAttrs, ScreenModel
 
 _ERROR_RE = re.compile(r"\b(error|failed|traceback|exception)\b", re.I)
 _RED_FGS = {"red", "brightred"}
@@ -206,8 +206,10 @@ def build_snapshot(model: ScreenModel) -> Snapshot:
     # ---- per-cell attribute scan, reduced to per-line facts ----
     line_hi_spans: list[list[tuple[int, int]]] = []
     line_red: list[bool] = []
+    line_cells: list[list[CellAttrs]] = []
     for y in range(rows):
         cells = model.row_cells(y)
+        line_cells.append(cells)
         hi_cols: list[int] = []
         red = False
         for x, ch in enumerate(cells):
@@ -248,10 +250,15 @@ def build_snapshot(model: ScreenModel) -> Snapshot:
         lines_out.pop()
 
     # ---- menu items: every highlighted span with its text ----
+    # Column indices a/b are terminal CELLS, not string indices: a wide
+    # character (CJK, emoji, fullwidth) is one character but two cells, so
+    # display[y][a:b] misaligns for any span with a wide character to its
+    # left. Aggregate over the cell array instead.
     menu_items: list[Span] = []
     for y in range(rows):
         for (a, b) in line_hi_spans[y]:
-            menu_items.append(Span(y, a, b, display[y][a:b].strip()))
+            text = "".join(c.data for c in line_cells[y][a:b]).strip()
+            menu_items.append(Span(y, a, b, text))
 
     # ---- selected: widest highlighted span, else cursor line ----
     selected: Span | None = None

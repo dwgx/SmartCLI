@@ -50,8 +50,52 @@ def _pyte_dch_handles_wide() -> bool:
 _PYTE_DCH_HANDLES_WIDE: bool = _pyte_dch_handles_wide()
 
 
+def _sgr_rewrite_params(params: bytes) -> bytes | None:
+    """Rewrite a colon-bearing CSI SGR parameter list into pyte's dialect.
+
+    Returns the new parameter bytes, or ``None`` when every group is something
+    pyte cannot represent and the WHOLE sequence must be dropped. Dropping the
+    sequence rather than emitting ``ESC[m`` matters: an empty parameter list is
+    a full attribute reset, so "drop the unsupported attribute" would silently
+    become "reset the cursor attributes".
+
+    Only ITU T.416 forms with a known meaning are rewritten. An unknown
+    sub-parameter group is dropped as a group -- its numbers must never be
+    re-emitted as bare SGR codes, because ``4:3`` naively flattened to ``4;3``
+    means "underline + italic" and ``58:2::1:2:3`` flattened to ``58;2;;1;2;3``
+    means "dim + bold + dim + italic" (58 is unknown to pyte and ignored).
+    """
+    kept: list[bytes] = []
+    for group in params.split(b";"):
+        if b":" not in group:
+            kept.append(group)          # ordinary SGR code: untouched
+            continue
+        parts = group.split(b":")
+        head = parts[0]
+        if head == b"4":
+            # 4:n is the underline STYLE (4:0 off, 4:1..4:5 single/double/
+            # curly/dotted/dashed). pyte knows only basic underline, so the
+            # style degrades to 4 -- never to a bare "3", which is italic.
+            subs = [p for p in parts[1:] if p]
+            kept.append(b"24" if subs and set(subs) == {b"0"} else b"4")
+        elif (head in (b"38", b"48") and len(parts) >= 5 and parts[1] == b"2"
+              and all(p.isdigit() for p in parts[-3:])):
+            # 38:2:<colour-space>:R:G:B -> 38;2;R;G;B. The colour-space slot is
+            # optional and is usually empty ("38:2::255:0:128"); pyte's 24-bit
+            # path pops exactly three values, so the slot has to disappear
+            # instead of becoming an empty parameter.
+            kept.append(head + b";2;" + b";".join(parts[-3:]))
+        elif head in (b"38", b"48") and len(parts) == 3 and parts[1] == b"5" and parts[2].isdigit():
+            kept.append(head + b";5;" + parts[2])       # 38:5:n
+        else:
+            continue                    # 58 underline colour, and every unknown form
+    if not kept and params:
+        return None
+    return b";".join(kept)
+
+
 class _ByteStream(pyte.ByteStream):
-    """``pyte.ByteStream`` with NEL dispatch and SGR sub-parameter tolerance."""
+    """``pyte.ByteStream`` with NEL dispatch and streaming SGR sub-parameter tolerance."""
 
     escape = {**pyte.Stream.escape, "E": "next_line"}
 
@@ -63,22 +107,150 @@ class _ByteStream(pyte.ByteStream):
     # escape-sequence debris as content. Measured against tmux 3.6b, which
     # renders just the styled character.
     #
-    # We normalise ':' to ';' before the parser sees it, which keeps the sequence
-    # a valid SGR of the same intent: the attribute may degrade (a curly
-    # underline becomes a plain one) but no debris reaches the grid and the
-    # cursor advances correctly. Only CSI ... m is rewritten, so nothing else
-    # that could legitimately contain ':' (OSC strings, DCS payloads) is touched.
-    _SGR_COLON = __import__("re").compile(rb"\x1b\[([\d;:]*:[\d;:]*)m")
+    # The rewrite is therefore a STREAMING filter that runs in front of pyte:
+    # it has to hold a sequence until its final byte arrives, because a PTY read
+    # boundary lands inside an escape often (reads are chunked at the OS's
+    # discretion), and it must rewrite only genuine CSI ... m sequences -- a
+    # lookalike byte run inside an OSC/DCS string belongs to the application
+    # (a window title may literally contain "ESC[4:3m") and must pass through
+    # untouched. A whole-buffer regex cannot do either: it sees one chunk and
+    # knows nothing about string state.
+    #
+    # States: GROUND -> (ESC) -> ESC_SEEN -> CSI | STRING | GROUND.
+    #   * CSI collects its parameter bytes until a final byte (0x40-0x7E), then
+    #     either forwards them unchanged or rewrites them via _sgr_rewrite_params.
+    #   * an unterminated CSI is held for the next call up to _CSI_CAP bytes;
+    #     past the cap the sequence is abandoned and its bytes are swallowed
+    #     until the next final byte, so nothing is drawn as text and memory is
+    #     bounded (a terminal that gave up on an over-long sequence shows the
+    #     same thing: nothing).
+    #   * STRING tracks OSC (`ESC]`, BEL or ST terminated) and DCS/SOS/PM/APC
+    #     (`ESC P/X/^/_`, ST only) so their payloads are never rewritten. The
+    #     payload is streamed, never buffered.
+    #   * a trailing ESC is held for one more byte: it may still start a string
+    #     or a CSI. Nothing else is ever buffered.
+    _GROUND, _ESC_SEEN, _CSI, _STRING, _STRING_ESC, _DISCARD = range(6)
+    _CSI_CAP = 1024
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._state = self._GROUND
+        self._csi = bytearray()      # bytes after "ESC[" while a sequence is open
+        self._string_bel = False     # BEL terminates this string (OSC) or not
 
     # The bytes-vs-str override is pyte's own Liskov violation, not ours:
     # Stream.feed takes str, ByteStream.feed narrows it to bytes and carries the
     # same ignore upstream. Matching it keeps this override honest to the class
     # we actually inherit from.
     def feed(self, data: bytes) -> None:  # type: ignore[override]
-        if b":" in data:
-            data = self._SGR_COLON.sub(
-                lambda m: b"\x1b[" + m.group(1).replace(b":", b";") + b"m", data)
-        super().feed(data)
+        # Fast path: with no escape in flight and none in this chunk there is
+        # nothing to inspect, so the common bulk-output case skips the loop.
+        if self._state == self._GROUND and b"\x1b" not in data:
+            super().feed(data)
+            return
+
+        out = bytearray()
+        i = 0
+        n = len(data)
+        state = self._state
+
+        while i < n:
+            if state == self._GROUND:
+                j = data.find(b"\x1b", i)
+                if j == -1:
+                    out += data[i:]
+                    break
+                out += data[i:j]
+                i = j + 1
+                state = self._ESC_SEEN
+                continue
+
+            if state == self._ESC_SEEN:
+                if i >= n:
+                    break                       # hold a trailing ESC for one byte
+                b = data[i]
+                i += 1
+                if b == 0x5B:                   # '['
+                    self._csi.clear()
+                    state = self._CSI
+                elif b in (0x5D, 0x50, 0x58, 0x5E, 0x5F):      # ] P X ^ _
+                    out += b"\x1b" + bytes((b,))
+                    self._string_bel = (b == 0x5D)
+                    state = self._STRING
+                else:                           # two-byte escape / charset designator
+                    out += b"\x1b" + bytes((b,))
+                    state = self._GROUND
+                continue
+
+            if state == self._CSI:
+                j = i
+                while j < n and not 0x40 <= data[j] <= 0x7E:
+                    j += 1
+                if len(self._csi) + (j - i) > self._CSI_CAP:
+                    self._csi.clear()           # abandon it; swallow to its final byte
+                    i = j
+                    state = self._DISCARD
+                    continue
+                self._csi += data[i:j]
+                i = j
+                if i >= n:
+                    break                       # hold the open sequence
+                final = data[i]
+                i += 1
+                params = bytes(self._csi)
+                self._csi.clear()
+                if final == 0x6D and b":" in params:            # 'm' with sub-parameters
+                    rewritten = _sgr_rewrite_params(params)
+                    if rewritten is not None:
+                        out += b"\x1b[" + rewritten + b"m"
+                else:
+                    out += b"\x1b[" + params + bytes((final,))
+                state = self._GROUND
+                continue
+
+            if state == self._STRING:
+                j = data.find(b"\x1b", i)
+                if self._string_bel:
+                    k = data.find(b"\x07", i)
+                    if k != -1 and (j == -1 or k < j):
+                        out += data[i:k + 1]
+                        i = k + 1
+                        state = self._GROUND
+                        continue
+                if j == -1:
+                    out += data[i:]             # stream the payload, never buffer it
+                    break
+                out += data[i:j]
+                i = j + 1
+                state = self._STRING_ESC
+                continue
+
+            if state == self._STRING_ESC:
+                if i >= n:
+                    break                       # hold ESC: it may be an ST
+                b = data[i]
+                i += 1
+                if b == 0x5C:                   # '\' -> ST
+                    out += b"\x1b\\"
+                    state = self._GROUND
+                else:                           # ESC inside the payload: stay in it
+                    out += b"\x1b" + bytes((b,))
+                    state = self._STRING
+                continue
+
+            # state == self._DISCARD: drop bytes until the abandoned sequence ends
+            j = i
+            while j < n and not 0x40 <= data[j] <= 0x7E:
+                j += 1
+            if j >= n:
+                i = n
+                break                           # still inside the abandoned sequence
+            i = j + 1                           # swallow it up to and including the final
+            state = self._GROUND
+
+        self._state = state
+        if out:
+            super().feed(bytes(out))
 
 
 class _Screen(pyte.Screen):
@@ -743,6 +915,33 @@ class ScreenModel:
         if isinstance(data, str):
             data = data.encode("utf-8", "replace")
         self._reply_buf.extend(data)
+
+    def stream_incomplete(self) -> bool | None:
+        """Is the byte-to-text path holding an unfinished sequence? (A04-S2p)
+
+        Read-only diagnostic. Two independent places can be mid-sequence: this
+        project's streaming SGR filter (a partially received CSI) and pyte's own
+        incremental UTF-8 decoder (a multi-byte character split across reads).
+        ``True`` means "do not call this observation complete"; ``False`` means
+        both are at a clean boundary.
+
+        ``None`` is returned when the decoder cannot be inspected at all: a
+        missing answer must never be reported as a confident ``False``, because
+        a caller treating "no buffered bytes" as "the screen is current" is the
+        exact mistake this exists to prevent.
+        """
+        state = getattr(self.stream, "_state", None)
+        ground = getattr(type(self.stream), "_GROUND", None)
+        decoder = getattr(self.stream, "utf8_decoder", None)
+        if state is None or ground is None or decoder is None:
+            return None
+        if state != ground:
+            return True                       # a CSI/string is still open in the filter
+        try:
+            buffered, _flags = decoder.getstate()
+        except Exception:
+            return None
+        return bool(buffered)
 
     def drain_replies(self) -> bytes:
         """Return and clear any pending device-query replies pyte generated.

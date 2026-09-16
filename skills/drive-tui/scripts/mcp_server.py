@@ -216,6 +216,11 @@ def snapshot(sid: str, as_json: bool = False) -> dict:
         "hash": resp.get("hash"),
         "visual_hash": resp.get("visual_hash"),
     }
+    # `io` is produced by the runtime (basis_origin=runtime); this adapter only
+    # forwards it and never synthesizes it, so an observation claim stays
+    # traceable to the layer that made it. Absent daemon field => absent here.
+    if "io" in resp:
+        out["io"] = resp.get("io")
     if as_json:
         out["json"] = resp.get("json")
     return out

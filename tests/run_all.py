@@ -253,6 +253,36 @@ def build_suite():
     suite.append(Test("test_terminal_fidelity (real-terminal divergence locks)",
                       [PY, str(TESTS / "test_terminal_fidelity.py")], ROOT, 60,
                       optional=True))
+    suite.append(Test("test_cell_span_regression (T05 CJK cell-span labels)",
+                      [PY, str(TESTS / "test_cell_span_regression.py")], ROOT, 60,
+                      optional=True))
+    suite.append(Test("test_sgr_stream_regression (T04 streaming SGR sub-parameters)",
+                      [PY, str(TESTS / "test_sgr_stream_regression.py")], ROOT, 60,
+                      optional=True))
+    suite.append(Test("test_partial_write_regression (T03 partial PTY write receipts)",
+                      [PY, str(TESTS / "test_partial_write_regression.py")], ROOT, 60,
+                      optional=True))
+    suite.append(Test("test_a04_read_budget (A04-S1 byte-budgeted transport)",
+                      [PY, str(TESTS / "test_a04_read_budget.py")], ROOT, 60,
+                      optional=True))
+    suite.append(Test("test_a04_pending_readiness (A04-S2 stable requires drained)",
+                      [PY, str(TESTS / "test_a04_pending_readiness.py")], ROOT, 60,
+                      optional=True))
+    suite.append(Test("test_a04_parser_pending (A04-S2p mid-sequence visibility)",
+                      [PY, str(TESTS / "test_a04_parser_pending.py")], ROOT, 60,
+                      optional=True))
+    suite.append(Test("test_a04_daemon_service (A04-S3 idle/busy service turns)",
+                      [PY, str(TESTS / "test_a04_daemon_service.py")], ROOT, 60,
+                      optional=True))
+    suite.append(Test("test_a04_io_surface (A04-S3 io evidence reaches CLI/MCP)",
+                      [PY, str(TESTS / "test_a04_io_surface.py")], ROOT, 60,
+                      optional=True))
+    suite.append(Test("test_a04_close_state (A04-S4 close is confirmed or admitted)",
+                      [PY, str(TESTS / "test_a04_close_state.py")], ROOT, 60,
+                      optional=True))
+    suite.append(Test("test_a04_winpty_backlog (A04-S5 bounded delivery payload)",
+                      [PY, str(TESTS / "test_a04_winpty_backlog.py")], ROOT, 60,
+                      optional=True))
     # Real-tmux probes: SKIP themselves when tmux is absent, so they are safe to
     # register unconditionally. They spawn one tmux server at a time.
     # The README's headline demo. It drives the real vim binary, so it is a

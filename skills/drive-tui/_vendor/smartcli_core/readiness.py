@@ -22,6 +22,7 @@ from __future__ import annotations
 import re
 import time
 from collections.abc import Callable, Sequence
+from typing import Optional
 
 # Callable aliases (documentation only)
 ReadFn = Callable[[], bytes]      # pump: read+feed one batch, return bytes read
@@ -53,6 +54,47 @@ def _ms(seconds: float) -> float:
 PollHook = Callable[[], None] | None
 
 
+def _io_blocks_stability(io_block: dict | None) -> bool:
+    """Can this observation NOT be called complete yet? (A04-S2)
+
+    ``local_cut`` is the transport's own verdict: anything other than ``drained``
+    means the runtime knows it has not consumed everything it received
+    (``budget_limited``), does not know (``unknown``), or has a transport error.
+    Rounding those to "quiet" is the failure this gate exists to prevent: a
+    budget-shaped read that stops mid-stream must not look like a stable screen.
+
+    ``None``/absent fields never block by themselves -- a missing count is not
+    evidence of data, and blocking on it would turn every wait into a timeout.
+    """
+    if not io_block:
+        return False
+    if io_block.get("local_cut") not in ("drained", None):
+        return True
+    pending = io_block.get("pending") or {}
+    if pending.get("known_payload_bytes"):      # a positive count is real data
+        return True
+    if pending.get("readable_now") is True:
+        return True
+    if pending.get("parser_incomplete") is True:
+        return True
+    if pending.get("reply_bytes"):              # a device reply still unwritten
+        return True
+    return False
+
+
+def _io_epoch(io_block: dict | None):
+    """Monotone progress marker: bytes fed within this generation.
+
+    A poll hook (or an interleaved fast request) can advance the model without
+    changing the visible hash -- a CPR reply, a cursor-only repaint. Comparing
+    this value across polls invalidates a quiet candidate that was measured
+    before that progress, which is what the old ``data``-only reset missed.
+    """
+    if not io_block:
+        return None
+    return io_block.get("fed_offset")
+
+
 def wait_until_stable(
     read_fn: ReadFn,
     get_screen_hash_fn: HashFn,
@@ -63,6 +105,7 @@ def wait_until_stable(
     min_wait_ms: int = 0,
     blank_hash: int | None = None,
     on_poll: PollHook = None,
+    io_fn: Optional[Callable[[], dict]] = None,
 ) -> bool:
     """Pump reads until the screen hash is unchanged for ``quiet_ms``.
 
@@ -99,28 +142,40 @@ def wait_until_stable(
     # that baseline. Default (blank_hash=None) is byte-for-byte the old behavior,
     # so an already-drawn screen that is genuinely static still settles.
     seen_any = False
+    # A04-S2: when the caller supplies the runtime's io block, a quiet window only
+    # counts while the runtime is genuinely drained. ``last_epoch`` invalidates a
+    # candidate that was measured before any progress the poll hook made.
+    last_epoch = None
 
     while True:
         now = time.monotonic()
         data = read_fn()
         if data:
             seen_any = True
+        io_block = io_fn() if io_fn is not None else None
+        blocked = _io_blocks_stability(io_block)
+        epoch = _io_epoch(io_block)
+        progressed = bool(data) or (epoch is not None and last_epoch is not None
+                                    and epoch != last_epoch)
+        last_epoch = epoch
         h = get_screen_hash_fn()
         elapsed = now - start
         blank = (not seen_any and blank_hash is not None and h == blank_hash)
 
-        if not data and h == last_hash:
+        if not progressed and h == last_hash and not blocked:
             if stable_since is None:
                 stable_since = now
             elif (now - stable_since) >= quiet and elapsed >= min_wait and not blank:
                 if grace > 0:
                     time.sleep(grace)
                 tail = read_fn()
-                if tail:
-                    # late flush: resume waiting
-                    seen_any = True
+                io_after = io_fn() if io_fn is not None else None
+                if tail or _io_blocks_stability(io_after):
+                    # late flush, or work the grace window uncovered: resume waiting
+                    seen_any = seen_any or bool(tail)
                     stable_since = None
                     last_hash = get_screen_hash_fn()
+                    last_epoch = _io_epoch(io_after)
                     continue
                 return True
         else:
@@ -259,6 +314,7 @@ def wait_ready(
     flags: int = 0,
     blank_hash: int | None = None,
     on_poll: PollHook = None,
+    io_fn: Optional[Callable[[], dict]] = None,
 ) -> tuple[str, object]:
     """Unified wait: satisfy on ``marker`` OR screen stability, capped by max_wait.
 
@@ -284,12 +340,21 @@ def wait_ready(
     # only the stability branch refuses to fire on a never-painted blank screen
     # when the caller supplies the blank baseline. Default None = old behavior.
     seen_any = False
+    # A04-S2: STABLE additionally requires that the runtime is actually drained;
+    # see wait_until_stable for the reasoning. A marker match stays ungated.
+    last_epoch = None
 
     while True:
         now = time.monotonic()
         data = read_fn()
         if data:
             seen_any = True
+        io_block = io_fn() if io_fn is not None else None
+        blocked = _io_blocks_stability(io_block)
+        epoch = _io_epoch(io_block)
+        progressed = bool(data) or (epoch is not None and last_epoch is not None
+                                    and epoch != last_epoch)
+        last_epoch = epoch
         elapsed = now - start
 
         # 1) marker wins immediately (respect min_wait)
@@ -299,17 +364,19 @@ def wait_ready(
         # 2) stability
         h = get_screen_hash_fn()
         blank = (not seen_any and blank_hash is not None and h == blank_hash)
-        if not data and h == last_hash:
+        if not progressed and h == last_hash and not blocked:
             if stable_since is None:
                 stable_since = now
             elif (now - stable_since) >= quiet and elapsed >= min_wait and not blank:
                 if grace > 0:
                     time.sleep(grace)
                 tail = read_fn()
-                if tail:
-                    seen_any = True
+                io_after = io_fn() if io_fn is not None else None
+                if tail or _io_blocks_stability(io_after):
+                    seen_any = seen_any or bool(tail)
                     stable_since = None
                     last_hash = get_screen_hash_fn()
+                    last_epoch = _io_epoch(io_after)
                     continue
                 return "STABLE", get_snapshot_fn()
         else:

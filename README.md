@@ -301,7 +301,12 @@ confirm, form, progress, wizard) that `classify()` a screen and `drive()` it.
 
 **Shared core** (`smartcli_core`) — the pluggable PTY backend + `pyte` screen model +
 semantic snapshot + readiness sync (`pty_backend / screen_model / snapshot / readiness /
-session`). The reusable, importable foundation under all three skills.
+session`). The reusable, importable foundation under all three skills. Since 0.3.0 a
+budgeted read path and an `io` block travel with every observation, so a caller can tell
+*quiet* from *not read yet* (`local_cut`, byte watermarks, pending facts — unknown values are
+`null`, never `0`), `STABLE` requires a drained observation, and close reports
+`closed_confirmed` or `close_unconfirmed` with the last progress instead of assuming a
+returned native call means the child is gone.
 
 **Knowledge graph** (`knowledge/`) — a wiki-link graph (140+ `.md` files) of exact
 rendering formulas, ANSI sequences, and measured constants, each note carrying a
