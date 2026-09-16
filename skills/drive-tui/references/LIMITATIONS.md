@@ -217,11 +217,23 @@ regression run (drive-probes + `_sandbox_posix_backend.py` on Linux).
   payload cap bounds what this runtime has received -- it does not bound ConPTY, and it does not
   apply backpressure to the child.
 - **Close is confirmed or admitted.** `close_unconfirmed` with `last_progress` is a real answer; a
-  returned native call is never treated as an exit. Still open: a partial device-reply write is
-  best-effort, the daemon's reader "cap" is a filter rather than an admission limit, `_reply` can
-  stall the single worker for up to 60 s on a peer that stops reading, and -- found by driving a real
-  ConPTY child past a lowered high water -- **`pump(max_bytes=...)` can hang once the reader pauses**
-  (see the OPEN section below; issue #15).
+  returned native call is never treated as an exit. The three liveness gaps that used to follow this
+  sentence are closed (`tests/test_liveness_gaps.py`): an owed device reply is RESUMED on a later I/O
+  turn from a ledger that re-sends only bytes the transport reported as NOT accepted, bounded by
+  `SMARTCLI_REPLY_RETRY_BYTES` per spawn generation — **off by default**, so with it unset the pre-S6
+  behaviour stands (one attempt per observation, the remainder reported and left unwritten, and bytes
+  whose landing the transport cannot report never re-sent); the daemon's reader and job caps are now
+  ADMISSION limits (`SMARTCLI_MAX_READERS` / `SMARTCLI_MAX_JOBS`, default 64 each) that refuse with
+  `reason: too_many_readers` / `too_many_jobs` before a thread or a queue slot is spent, instead of
+  filtering a list after the fact; and `_reply` sends non-blocking under its 60 s ceiling plus a
+  no-progress stall window (`SMARTCLI_REPLY_STALL_SECONDS`, default 2 s), so a peer that stops reading
+  releases the worker inside that window while a slow-but-reading peer keeps the patience it always
+  had. **Still open:** `pump(max_bytes=...)` can hang once the reader pauses (see the OPEN section
+  below; issue #15). Two residual bounds worth knowing: the caps bound ADMISSION, so a queue already
+  admitted and re-queued by the interleave path can transiently exceed `MAX_JOBS` (refused work is
+  never silently dropped, and admitted work still runs); and a peer that keeps making token progress
+  can still hold the worker up to the 60 s ceiling, which is deliberate — that is the patience a
+  healthy caller had before A06.
 
 ## Write-path scheduling edges (N2, 2026-09-16)
 

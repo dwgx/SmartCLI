@@ -155,6 +155,15 @@ class PtySession:
         self._stream_error: str | None = None
         self._pending_reply_bytes = 0
         self._reply_error: str | None = None
+        # S6: the device-reply ledger. ``_reply_owed`` is the payload the
+        # transport has NOT accepted, in wire order, and it is the ONLY thing a
+        # later turn may re-send. ``_reply_unknown`` counts bytes whose fate the
+        # transport could not report: they stay visible as owed but must never
+        # go out again (a re-send could duplicate a prefix that did land).
+        # ``_pending_reply_bytes`` is their sum -- the ``reply_bytes`` field.
+        self._reply_owed = b""
+        self._reply_unknown = 0
+        self._reply_retry_spent = 0
         # Close protocol (A04-S4): requested -> closing -> confirmed | unconfirmed.
         self._close_requested = False
         self._closing = False
@@ -165,6 +174,13 @@ class PtySession:
         #: the previous behaviour for every existing caller; the daemon sets a
         #: production value.
         self.io_turn_bytes: int | None = None
+        #: S6: byte budget for RESUMING a device reply the transport would not
+        #: accept, spent across the turns of one spawn generation. ``None`` or 0
+        #: (the default) keeps the pre-S6 behaviour -- one write attempt per
+        #: observation, the remainder reported and left unwritten -- so no
+        #: existing caller changes meaning. The daemon sets it from
+        #: ``SMARTCLI_REPLY_RETRY_BYTES``.
+        self.reply_retry_bytes: int | None = None
 
     def _read_for_wait(self) -> bytes:
         """The read call this session's waits use (budgeted when configured)."""
@@ -191,6 +207,9 @@ class PtySession:
         self._stream_error = None
         self._pending_reply_bytes = 0
         self._reply_error = None
+        self._reply_owed = b""
+        self._reply_unknown = 0
+        self._reply_retry_spent = 0
         self._close_requested = False
         self._closing = False
         self._close_confirmed = False
@@ -275,6 +294,10 @@ class PtySession:
         ``READ_BUDGET_CAPABLE`` raises :class:`ReadBudgetUnsupported` BEFORE any
         read -- read-everything-then-slice would break the very bound the budget
         exists to enforce.
+
+        S6: what this call cannot deliver is not dropped. The unwritten suffix
+        stays on the reply ledger and :meth:`retry_pending_reply` resumes it on a
+        later turn; the read path above is unchanged.
         """
         if max_bytes is None:
             data = self.backend.read_nonblocking()
@@ -297,22 +320,87 @@ class PtySession:
             self._fed_offset += len(data)
             reply = self.model.drain_replies()
             if reply:
-                self._pending_reply_bytes = len(reply)
-                try:
-                    self.backend.write(reply)
-                    self._pending_reply_bytes = 0
-                    self._reply_error = None
-                except Exception as exc:
-                    # N2: a device reply that could not be written must be VISIBLE
-                    # (the program may be blocked waiting for it), and it must not
-                    # be re-sent blindly: a partial write already put a prefix on
-                    # the wire, so a whole-payload retry would duplicate bytes. The
-                    # known prefix is subtracted from what is still owed.
-                    written = getattr(exc, "written_bytes", None)
-                    self._pending_reply_bytes = (len(reply) if written is None
-                                                 else max(0, len(reply) - int(written)))
-                    self._reply_error = f"{type(exc).__name__}: {exc}"
+                # S6: a reply is still written once per observation, but it is
+                # written from the LEDGER rather than thrown away on failure. Any
+                # suffix a previous turn could not deliver therefore goes out
+                # ahead of this one -- the child's order -- and only bytes the
+                # transport reported as NOT accepted are ever re-sent. The first
+                # attempt is deliberately unbudgeted: that is exactly the write
+                # this path made before, and budgeting it would change reachable
+                # behaviour for every existing caller.
+                self._reply_owed += reply
+                self._attempt_reply_write(None)
         return data
+
+    def _attempt_reply_write(self, limit: int | None) -> int:
+        """Write at most ``limit`` bytes (``None`` = all) of the owed reply, once.
+
+        Returns the number of bytes ATTEMPTED, which is what a retry budget is
+        spent on: a transport that accepts nothing must not be retried forever on
+        a budget stated in bytes, so the attempt -- not the landing -- is charged.
+
+        The unwritten remainder is re-derived from the transport's own receipt
+        (:attr:`IncompleteWrite.written_bytes`) instead of being guessed, and when
+        the transport cannot report progress at all the payload moves to the
+        un-retryable side of the ledger: `written_bytes is None` means bytes may
+        already be on the wire, and re-sending them would duplicate input the
+        child has already acted on.
+        """
+        owed = self._reply_owed
+        payload = owed if limit is None else owed[:limit]
+        if not payload:
+            return 0
+        try:
+            self.backend.write(payload)
+        except Exception as exc:
+            written = getattr(exc, "written_bytes", None)
+            if written is None:
+                # The payload was ATTEMPTED and its landing point is unknown: it
+                # leaves the resumable ledger (re-sending it could duplicate a
+                # prefix the child already acted on) and stays counted as owed.
+                self._reply_unknown += len(payload)
+                self._reply_owed = owed[len(payload):]
+            else:
+                landed = min(max(int(written), 0), len(payload))
+                self._reply_owed = owed[landed:]
+            self._reply_error = f"{type(exc).__name__}: {exc}"
+        else:
+            self._reply_owed = owed[len(payload):]
+            if not self._reply_owed and not self._reply_unknown:
+                self._reply_error = None
+        self._pending_reply_bytes = len(self._reply_owed) + self._reply_unknown
+        return len(payload)
+
+    def retry_pending_reply(self) -> dict:
+        """Resume a device reply the transport would not take, on a LATER turn (S6).
+
+        A child that is synchronously waiting for its device answer stays blocked
+        until the answer arrives, so an unwritten reply is not a reporting detail:
+        it is a stuck program. This is the call that gives that reply progress,
+        and it exists as its own entry point so the retry lands on a *later* turn
+        -- the daemon calls it from the same bounded I/O turn that services the
+        transport -- instead of looping inside the observation that failed.
+
+        Bounded by :attr:`reply_retry_bytes` per spawn generation and a no-op when
+        that budget is unset or spent; a no-op also when nothing is owed, which is
+        the case on every turn of a healthy session.
+        """
+        budget = self.reply_retry_bytes
+        if not isinstance(budget, int) or budget <= 0:
+            # No budget declared (or a zero one): the pre-S6 behaviour, and the
+            # default for every caller that is not the daemon.
+            return {"attempted": 0, "owed": self._pending_reply_bytes,
+                    "budget_left": 0, "reason": self._reply_error}
+        left = budget - self._reply_retry_spent
+        owed = self._reply_owed
+        if left <= 0 or not owed:
+            return {"attempted": 0, "owed": self._pending_reply_bytes,
+                    "budget_left": max(left, 0), "reason": self._reply_error}
+        attempted = self._attempt_reply_write(min(len(owed), left))
+        self._reply_retry_spent += attempted
+        return {"attempted": attempted, "owed": self._pending_reply_bytes,
+                "budget_left": budget - self._reply_retry_spent,
+                "reason": self._reply_error}
 
     def io_block(self) -> dict:
         """The inner ``io`` dict -- what readiness gates and the daemon expect.

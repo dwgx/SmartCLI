@@ -23,6 +23,7 @@ import os
 import queue
 import re
 import secrets
+import select
 import socket
 import stat
 import subprocess
@@ -78,6 +79,24 @@ IO_TURN_BYTES = int(os.environ.get("SMARTCLI_IO_TURN_BYTES", "65536"))
 #: Fast verbs answered inside one poll gap, so a flood of quick requests cannot
 #: consume the whole gap and starve the transport.
 JOBS_PER_TURN = int(os.environ.get("SMARTCLI_JOBS_PER_TURN", "4"))
+# --- A05 admission caps ------------------------------------------------------
+# The reader count and the job queue were bounded by a literal `64` that only ever
+# FILTERED a list after the fact: an accepted connection had already cost a thread,
+# and an authenticated request had already cost a queue slot, before the number was
+# consulted. These are admission limits instead -- a caller that arrives over the
+# cap is REFUSED with a reason it can read, and nothing is ever dropped silently.
+#: Live connection-reader threads one session will carry.
+MAX_READERS = max(1, int(os.environ.get("SMARTCLI_MAX_READERS", "64")))
+#: Authenticated requests queued for the single worker before arrivals are refused.
+#: The floor of 1 matters: a cap of 0 would refuse every caller including the one
+#: that would close the session.
+MAX_JOBS = max(1, int(os.environ.get("SMARTCLI_MAX_JOBS", "64")))
+# --- S6 reply progress -------------------------------------------------------
+#: Bytes one spawn generation may spend RESENDING a device reply the transport
+#: would not accept. 0 = off (the pre-S6 behaviour: one attempt per observation,
+#: the remainder reported and left unwritten). Opt-in by design, and the daemon is
+#: the only caller that sets it on a session.
+REPLY_RETRY_BYTES = int(os.environ.get("SMARTCLI_REPLY_RETRY_BYTES", "0"))
 _SID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 _ENV_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
@@ -412,8 +431,22 @@ def _handle(sess: PtySession, req: dict, expected_token: str,
 #: in milliseconds — and it is re-armed against a FIXED deadline so a peer dribbling
 #: bytes cannot renew its welcome.
 PRE_AUTH_TIMEOUT = 2.0
-#: Only ever applied to writing a reply back to a caller that already authenticated.
-POST_AUTH_TIMEOUT = 60.0
+#: Total patience for writing ONE authenticated reply, unchanged from the pre-A06
+#: value. A06 is not fixed by lowering this ceiling -- that would take replies away
+#: from healthy-but-slow callers -- so a peer that IS reading keeps exactly the
+#: window it always had, and the bound that matters is the stall window below.
+POST_AUTH_TIMEOUT = float(os.environ.get("SMARTCLI_REPLY_TIMEOUT_MS", "60000")) / 1000.0
+#: A06: seconds the send may make NO progress -- the peer accepts not one byte --
+#: before it is abandoned. A peer that stops reading releases the session's only
+#: worker inside this window instead of holding it for the whole ceiling; a peer
+#: that is merely SLOW renews the window on every accepted byte, so slow is never
+#: mistaken for stalled. 2 s is ~100x the transfer time of a loopback reply (a
+#: 500 KB snapshot completes in milliseconds against a reading peer). 0 disables
+#: the bound, leaving only the ceiling.
+REPLY_STALL_SECONDS = float(os.environ.get("SMARTCLI_REPLY_STALL_SECONDS", "2.0"))
+#: Refusals are written from the ACCEPT loop, so they get a much shorter deadline:
+#: a courtesy reply must never be the thing that delays the next accept.
+REFUSAL_DEADLINE = 0.5
 #: Cap the pre-newline buffer: an unauthenticated peer must not be able to exhaust
 #: memory by streaming bytes with no newline. Far above any legitimate request.
 MAX_REQ = 4 * 1024 * 1024
@@ -455,13 +488,73 @@ def _read_request(conn: socket.socket) -> dict:
     return req
 
 
-def _reply(conn: socket.socket, payload: dict) -> None:
-    """Best-effort single-line JSON reply. A dead peer must not raise."""
+def _reply(conn: socket.socket, payload: dict, deadline: float | None = None,
+           stall: float | None = None) -> dict:
+    """Send one newline-terminated JSON reply, bounded by a stall AND a ceiling (A06).
+
+    ``sendall`` on a blocking socket returns only once every byte is in the peer's
+    buffer, so a peer that stopped reading held the session's only worker for the
+    whole post-auth timeout -- and with it every other caller of that session.
+
+    The bound that fixes that is the STALL window (``stall``, default
+    :data:`REPLY_STALL_SECONDS`): the send is abandoned once the peer has accepted
+    nothing for that long. ``deadline`` (default :data:`POST_AUTH_TIMEOUT`) stays
+    the total ceiling it always was, and because progress RENEWS the stall window, a
+    slow-but-reading peer keeps the patience it always had -- only a peer that has
+    genuinely stopped is cut off. A stall window of 0 disables the no-progress
+    bound and leaves the ceiling alone.
+
+    Whatever was accepted goes to the peer, and the outcome is RETURNED
+    (``sent``/``bytes``/``total_bytes``/``reason``/``deadline_s``/``stall_s``)
+    instead of raising or blocking. The caller closes the connection, which the
+    stranded peer observes as an empty response rather than as silence.
+
+    A dead or stalled peer is an outcome, not an exception: nothing here raises for
+    it. The connection is left non-blocking and is not reused -- every call site
+    closes it immediately afterwards.
+    """
+    budget = POST_AUTH_TIMEOUT if deadline is None else deadline
+    stall_limit = REPLY_STALL_SECONDS if stall is None else stall
+    data = (json.dumps(payload) + "\n").encode("utf-8")
+    now = time.monotonic()
+    end = now + max(budget, 0.0)
+    #: Renewed on every accepted byte; ``inf`` when the window is disabled.
+    progress_until = now + stall_limit if stall_limit > 0 else float("inf")
+    sent = 0
+    reason: str | None = None
     try:
-        conn.settimeout(POST_AUTH_TIMEOUT)
-        conn.sendall((json.dumps(payload) + "\n").encode("utf-8"))
-    except OSError:
-        pass
+        conn.setblocking(False)
+        while sent < len(data):
+            now = time.monotonic()
+            if now >= end:
+                reason = f"deadline: {sent}/{len(data)} bytes in {budget:.3f}s"
+                break
+            if now >= progress_until:
+                reason = (f"stalled: peer accepted nothing for {stall_limit:.3f}s "
+                          f"({sent}/{len(data)} bytes)")
+                break
+            try:
+                count = conn.send(data[sent:])
+            except BlockingIOError:
+                # Spurious wakeups are allowed: the loop re-checks both bounds and
+                # retries the SAME suffix, so a partial reply is never restarted.
+                select.select([], [conn], [],
+                              min(end - now, progress_until - now, 0.05))
+                continue
+            except InterruptedError:
+                continue
+            if count <= 0:
+                reason = f"peer closed after {sent}/{len(data)} bytes"
+                break
+            sent += count
+            if stall_limit > 0:
+                progress_until = time.monotonic() + stall_limit
+    except OSError as exc:
+        reason = f"{type(exc).__name__}: {exc} ({sent}/{len(data)} bytes)"
+    if reason is None and sent < len(data):      # cannot happen; never claim success
+        reason = f"peer stopped reading: {sent}/{len(data)} bytes"
+    return {"sent": reason is None, "bytes": sent, "total_bytes": len(data),
+            "deadline_s": budget, "stall_s": stall_limit, "reason": reason}
 
 
 def _serve_forever(srv: socket.socket, sess, token: str,
@@ -507,6 +600,11 @@ def _serve_forever(srv: socket.socket, sess, token: str,
     `_WORKER_FAST_VERBS`.
     """
     jobs: queue.Queue = queue.Queue()
+    #: A05: the check-and-enqueue for the job cap must be atomic, or two readers
+    #: could both see room for one and admit one each. It is held for a qsize()
+    #: and a put_nowait() only -- never across a reply to a peer, which is the
+    #: very thing A06 bounds.
+    admission = threading.Lock()
     shutdown = threading.Event()
 
     #: Verbs answered DURING a long wait, via the readiness poll hook. They are all
@@ -578,6 +676,10 @@ def _serve_forever(srv: socket.socket, sess, token: str,
     #: raised *inside* pump would then be mistaken for a signature mismatch and
     #: swallow a real failure (or read the transport twice).
     budgeted = isinstance(getattr(sess, "io_turn_bytes", None), int)
+    #: Does this session carry the S6 reply ledger? Same rule, decided the same
+    #: way: a pre-S6 session object (a caller's own, an older table) is serviced
+    #: without it, and one that has it decides internally whether it retries.
+    resumable = callable(getattr(sess, "retry_pending_reply", None))
 
     def service_io() -> None:
         """One bounded I/O turn owned by the worker thread (A04-S3).
@@ -594,6 +696,17 @@ def _serve_forever(srv: socket.socket, sess, token: str,
         except Exception:
             # A read error must not kill the daemon: the io block reports it.
             pass
+        if resumable:
+            # S6: this turn is the "later turn" a reply the transport refused gets
+            # to make progress on, so a child blocked on its device answer does not
+            # stay blocked because the one attempt happened to land on a full
+            # buffer. The session decides whether it has budget; a session without
+            # it is a no-op call. Separate from the read above so a failed read
+            # cannot swallow the resume -- the two failures are unrelated.
+            try:
+                sess.retry_pending_reply()
+            except Exception:
+                pass
 
     def worker() -> None:
         while not shutdown.is_set():
@@ -653,7 +766,26 @@ def _serve_forever(srv: socket.socket, sess, token: str,
             except OSError:
                 pass
             return
-        jobs.put((conn, req))
+        with admission:
+            if jobs.qsize() >= MAX_JOBS:
+                full = True
+            else:
+                full = False
+                jobs.put_nowait((conn, req))
+        if full:
+            # A05: refuse at ADMISSION, visibly. The alternative -- accepting it and
+            # letting the caller believe its work is queued -- is how a "cap" turns
+            # into an unbounded amount of work the daemon is carrying. The reply is
+            # written OUTSIDE the lock and on the refusal deadline, so a peer that
+            # does not read it cannot slow the next reader down.
+            _reply(conn, {"ok": False, "reason": "too_many_jobs",
+                          "error": f"too many requests already queued ({MAX_JOBS}); "
+                                   "retry shortly"},
+                   deadline=REFUSAL_DEADLINE)
+            try:
+                conn.close()
+            except OSError:
+                pass
 
     wt = threading.Thread(target=worker, name="session-worker", daemon=True)
     wt.start()
@@ -666,12 +798,25 @@ def _serve_forever(srv: socket.socket, sess, token: str,
             except (TimeoutError, OSError):
                 readers = [t for t in readers if t.is_alive()]
                 continue
+            # A05: prune first, then decide -- the cap counts LIVE readers, and the
+            # old code only ever filtered this list after a thread had already been
+            # created. Over the cap the connection is refused here, before it costs
+            # a thread, and the caller is told why instead of being left to time out.
+            readers = [t for t in readers if t.is_alive()]
+            if len(readers) >= MAX_READERS:
+                _reply(conn, {"ok": False, "reason": "too_many_readers",
+                              "error": f"too many connections in flight ({MAX_READERS}); "
+                                       "retry shortly"},
+                       deadline=REFUSAL_DEADLINE)
+                try:
+                    conn.close()
+                except OSError:
+                    pass
+                continue
             t = threading.Thread(target=reader, args=(conn,),
                                  name="conn-reader", daemon=True)
             t.start()
             readers.append(t)
-            if len(readers) > 64:  # bound the thread count; finished ones drop out
-                readers = [x for x in readers if x.is_alive()]
     finally:
         shutdown.set()
         jobs.put(None)
@@ -704,6 +849,10 @@ def _run_daemon(
     # A04-S3: this session's own waits read through the same byte budget as the
     # worker's service turns, so a long wait cannot drain an unbounded backlog.
     sess.io_turn_bytes = IO_TURN_BYTES
+    # S6: and its device replies get a bounded retry budget, spent across the
+    # daemon's own I/O turns. Both are set before start(), which is what resets the
+    # per-generation counters they feed.
+    sess.reply_retry_bytes = REPLY_RETRY_BYTES
     sess.start(cmd)
     _write_reg(sid, {"sid": sid, "port": port, "pid": os.getpid(),
                      "cmd": cmd, "cols": cols, "rows": rows,

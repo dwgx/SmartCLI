@@ -286,6 +286,13 @@ def build_suite():
     suite.append(Test("test_a04_winpty_backlog (A04-S5 bounded delivery payload)",
                       [PY, str(TESTS / "test_a04_winpty_backlog.py")], ROOT, 60,
                       optional=True))
+    # S6/A05/A06 close three liveness gaps the 0.3.0 review named: an owed device
+    # reply is resumed on a later turn, the reader/job caps refuse at ADMISSION,
+    # and a reply send is deadline-bounded. No PTY, no child process: one fake
+    # session, injected transports, and the real accept loop.
+    suite.append(Test("test_liveness_gaps (S6 reply progress, A05 admission, A06 bounds)",
+                      [PY, str(TESTS / "test_liveness_gaps.py")], ROOT, 90,
+                      optional=True))
     # Real-tmux probes: SKIP themselves when tmux is absent, so they are safe to
     # register unconditionally. They spawn one tmux server at a time.
     # The README's headline demo. It drives the real vim binary, so it is a
