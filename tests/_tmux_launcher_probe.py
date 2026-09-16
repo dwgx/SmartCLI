@@ -25,11 +25,21 @@ Exit 0 = pass. SKIP (exit 0) when tmux is absent.
 from __future__ import annotations
 
 import os
-import pty
 import subprocess
 import sys
 import time
 from pathlib import Path
+
+# This probe needs a POSIX pty AND a real tmux. Windows has no `termios`/`pty`
+# module at all, so it must SKIP there (exit 0) exactly like its tmux siblings
+# `_diff_tmux_pyte` / `_diff_two_refs` / `_diff_fuzz_tmux` do when tmux is absent
+# -- failing the aggregator for an environment it cannot have hides the real
+# signal behind a red line the reader learns to ignore.
+if os.name == "nt":  # pragma: no cover - platform gate
+    print("SKIP: this probe needs a POSIX pty and tmux (not available on Windows)")
+    raise SystemExit(0)
+
+import pty  # noqa: E402 - imported after the platform gate on purpose
 
 ROOT = Path(__file__).resolve().parents[1]
 TMUX_DIR = ROOT / "skills" / "cmd-art" / "tmux"
