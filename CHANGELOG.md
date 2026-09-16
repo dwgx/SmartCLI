@@ -28,8 +28,9 @@ read yet*, and what it can *confirm* are now separate, testable facts.
   truncated. It now keeps an offset, waits for writability on `EAGAIN`, retries the same suffix on
   `EINTR`, honours a deadline, and raises `IncompleteWrite(OSError)` carrying
   `written_bytes`/`total_bytes`/`reason` instead of returning normally. Verified on a real POSIX pty:
-  262 144 bytes delivered exactly once with 44 writability waits, where the previous code returned
-  "success" in 0 ms with the child never receiving the payload.
+  262 144 bytes delivered exactly once (sha256 match), where the previous code returned "success" in
+  0 ms with the child never receiving the payload. The wait count is scheduling-dependent -- 32, 35
+  and 44 observed across identical runs -- so it is not quoted as a property of the transport.
 
 ### Added
 - **Byte-budgeted transport.** The built-in backends declare a private budgeted-read capability
