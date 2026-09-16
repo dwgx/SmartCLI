@@ -42,4 +42,11 @@ An evidence file is only meaningful with four things, and every receipt here car
 | E5 end-to-end with a judge | `runs/v3/W3/episodes*/` (three tasks x three tracks x two transports), judged by `W3/judge.py` |
 | E6 release artefact | the 0.3.0 → 0.3.2 releases: wheels verified byte-for-byte against their tags |
 
+## Why this tree is not linted
+
+`ruff` and `mypy` cover the product; `verification/` is excluded (see `extend-exclude` in
+`pyproject.toml`). These files are records, not shipping code: `tools/mutate-v2.py` is a preserved
+earlier revision of the mutation harness whose known `SyntaxError` is part of the story of how the
+harness was fixed, and the probe scripts are written to be run once, on a specific box, and quoted.
+
 See `HANDOFF.md` in this directory for what is still open and the exact next commands.
