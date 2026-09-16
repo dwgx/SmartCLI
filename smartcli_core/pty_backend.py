@@ -81,6 +81,24 @@ class PtyBackend(abc.ABC):
     def terminate(self) -> None:
         """Terminate the child and release resources. Idempotent."""
 
+    # --- budgeted reads (A04-S1) ---------------------------------------------
+    # Declared here, not only on the subclasses, so callers can rely on the
+    # capability being part of the contract: a backend that sets
+    # ``READ_BUDGET_CAPABLE = True`` overrides both of these, and one that does
+    # not leaves the base implementation, which raises rather than reading
+    # unbounded and slicing.
+    READ_BUDGET_CAPABLE = False
+
+    def _read_budgeted(self, max_bytes: int) -> bytes:
+        """Read at most ``max_bytes``; see :func:`supports_read_budget`."""
+        raise ReadBudgetUnsupported(
+            f"{type(self).__name__} does not implement the budgeted-read capability")
+
+    def read_status(self) -> dict:
+        """Best-effort transport facts (see the subclasses for the real shape)."""
+        raise ReadBudgetUnsupported(
+            f"{type(self).__name__} does not implement read_status()")
+
 
 def _pid_is_gone(pid: int) -> bool:
     """True when the process is gone (no such process, or not ours to signal)."""
@@ -107,7 +125,7 @@ class ReadBudgetUnsupported(RuntimeError):
     """
 
 
-def supports_read_budget(backend: "PtyBackend") -> bool:
+def supports_read_budget(backend: PtyBackend) -> bool:
     """Does ``backend`` implement the private budgeted-read capability?
 
     The capability is DECLARED by the class (``READ_BUDGET_CAPABLE = True``) and
@@ -539,9 +557,12 @@ class PosixPtyBackend(PtyBackend):
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             raise IncompleteWrite(offset, total, "deadline waiting for writability") from None
+        fd = self._fd
+        if fd is None:                      # closed under us between attempts
+            raise IncompleteWrite(offset, total, "descriptor closed while writing")
         try:
             # Spurious wakeups are allowed: the caller re-checks the same suffix.
-            select.select([], [self._fd], [], min(remaining, 0.25))
+            select.select([], [fd], [], min(remaining, 0.25))
         except InterruptedError:
             return                      # a signal during the wait: try again
         except OSError as exc:

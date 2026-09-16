@@ -17,16 +17,17 @@ injected calls, and a fake clock so every deadline case is deterministic.
 
 Run: python -B tests/test_partial_write_edges.py [--repo PATH]
 """
+
 from __future__ import annotations
 
 import argparse
 import errno
 import os
-from pathlib import Path
 import select
 import sys
 import time
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 ap = argparse.ArgumentParser(add_help=False)
@@ -36,15 +37,16 @@ REPO = args.repo.resolve()
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(REPO))
 try:
+    import smartcli_core
     from smartcli_core import PtySession
     from smartcli_core.pty_backend import IncompleteWrite, PosixPtyBackend
-    import smartcli_core
+
     imported = getattr(smartcli_core, "__file__", None)
     if not imported or not Path(imported).resolve().is_relative_to(REPO / "smartcli_core"):
-        raise RuntimeError("test imported an unrelated installed SmartCLI")
+        raise RuntimeError("test imported an unrelated installed SmartCLI") from None
 except ModuleNotFoundError as exc:
     print(f"NOT_RUN: {exc}", file=sys.stderr)
-    raise SystemExit(2)
+    raise SystemExit(2) from None
 
 PAYLOAD = bytes(range(64))
 FAKE_FD = 424242
@@ -90,11 +92,17 @@ class WriteEdges(unittest.TestCase):
         if waiter is not None:
             patches.append(patch.object(select, "select", waiter))
         try:
-            with patches[0], (patches[1] if waiter is not None else patch.object(select, "select",
-                                                                                lambda *a, **k: ([], [FAKE_FD], []))):
+            with (
+                patches[0],
+                (
+                    patches[1]
+                    if waiter is not None
+                    else patch.object(select, "select", lambda *a, **k: ([], [FAKE_FD], []))
+                ),
+            ):
                 with patch.object(time, "monotonic", clock):
                     backend.write(payload)
-        except Exception as exc:                     # noqa: BLE001 - the receipt is the point
+        except Exception as exc:  # noqa: BLE001 - the receipt is the point
             errors.append(exc)
         finally:
             backend._fd = None
@@ -106,13 +114,16 @@ class WriteEdges(unittest.TestCase):
         # even though the deadline passed after the third.
         writer, errors = self.run_write(Trickle())
         if not errors:
-            self.fail("a trickling writer ran past the deadline and still reported success "
-                      f"({writer.calls} calls, {len(writer.received)}/{len(PAYLOAD)} bytes)")
+            self.fail(
+                "a trickling writer ran past the deadline and still reported success "
+                f"({writer.calls} calls, {len(writer.received)}/{len(PAYLOAD)} bytes)"
+            )
         err = errors[0]
         self.assertIsInstance(err, IncompleteWrite)
         self.assertEqual(err.total_bytes, len(PAYLOAD))
-        self.assertEqual(err.written_bytes, len(writer.received),
-                         "the receipt must state exactly what landed")
+        self.assertEqual(
+            err.written_bytes, len(writer.received), "the receipt must state exactly what landed"
+        )
         self.assertIn("deadline", err.reason)
         self.assertLessEqual(err.written_bytes, len(PAYLOAD))
 
@@ -139,8 +150,9 @@ class WriteEdges(unittest.TestCase):
         self.assertTrue(errors, "a select() failure must surface, not be swallowed")
         err = errors[0]
         self.assertIsInstance(err, IncompleteWrite)
-        self.assertEqual(err.written_bytes, 3,
-                         "the three bytes that already landed must appear in the receipt")
+        self.assertEqual(
+            err.written_bytes, 3, "the three bytes that already landed must appear in the receipt"
+        )
         self.assertIn("select", err.reason)
 
     def test_select_interrupt_retries_the_same_suffix(self):
@@ -177,7 +189,7 @@ class ReplyEdges(unittest.TestCase):
             self.reply_partial = reply_partial
             self.writes = []
             self._first = True
-            self.data = b"\x1b[6n"      # a CPR query: pyte will answer it
+            self.data = b"\x1b[6n"  # a CPR query: pyte will answer it
 
         def spawn(self, *a, **k):
             pass
@@ -190,9 +202,14 @@ class ReplyEdges(unittest.TestCase):
             return self.read_nonblocking()
 
         def read_status(self):
-            return {"readable_now": False, "eof": False, "error": None,
-                    "queued_payload_bytes": 0, "reader_held_payload_bytes": 0,
-                    "generation": 1}
+            return {
+                "readable_now": False,
+                "eof": False,
+                "error": None,
+                "queued_payload_bytes": 0,
+                "reader_held_payload_bytes": 0,
+                "generation": 1,
+            }
 
         def write(self, data):
             self.writes.append(bytes(data))
@@ -217,22 +234,27 @@ class ReplyEdges(unittest.TestCase):
         sess.pump(max_bytes=64)
         io = sess.io_block()
         pending = io["pending"]
-        self.assertTrue(pending.get("reply_error"),
-                        "a reply that could not be written must be reported")
+        self.assertTrue(
+            pending.get("reply_error"), "a reply that could not be written must be reported"
+        )
         self.assertIn("3/", pending["reply_error"], "the known prefix must be in the receipt")
         self.assertEqual(len(backend.writes), 1, "the reply is attempted once, not retried blindly")
-        self.assertGreater(pending["reply_bytes"], 0,
-                           "the unwritten suffix stays accounted as pending")
+        self.assertGreater(
+            pending["reply_bytes"], 0, "the unwritten suffix stays accounted as pending"
+        )
 
     def test_a_failed_reply_is_not_duplicated_on_the_next_pump(self):
         backend = self.Backend(reply_error="deadline", reply_partial=3)
         sess = PtySession(backend=backend)
         sess.pump(max_bytes=64)
         first = list(backend.writes)
-        backend.data = b""                    # nothing new to feed
+        backend.data = b""  # nothing new to feed
         sess.pump(max_bytes=64)
-        self.assertEqual(list(backend.writes), first,
-                         "the runtime must not blindly re-send a reply it could not write")
+        self.assertEqual(
+            list(backend.writes),
+            first,
+            "the runtime must not blindly re-send a reply it could not write",
+        )
 
     def test_a_healthy_reply_clears_the_state(self):
         backend = self.Backend()

@@ -22,6 +22,7 @@ Rules under test, in the v3 design's wording:
 Pure memory: no PTY, no child process, no thread. Run:
     python -B tests/test_a04_read_budget.py [--repo PATH]
 """
+
 from __future__ import annotations
 
 import argparse
@@ -37,12 +38,16 @@ sys.path.insert(0, str(args.repo.resolve()))
 try:
     from smartcli_core import PtySession
     from smartcli_core.pty_backend import (
-        PtyBackend, ReadBudgetUnsupported, supports_read_budget,
+        PtyBackend,
+        ReadBudgetUnsupported,
+        supports_read_budget,
     )
     import smartcli_core
+
     imported = getattr(smartcli_core, "__file__", None)
     if not imported or not Path(imported).resolve().is_relative_to(
-            (args.repo.resolve() / "smartcli_core")):
+        (args.repo.resolve() / "smartcli_core")
+    ):
         raise RuntimeError("test imported an unrelated installed SmartCLI")
 except ModuleNotFoundError as exc:
     print(f"NOT_RUN: {exc}", file=sys.stderr)
@@ -55,7 +60,7 @@ STREAM = b"alpha|beta|gamma|delta|epsilon|zeta|eta|theta"
 class LegacyBackend(PtyBackend):
     """Implements the ORIGINAL abstract interface only -- no budget capability."""
 
-    READ_BUDGET_CAPABLE = False   # explicit, like a third-party backend that opts out
+    READ_BUDGET_CAPABLE = False  # explicit, like a third-party backend that opts out
 
     def __init__(self, data: bytes):
         self._data = bytearray(data)
@@ -101,9 +106,14 @@ class BudgetBackend(LegacyBackend):
         return out
 
     def read_status(self) -> dict:
-        return {"readable_now": bool(self._data), "eof": False, "error": None,
-                "queued_payload_bytes": len(self._data), "reader_held_payload_bytes": 0,
-                "generation": 1}
+        return {
+            "readable_now": bool(self._data),
+            "eof": False,
+            "error": None,
+            "queued_payload_bytes": len(self._data),
+            "reader_held_payload_bytes": 0,
+            "generation": 1,
+        }
 
 
 class ExplodingBackend(BudgetBackend):
@@ -172,48 +182,65 @@ class ReadBudgetS1(unittest.TestCase):
     def test_unknown_is_null_not_zero(self):
         legacy = PtySession(backend=LegacyBackend(b""))
         pending = legacy.io_state()["io"]["pending"]
-        self.assertIsNone(pending["known_payload_bytes"],
-                          "a transport that cannot count must report null, not 0")
+        self.assertIsNone(
+            pending["known_payload_bytes"], "a transport that cannot count must report null, not 0"
+        )
         self.assertIsNone(pending["readable_now"])
 
     def test_legacy_zero_arg_backend_still_works_through_the_default_path(self):
         backend = LegacyBackend(STREAM)
         sess = PtySession(backend=backend)
-        data = sess.pump()                       # no budget: the old code path
+        data = sess.pump()  # no budget: the old code path
         self.assertEqual(data, STREAM)
         self.assertEqual(backend.read_calls, 1)
-        self.assertFalse(hasattr(backend, "_read_budgeted"))
+        # The observable contract for a backend without the capability: it does not
+        # DECLARE it, and asking for a budgeted read raises instead of silently
+        # reading unbounded. (The base class now carries the hook so callers can
+        # rely on the name existing, so attribute ABSENCE is no longer the point.)
+        self.assertFalse(supports_read_budget(backend))
+        with self.assertRaises(ReadBudgetUnsupported):
+            backend._read_budgeted(64)
 
     def test_requesting_a_budget_from_a_legacy_backend_refuses_before_readin(self):
         backend = LegacyBackend(STREAM)
         sess = PtySession(backend=backend)
         with self.assertRaises(ReadBudgetUnsupported):
             sess.pump(max_bytes=4)
-        self.assertEqual(backend.read_calls, 0,
-                         "refusal must happen before any read, not after draining it")
+        self.assertEqual(
+            backend.read_calls, 0, "refusal must happen before any read, not after draining it"
+        )
 
     def test_internal_type_error_is_not_masked_by_a_retry(self):
         backend = ExplodingBackend(STREAM)
         sess = PtySession(backend=backend)
         with self.assertRaises(TypeError):
             sess.pump(max_bytes=4)
-        self.assertEqual(backend.budgeted_calls, 1,
-                         "an internal TypeError must propagate once, not be probed twice")
+        self.assertEqual(
+            backend.budgeted_calls,
+            1,
+            "an internal TypeError must propagate once, not be probed twice",
+        )
 
     def test_capability_is_passive_without_a_caller_budget(self):
         backend = BudgetBackend(STREAM)
         sess = PtySession(backend=backend)
-        sess.pump()                              # default path
-        self.assertEqual(backend.budgeted_calls, 0,
-                         "nothing may switch the session into the budget profile by itself")
+        sess.pump()  # default path
+        self.assertEqual(
+            backend.budgeted_calls,
+            0,
+            "nothing may switch the session into the budget profile by itself",
+        )
 
     def test_default_pump_signature_is_unchanged(self):
         import inspect
+
         sig = inspect.signature(PtySession.pump)
         params = list(sig.parameters)
         self.assertEqual(params[:2], ["self", "max_bytes"])
-        self.assertIsNone(sig.parameters["max_bytes"].default,
-                          "the new parameter must default to the previous behaviour")
+        self.assertIsNone(
+            sig.parameters["max_bytes"].default,
+            "the new parameter must default to the previous behaviour",
+        )
 
     def test_reply_bytes_are_reported_and_cleared(self):
         # A device query produces a reply; with a healthy transport it is written
@@ -237,8 +264,9 @@ class ReadBudgetS1(unittest.TestCase):
         # No ConPTY here: the queue is filled directly, which is exactly what the
         # reader thread would do. This is the production method under test.
         from smartcli_core.pty_backend import WinptyBackend
+
         backend = WinptyBackend()
-        backend._queue.put(STREAM)                     # one chunk, larger than the budget
+        backend._queue.put(STREAM)  # one chunk, larger than the budget
         chunks = []
         while True:
             chunk = backend._read_budgeted(4)
@@ -251,6 +279,7 @@ class ReadBudgetS1(unittest.TestCase):
 
     def test_winpty_carry_is_accounted_not_hidden(self):
         from smartcli_core.pty_backend import WinptyBackend
+
         backend = WinptyBackend()
         backend._queue.put(STREAM)
         self.assertEqual(backend._read_budgeted(4), STREAM[:4])
@@ -263,13 +292,15 @@ class ReadBudgetS1(unittest.TestCase):
 
     def test_winpty_eof_sentinel_is_latched_and_never_returned(self):
         from smartcli_core.pty_backend import WinptyBackend
+
         backend = WinptyBackend()
         backend._queue.put(b"tail")
         backend._queue.put(None)
         self.assertEqual(backend._read_budgeted(64), b"tail")
         self.assertTrue(backend.read_status()["eof"])
-        self.assertEqual(backend._read_budgeted(64), b"",
-                         "the sentinel is not data and must not reappear")
+        self.assertEqual(
+            backend._read_budgeted(64), b"", "the sentinel is not data and must not reappear"
+        )
 
     def test_posix_budgeted_read_respects_budget_and_status(self):
         # Real production method with an injected transport (no pty on Windows).
@@ -294,14 +325,19 @@ class ReadBudgetS1(unittest.TestCase):
             return out
 
         try:
-            with patch.object(os, "read", fake_read), patch.object(select_mod, "select", fake_select):
+            with (
+                patch.object(os, "read", fake_read),
+                patch.object(select_mod, "select", fake_select),
+            ):
                 chunks = [backend._read_budgeted(4) for _ in range(len(STREAM))]
         finally:
             backend._fd = None
         self.assertEqual(b"".join(chunks), STREAM)
         self.assertTrue(all(len(c) <= 4 for c in chunks))
-        self.assertTrue(all(s <= 4 for s in record["read_sizes"]),
-                        f"os.read was asked for more than the budget: {record['read_sizes']}")
+        self.assertTrue(
+            all(s <= 4 for s in record["read_sizes"]),
+            f"os.read was asked for more than the budget: {record['read_sizes']}",
+        )
 
 
 if __name__ == "__main__":
