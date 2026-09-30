@@ -231,9 +231,27 @@ _WIN_SENSITIVE_MASK = (0x001F01FF | 0x01000000  # FILE_ALL_ACCESS | ACCESS_SYSTE
                        | 0xF0000000)           # GENERIC_* bits, mapped or not
 _WIN_ALLOWED_SIDS = ("S-1-5-18", "S-1-5-32-544")  # NT AUTHORITY\SYSTEM, BUILTIN\Administrators
 _WIN_ACE_ALLOWED = 0x00
-#: ACEs that cannot widen access: denials, audits and alerts. Parsed past, never
-#: counted as grants.
-_WIN_ACE_INERT = frozenset({0x01, 0x02, 0x03, 0x06, 0x07, 0x08, 0x09})
+#: ACE types that GRANT access, from the Win32 ACE-type table (Ace Strings,
+#: microsoft.com/en-us/windows/win32/win32/secauthz/ace-strings.md, SDDL "XA"):
+#: 0x00 allow, 0x04 allow-compound, 0x05 allow-object, 0x09 allow-callback,
+#: 0x0B allow-callback-object. The set is written out in full and matched
+#: FIRST, because this is a privacy check: a type missing from it is a grant we
+#: failed to account for, and the answer to that is a refusal, not a pass. It
+#: used to be the other way round -- a type was treated as inert unless it was
+#: recognised as a grant -- and 0x09 landed in the wrong list, so a DACL whose
+#: foreign grant was ACCESS_ALLOWED_CALLBACK_ACE (WRITE_DAC, WRITE_OWNER,
+#: DELETE for a stranger) verified PRIVATE. 0x0B being absent is what showed
+#: 0x09 was a slip rather than a policy.
+_WIN_ACE_GRANTING = frozenset({0x00, 0x04, 0x05, 0x09, 0x0B})
+#: Types that can only take access away or only record it: 0x01 deny, 0x02 audit,
+#: 0x03 alarm, 0x06 deny-object, 0x07 audit-object, 0x08 alarm-object, and the
+#: callback flavours of the same -- 0x0A deny-callback, 0x0C audit-callback,
+#: 0x0D alarm-callback. Parsed past, never counted as grants. 0x0E
+#: (SYSTEM_MANDATORY_LABEL) and 0x10 (SYSTEM_RESOURCE_ATTRIBUTE) are
+#: deliberately absent: they are SACL entries, not DACL ACEs, so seeing one in a
+#: DACL means this walk is reading something it does not understand.
+_WIN_ACE_NON_GRANTING = frozenset({0x01, 0x02, 0x03, 0x06, 0x07, 0x08,
+                                    0x0A, 0x0C, 0x0D})
 _WIN_ACL_SIZE_INFO_CLASS = 2
 _WIN_REFUSAL = (
     "error: refusing to write a session capability token: the {what} at {path} "
@@ -420,9 +438,17 @@ def _win_apply_dacl(path: Path, inheritance: int) -> None:
 def _win_dacl_grants(path: Path) -> list[tuple[str, int]] | None:
     """Every ACE on ``path`` that GRANTS something, as (SID string, mask).
 
-    None means the DACL could not be read. A NULL DACL -- the one state that
-    grants everyone everything -- is reported as None too, because "could not
-    establish" and "wide open" both have to end in a refusal.
+    The classification is fail-closed and it is the reason this function can
+    return None: an ACE is counted only if it is a plain ACCESS_ALLOWED_ACE,
+    skipped only if it is a type that provably cannot grant
+    (``_WIN_ACE_NON_GRANTING``), and ANY other type -- a compound/object/callback
+    grant, or a value nobody enumerated -- ends the walk in a refusal. An
+    unenumerated type is never read as "harmless".
+
+    None means the DACL could not be read, or held something this build will not
+    vouch for. A NULL DACL -- the one state that grants everyone everything -- is
+    reported as None too, because "could not establish" and "wide open" both
+    have to end in a refusal.
     """
     api = _win_acl_api()
     ctypes, advapi32 = api["ctypes"], api["advapi32"]
@@ -446,17 +472,27 @@ def _win_dacl_grants(path: Path) -> list[tuple[str, int]] | None:
             if not advapi32.GetAce(acl, index, ctypes.byref(ace)):
                 return None
             body = ctypes.cast(ace, ctypes.POINTER(api["AccessAllowedAce"])).contents
-            if body.Header.AceType == _WIN_ACE_ALLOWED:
+            ace_type = body.Header.AceType
+            if ace_type in _WIN_ACE_GRANTING:
+                if ace_type != _WIN_ACE_ALLOWED:
+                    # A compound, object or callback grant puts flags and GUIDs
+                    # (and, for a compound ACE, a second SID) between the mask
+                    # and the trustee, so this parser would read the wrong
+                    # bytes as a SID. It is a GRANT, so it cannot be waved past
+                    # as inert: the honest answer is that we cannot say what it
+                    # hands out, and the DACL was supposed to hold three plain
+                    # ACEs and nothing else.
+                    return None
                 sid = ctypes.c_void_p(ctypes.addressof(body) + sid_offset)
                 try:
                     grants.append((_win_sid_string(api, sid), body.Mask))
                 except OSError:
                     return None
-            elif body.Header.AceType not in _WIN_ACE_INERT:
-                # An ACCESS_ALLOWED_OBJECT_ACE or a conditional grant carries its
-                # SID after flags and GUIDs, so this parser would read the wrong
-                # bytes. Refusing is the honest answer: we do not know what it
-                # grants, and the DACL was supposed to contain three plain ACEs.
+            elif ace_type not in _WIN_ACE_NON_GRANTING:
+                # An ACE type nobody enumerated -- a future type, or a SACL
+                # entry in a DACL. Its posture is the same as a grant we cannot
+                # read: refuse, rather than let an unenumerated value decide
+                # that a stranger may rewrite the DACL.
                 return None
         return grants
     finally:
@@ -471,8 +507,11 @@ def _win_verify_private(path: Path, what: str) -> None:
     if grants is None:
         raise SystemExit(_WIN_REFUSAL.format(
             what=what, path=path,
-            detail="its DACL could not be read back, or holds an ACE shape this "
-                   "build does not parse"))
+            detail="its DACL could not be read back, or holds an ACE this build "
+                   "will not read as a plain grant — a compound, object or "
+                   "callback ACE (types 0x04/0x05/0x09/0x0B), or a type this "
+                   "build does not enumerate — and it cannot be shown that none "
+                   "of them names another trustee"))
     foreign = [(sid, mask) for sid, mask in grants
                if sid not in allowed and (mask & _WIN_SENSITIVE_MASK)]
     if foreign:
@@ -497,22 +536,47 @@ def _win_secure_registry_dir(path: Path) -> None:
     _win_verify_private(path, "session registry directory")
 
 
+def _win_discard_unprovable_file(path: Path) -> None:
+    """Remove a registry file whose DACL could not be made private.
+
+    A token left behind under a DACL we could not prove is worse than no token:
+    the write is reported as refused, so nothing points at the file, and it sits
+    on disk holding a capability for a live child process. Deleting is the only
+    outcome that leaves nothing to be found later.
+    """
+    try:
+        path.unlink()
+    except OSError:
+        pass
+
+
 def _win_secure_registry_file(path: Path) -> None:
-    """Same DACL on a registry file; on failure it is removed, not left behind.
+    """Same DACL on a registry file, AND the same read-back -- then it is done.
 
     The directory's ACEs are inheritable, so this file is already readable only
     by the three allowed trustees; setting them explicitly means that guarantee
     is a fact about this call rather than a consequence of a parent's flags.
+
+    Applying is not enough, and the asymmetry was the defect: the DIRECTORY was
+    applied and then verified, while the FILE -- the object that actually holds
+    the capability token -- was only applied. So a DACL re-applied by sandbox
+    software, group policy or an endpoint agent between the apply and the next
+    use went unchallenged on the one file whose contents are the secret, and
+    `_ensure_reg_dir`'s per-write check only ever re-examined the directory.
+    Both are verified now, on the same fail-closed terms, and the file is
+    removed rather than left behind if either half cannot be established.
     """
     try:
         _win_apply_dacl(path, _WIN_FILE_INHERITANCE)
     except OSError as exc:
-        try:
-            path.unlink()
-        except OSError:
-            pass
+        _win_discard_unprovable_file(path)
         raise SystemExit(_WIN_REFUSAL.format(
             what="session registry file", path=path, detail=exc)) from exc
+    try:
+        _win_verify_private(path, "session registry file")
+    except SystemExit:
+        _win_discard_unprovable_file(path)
+        raise
 
 
 def _legacy_windows_reg_dir() -> Path | None:
@@ -535,6 +599,14 @@ def _stranded_session_warning(legacy: Path | None = None) -> str | None:
     file is not this program's to act on, and silently killing a process it
     merely believes it once started is a far worse failure than a session the
     user has to reap by hand.
+
+    The message therefore also says what ENDS the notice, which is the only
+    dismissal path there is: this program never deletes that directory (there is
+    no `shutil` import anywhere in this module), so without naming it the user
+    is left with a warning on every command forever and no statement that
+    anything can clear it. Removal is the user's own action, to be taken once
+    they have dealt with the pids; the entries are recounted on every command,
+    so an emptied directory silences it.
     """
     if legacy is None:
         legacy = _legacy_windows_reg_dir()
@@ -559,7 +631,10 @@ def _stranded_session_warning(legacy: Path | None = None) -> str | None:
             f"still recorded in {legacy}, which this version no longer uses. They are "
             f"unreachable from `close` and `list`, and their pids ({known}) must be "
             f"killed by hand -- nothing is killed for you. They do not count against "
-            f"the session limit, which starts fresh in {REG_DIR}.")
+            f"the session limit, which starts fresh in {REG_DIR}. This notice repeats "
+            f"on every command until that directory is gone, because nothing here "
+            f"deletes it: once you have dealt with those pids, remove {legacy} (or "
+            f"its *.json entries) yourself and it will not come back.")
 
 
 def _ensure_reg_dir() -> None:
@@ -1671,6 +1746,71 @@ def _parse_proc_stat_starttime(text: str) -> int | None:
         return None
 
 
+_WIN_PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+_WIN_STILL_ACTIVE = 259
+#: Toolhelp snapshot flag: the process list. (The alternative, EnumProcesses,
+#: is not exported by kernel32 on every host -- measured here, where it resolves
+#: only from psapi.dll -- so the enumeration uses the API kernel32 does have.)
+_WIN_TH32CS_SNAPPROCESS = 0x00000002
+_WIN_INVALID_HANDLE_VALUE = -1
+_WIN_PROC_API: dict[str, Any] | None = None
+
+
+def _win_proc_api() -> dict[str, Any]:
+    """Bind (once) the kernel32 entry points the pid probes below call.
+
+    Same rule, same reason, and the same singleton as `_win_acl_api` above:
+    `ctypes.windll.kernel32` is one process-wide object, so these probes and the
+    DACL bindings are looking at the same function objects, and an undeclared
+    entry point does not fail loudly. With no `restype`, ctypes returns a
+    default `c_int`, which truncates a 64-bit HANDLE to 32 bits and yields a
+    plausible wrong answer -- the wrong answer being the process identity the
+    security verdict is made of. `argtypes` matters just as much: without them
+    a `DWORD` pid or a `BOOL` flag can be passed as anything at all.
+    """
+    global _WIN_PROC_API
+    if _WIN_PROC_API is not None:
+        return _WIN_PROC_API
+    import ctypes
+
+    dword = ctypes.c_ulong
+    handle = ctypes.c_void_p
+    filetime = ctypes.POINTER(ctypes.c_ulonglong)
+
+    class ProcessEntry32W(ctypes.Structure):
+        # PROCESSENTRY32W. The trailing name buffer is MAX_PATH WCHARs; nothing
+        # here reads it, but the struct has to be the real size or the kernel
+        # writes past the end of what was allocated for it.
+        _fields_ = [("dwSize", dword), ("cntUsage", dword),
+                    ("th32ProcessID", dword), ("th32DefaultHeapID", handle),
+                    ("th32ModuleID", dword), ("cntThreads", dword),
+                    ("th32ParentProcessID", dword), ("pcPriClassBase", ctypes.c_long),
+                    ("dwFlags", dword), ("szExeFile", ctypes.c_wchar * 260)]
+
+    kernel32 = ctypes.windll.kernel32
+    kernel32.OpenProcess.argtypes = [dword, ctypes.c_int, dword]
+    kernel32.OpenProcess.restype = handle
+    kernel32.GetProcessTimes.argtypes = [handle, filetime, filetime, filetime,
+                                         filetime]
+    kernel32.GetProcessTimes.restype = ctypes.c_int
+    kernel32.GetExitCodeProcess.argtypes = [handle, ctypes.POINTER(dword)]
+    kernel32.GetExitCodeProcess.restype = ctypes.c_int
+    kernel32.CreateToolhelp32Snapshot.argtypes = [dword, dword]
+    kernel32.CreateToolhelp32Snapshot.restype = handle
+    kernel32.Process32FirstW.argtypes = [handle, ctypes.POINTER(ProcessEntry32W)]
+    kernel32.Process32FirstW.restype = ctypes.c_int
+    kernel32.Process32NextW.argtypes = [handle, ctypes.POINTER(ProcessEntry32W)]
+    kernel32.Process32NextW.restype = ctypes.c_int
+    # CloseHandle, not LocalFree: a process handle is a kernel handle. Declared
+    # here as well as in _win_acl_api so neither module's correctness depends on
+    # having called the other first; the two declarations are identical.
+    kernel32.CloseHandle.argtypes = [handle]
+    kernel32.CloseHandle.restype = ctypes.c_int
+    _WIN_PROC_API = {"ctypes": ctypes, "dword": dword, "kernel32": kernel32,
+                     "ProcessEntry32W": ProcessEntry32W}
+    return _WIN_PROC_API
+
+
 def _proc_identity(pid: int) -> str | None:
     """A creation-time identity for ``pid``, or None if the OS will not say.
 
@@ -1680,8 +1820,9 @@ def _proc_identity(pid: int) -> str | None:
     and that pairing stays meaningful after the pid is recycled. On Windows
     this comes from ``GetProcessTimes`` through the same
     ``PROCESS_QUERY_LIMITED_INFORMATION`` handle ``_pid_is_alive`` already
-    opens, so the liveness probe and the identity probe are answered by the
-    kernel about the very same object rather than by two independent races.
+    opens -- same bindings, same kind of handle, so the liveness probe and the
+    identity probe are answered by the kernel about the very same object rather
+    than by two independent races.
     On Linux it is field 22 of ``/proc/<pid>/stat``. macOS exposes no cheap
     creation time for another process, so it reports None and ``close`` falls
     back to the pid-only test (see ``_daemon_liveness``).
@@ -1689,22 +1830,22 @@ def _proc_identity(pid: int) -> str | None:
     if pid <= 0:
         return None
     if os.name == "nt":
-        import ctypes
-        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
-        k = ctypes.windll.kernel32
-        h = k.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
-        if not h:
+        api = _win_proc_api()
+        ctypes, kernel32 = api["ctypes"], api["kernel32"]
+        handle = kernel32.OpenProcess(_WIN_PROCESS_QUERY_LIMITED_INFORMATION, 0, pid)
+        if not handle:
             return None
         try:
             creation, exit_, kernel, user = (ctypes.c_ulonglong() for _ in range(4))
-            if not k.GetProcessTimes(h, ctypes.byref(creation), ctypes.byref(exit_),
-                                     ctypes.byref(kernel), ctypes.byref(user)):
+            if not kernel32.GetProcessTimes(handle, ctypes.byref(creation),
+                                            ctypes.byref(exit_), ctypes.byref(kernel),
+                                            ctypes.byref(user)):
                 return None
             # FILETIME: 100ns ticks since 1601 — opaque, monotonic per machine,
             # and only ever compared against another value from this same host.
             return f"win:{creation.value}"
         finally:
-            k.CloseHandle(h)
+            kernel32.CloseHandle(handle)
     if not os.path.isdir("/proc"):
         return None
     try:
@@ -1713,6 +1854,7 @@ def _proc_identity(pid: int) -> str | None:
         return None
     ticks = _parse_proc_stat_starttime(text)
     return None if ticks is None else f"proc:{ticks}"
+
 
 
 def _pid_is_alive(pid: int) -> bool:
@@ -1727,20 +1869,18 @@ def _pid_is_alive(pid: int) -> bool:
         return False
     if os.name == "nt":
         # No signal 0 on Windows; ask the OS for a handle to the pid instead.
-        import ctypes
-        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
-        STILL_ACTIVE = 259
-        k = ctypes.windll.kernel32
-        h = k.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
-        if not h:
+        api = _win_proc_api()
+        ctypes, dword, kernel32 = api["ctypes"], api["dword"], api["kernel32"]
+        handle = kernel32.OpenProcess(_WIN_PROCESS_QUERY_LIMITED_INFORMATION, 0, pid)
+        if not handle:
             return False
         try:
-            code = ctypes.c_ulong()
-            if k.GetExitCodeProcess(h, ctypes.byref(code)):
-                return code.value == STILL_ACTIVE
+            code = dword()
+            if kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+                return code.value == _WIN_STILL_ACTIVE
             return True  # handle opened but status unreadable: assume alive
         finally:
-            k.CloseHandle(h)
+            kernel32.CloseHandle(handle)
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
@@ -1748,6 +1888,76 @@ def _pid_is_alive(pid: int) -> bool:
     except PermissionError:
         return True  # exists, owned by someone else
     return True
+
+
+def _enumerable_pids() -> list[int] | None:
+    """Every pid this platform lets us enumerate, or None if it cannot be done.
+
+    None is a refusal, not an empty list, and the difference is the whole point:
+    an enumeration that could not be completed must never be reported as "no
+    process is alive", because the caller decides whether to delete the only
+    record of a live child's pid from it.
+    """
+    if os.name == "nt":
+        api = _win_proc_api()
+        ctypes, kernel32 = api["ctypes"], api["kernel32"]
+        entry = api["ProcessEntry32W"]()
+        entry.dwSize = ctypes.sizeof(entry)
+        snapshot = kernel32.CreateToolhelp32Snapshot(_WIN_TH32CS_SNAPPROCESS, 0)
+        # INVALID_HANDLE_VALUE (-1) and NULL (0) are both "no snapshot"; the
+        # handle is 64-bit, so it is compared as the int ctypes hands back.
+        if not snapshot or snapshot == _WIN_INVALID_HANDLE_VALUE:
+            return None
+        try:
+            if not kernel32.Process32FirstW(snapshot, ctypes.byref(entry)):
+                # ERROR_NO_MORE_FILES would mean an empty process table, which
+                # cannot happen while this process is running; anything else
+                # means the walk did not start, and a walk that did not start
+                # has told us nothing.
+                return None
+            pids = [int(entry.th32ProcessID)]
+            while kernel32.Process32NextW(snapshot, ctypes.byref(entry)):
+                pids.append(int(entry.th32ProcessID))
+            return pids
+        finally:
+            kernel32.CloseHandle(snapshot)
+    if os.path.isdir("/proc"):
+        try:
+            return [int(name) for name in os.listdir("/proc") if name.isdigit()]
+        except OSError:
+            return None
+    return None
+
+
+def _live_pid_with_identity(recorded: object) -> tuple[int | None, bool]:
+    """A live pid created at ``recorded``, and whether the search was complete.
+
+    The creation time names a process where a pid names a slot, so this asks the
+    one question a dead pid cannot answer about itself: does anything at all
+    still carry the identity this entry recorded? A complete search that finds
+    nothing is positive evidence the recorded daemon is gone; an incomplete one
+    is not evidence of anything and is reported as such by ``False``.
+
+    Incomplete also covers a search that read NO identities at all. A host that
+    will not report a creation time for a single process -- this one included,
+    which the kernel always permits -- cannot distinguish "the daemon is gone"
+    from "I was unable to look", and the unlink must not be decided on the
+    second reading.
+    """
+    if not isinstance(recorded, str) or not recorded:
+        return None, True
+    pids = _enumerable_pids()
+    if pids is None:
+        return None, False
+    readable = 0
+    for candidate in pids:
+        identity = _proc_identity(candidate)
+        if identity is None:
+            continue
+        readable += 1
+        if identity == recorded:
+            return candidate, True
+    return None, readable > 0
 
 
 def _daemon_liveness(info: dict) -> tuple[bool, str, bool]:
@@ -1758,9 +1968,27 @@ def _daemon_liveness(info: dict) -> tuple[bool, str, bool]:
     the entry is cleanable only when the OS positively says the recorded daemon
     is gone. Everything short of that — a pid that answers, a pid whose
     creation time contradicts the recorded one, a creation time the OS refuses
-    to hand over — is reported ALIVE, because the two failure directions are
-    not symmetric: a false "still running" costs the caller one ``--force``,
-    while a false "dead" orphans a live PTY child that nothing can reach.
+    to hand over, an enumeration that could not be completed — is reported
+    ALIVE, because the two failure directions are not symmetric: a false "still
+    running" costs the caller one ``--force``, while a false "dead" orphans a
+    live PTY child that nothing can reach.
+
+    The identity is a GATE, not a diagnostic, and it is the creation time that
+    does the gating, in both directions:
+
+    * a live pid whose creation time does not match the recorded one has been
+      recycled, so the recorded daemon is not the thing answering;
+    * a DEAD pid is not accepted on its own when the entry records a creation
+      time. A dead pid says the slot is free, and says nothing about the daemon;
+      the creation time is the daemon's name, and if some process still carries
+      it then the recorded daemon is running whatever pid the entry now holds.
+      That second half is what a pid-only check cannot do, and it is why
+      overwriting just ``pid`` in a live entry no longer deletes the file.
+
+    What it is NOT: proof of ownership. Anything that can write the registry
+    file can write a ``pid_born`` naming nothing that is alive, or omit it, and
+    can simply delete the file outright — so this closes a consistency hole, not
+    an authorization one. See SECURITY.md, which says so in the same words.
 
     ``legacy`` marks the one case that cannot be decided by identity at all —
     an entry written by a tui.py older than the identity field. Those fall back
@@ -1770,11 +1998,25 @@ def _daemon_liveness(info: dict) -> tuple[bool, str, bool]:
     pid = int(info.get("pid") or 0)
     if pid <= 0:
         return False, f"the entry records no daemon pid (pid={pid})", False
-    if not _pid_is_alive(pid):
-        # A pid that is gone cannot be the recorded daemon either: either it
-        # exited, or it was recycled and the replacement has already exited.
-        return False, f"pid {pid} is not running", False
     recorded = info.get("pid_born")
+    if not _pid_is_alive(pid):
+        if recorded:
+            twin, complete = _live_pid_with_identity(recorded)
+            if twin is not None:
+                return True, (f"pid {pid} is gone, but pid {twin} is running with "
+                              f"the creation time {recorded} this entry records, "
+                              f"so the recorded daemon is alive under a pid this "
+                              f"entry no longer holds: the pid field is stale or "
+                              f"was altered, and the entry is kept"), False
+            if not complete:
+                return True, (f"pid {pid} is gone, but this host could not be "
+                              f"asked whether any process still carries the "
+                              f"recorded creation time {recorded}, so that could "
+                              f"not be ruled out"), False
+        # A pid that is gone, with nothing alive under the recorded creation
+        # time (or none recorded): either the daemon exited, or the slot was
+        # recycled and the replacement has already exited too.
+        return False, f"pid {pid} is not running", False
     if not recorded:
         return True, (f"pid {pid} is running, but this entry predates the "
                       f"creation-time field, so the check is the weaker "
@@ -1811,11 +2053,19 @@ def cmd_close(args) -> int:
             pass  # entry already gone; nothing to clean up
         alive, why, legacy = _daemon_liveness(info)
         if alive and not getattr(args, "force", False):
+            # A "kill pid N" is only advice the reader can follow when the OS
+            # still answers for N. The entry's own pid is precisely the field a
+            # stale or altered entry gets wrong, and when the recorded creation
+            # time is what kept the entry, the reason above already names the
+            # live pid instead.
+            kill_hint = ""
+            recorded_pid = int(info.get("pid") or 0)
+            if recorded_pid > 0 and _pid_is_alive(recorded_pid):
+                kill_hint = f" or kill pid {recorded_pid} and re-run"
             print(f"error: session '{args.id}' did not answer, but its daemon "
                   f"is still running — {why} — so the registry entry was KEPT: "
                   f"deleting it would orphan the child and lose the token. "
-                  f"Retry, or kill pid {int(info.get('pid') or 0)} and re-run, "
-                  f"or pass --force.",
+                  f"Retry{kill_hint}, or pass --force.",
                   file=sys.stderr)
             return 1
         if legacy:
@@ -2052,13 +2302,18 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--json", action="store_true")
     sp.add_argument("--force", action="store_true",
                     help="delete the registry entry even though the daemon may "
-                         "still be running — it deletes whenever close cannot "
-                         "confirm the recorded (pid, creation time) pair: a "
-                         "live daemon, a pid recycled by an unrelated "
-                         "process, an identity the OS will not report, or a "
-                         "legacy entry with no creation time recorded. This "
-                         "loses the token and the pid, so the child becomes "
-                         "unreachable; kill the pid yourself first")
+                         "still be running — it deletes whenever the recorded "
+                         "daemon cannot be shown to be gone: a live daemon, a "
+                         "pid slot that has been recycled, an identity the OS "
+                         "will not report, a host that could not be enumerated "
+                         "for a process carrying the recorded creation time, or "
+                         "a legacy entry with no creation time recorded. The "
+                         "creation time is a consistency check on the entry, "
+                         "not proof of who wrote it: anything able to write the "
+                         "registry file can write a self-consistent pair, or "
+                         "delete the file outright. --force loses the token and "
+                         "the pid, so the child becomes unreachable; kill the "
+                         "pid yourself first")
     sp.set_defaults(func=cmd_close)
 
     sp = sub.add_parser("list", help="list active sessions")

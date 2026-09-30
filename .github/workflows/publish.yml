@@ -27,6 +27,13 @@
 # After setup, releasing is: bump the version in pyproject.toml, commit, then
 #   git tag v0.2.0 && git push origin v0.2.0
 # The tag push triggers this workflow, which builds and publishes automatically.
+#
+# `workflow_dispatch` exists to RE-RUN a release (a half-finished publish, a
+# repaired index) without pushing a new tag. It is not a way around the gates:
+# a dispatch must name the version tag it is re-running, and then it clears
+# exactly the same checks a tag push does. Dispatching a branch is refused by the
+# first step of the `verify` job, so there is no path from this workflow to
+# production PyPI that has not been checked against a tag.
 # ---------------------------------------------------------------------------
 
 name: Publish to PyPI
@@ -57,6 +64,14 @@ jobs:
   # is stated HERE, once, before anything is built or published, so a mismatch
   # can no longer half-publish.
   #
+  # BOTH of these run on BOTH trigger paths, and the way that is achieved is
+  # that there is only one path: a workflow_dispatch must name a `v*` tag, so
+  # the ancestry and version-agreement steps below — which used to carry
+  # `if: github.event_name == 'push'` and were therefore SKIPPED on dispatch
+  # while `publish` went on to reach production PyPI — have a tag to work from
+  # on either trigger. The ancestry half is genuinely unanswerable without a
+  # tag; requiring one is how that is closed rather than documented around.
+  #
   # Deliberately no `environment: pypi` and no `id-token: write` here: this job
   # must be able to fail while nothing publishable exists.
   # ---------------------------------------------------------------------------
@@ -78,11 +93,35 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Refuse any ref that is not a version tag
+        # Runs on BOTH paths, and on a push it can only ever pass: the trigger
+        # filter is already `tags: v*`. On workflow_dispatch it is the whole
+        # gate. `on: workflow_dispatch` hands the workflow whatever ref the
+        # person (or the API call) chose, so a dispatch used to build and
+        # publish an arbitrary branch: the ancestry and version steps below were
+        # both `if: github.event_name == 'push'`, so the verify job's only
+        # executing step was an echo, the job went green, and `publish` — which
+        # carries `environment: pypi`, `id-token: write` and `skip-existing:
+        # true` — still reached production PyPI through the same OIDC Trusted
+        # Publisher. Requiring a `v*` ref closes that: the dispatch path is not
+        # a reduced-verification path, it is the SAME path, because a tag ref
+        # carries everything the gates need.
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          case "$REF_NAME" in
+            v[0-9]*)
+              echo "::notice::${EVENT_NAME} on ${REF_NAME}: a version tag, so both release gates below run exactly as they do for a push"
+              ;;
+            *)
+              echo "::error::refusing to release from '${REF_NAME}'. A manual dispatch must name the VERSION TAG being released (e.g. --ref v0.2.3), not a branch: ancestry and tag/version agreement are checked against a tag, and without one this workflow has no release to verify. Re-run the failed tag push with 'Re-run failed jobs' instead, or dispatch this workflow with ref=${REF_NAME#v}" >&2
+              exit 1
+              ;;
+          esac
+
       - name: Verify the tagged commit is already on origin/main
-        # workflow_dispatch has no tag to verify: `on:` hands it a branch, and
-        # build's prerelease guard already special-cases that path. "Did this
-        # commit pass CI?" is not a question a manual dispatch can answer.
-        if: github.event_name == 'push'
         env:
           REF_NAME: ${{ github.ref_name }}
         run: |
@@ -91,6 +130,11 @@ jobs:
             echo "::error::origin/main is absent after a full fetch; refusing to guess the protected branch" >&2
             exit 1
           fi
+          # fetch-depth: 0 above is load-bearing, not hygiene (no parent commits
+          # means merge-base could only ever answer "no"). A dispatch is handed
+          # a tag rather than a branch head, so make sure that exact tag is
+          # present in this checkout before resolving it.
+          git fetch --force --quiet origin "refs/tags/${REF_NAME}:refs/tags/${REF_NAME}"
           if ! commit="$(git rev-parse --verify "refs/tags/${REF_NAME}^{commit}")"; then
             echo "::error::tag ${REF_NAME} does not resolve to a commit in this checkout" >&2
             exit 1
@@ -102,8 +146,11 @@ jobs:
           echo "::notice::${REF_NAME} -> ${commit} is an ancestor of origin/main, so ci.yml has already covered it"
 
       - name: Verify tag version and package metadata agree
-        # Same dispatch carve-out as the step above.
-        if: github.event_name == 'push'
+        # No `if` here any more. This used to be skipped on the dispatch path,
+        # which is why a dispatch could ship a tree whose pyproject.toml,
+        # server.json and the registry's own idea of the version had drifted
+        # apart. The agreement does not need a tag to be asserted, and now that
+        # a dispatch is required to carry one, the tag is there to compare with.
         env:
           REF_NAME: ${{ github.ref_name }}
         run: |
@@ -135,10 +182,17 @@ jobs:
           print(f"tag {tag} agrees with pyproject.toml and both server.json versions")
           PY
 
-      - name: Note the manual-dispatch carve-out
-        if: github.event_name == 'workflow_dispatch'
+      - name: State what this run did and did not verify
+        # A release gate that cannot say what it checked is a gate whose scope
+        # has to be guessed at. Printed on both paths: the ancestry assertion
+        # rests on ci.yml having run on the commits main took, which is
+        # branch protection's job and not this workflow's — the honest limit of
+        # a fast gate.
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
-          echo "::notice::workflow_dispatch on ${GITHUB_REF_NAME}: there is no tag, so the ancestry and version-agreement gates do not apply. Build and the PyPI publish still run."
+          echo "::notice::${EVENT_NAME} on ${REF_NAME}: verified (1) the ref is a version tag, (2) it is an ancestor of origin/main, (3) pyproject.toml and both server.json versions agree with it. Not verified here: that ci.yml ran on this exact commit — that is what branch protection on main is for."
   build:
     needs: verify
     name: Build distribution
@@ -148,13 +202,15 @@ jobs:
     # SEPARATE publish-testpypi.yml is meant to handle. GitHub tag patterns are
     # globs, not regex, so we can't exclude prereleases in the `on:` filter —
     # skip them here instead, so a rehearsal tag goes to TestPyPI ONLY and never
-    # silently burns a version string on the real index. workflow_dispatch (no
-    # prerelease ref) always runs.
+    # silently burns a version string on the real index. A workflow_dispatch is
+    # now held to the same rule: the verify job refuses any dispatch that is not
+    # a `v*` ref, so by the time this job runs a dispatch carries a tag too, and
+    # a prerelease tag dispatched by hand is exactly the case that must not
+    # reach the real index.
     if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (!contains(github.ref_name, 'rc') &&
-       !contains(github.ref_name, 'a') &&
-       !contains(github.ref_name, 'b'))
+      !contains(github.ref_name, 'rc') &&
+      !contains(github.ref_name, 'a') &&
+      !contains(github.ref_name, 'b')
     steps:
       - uses: actions/checkout@v7
 
@@ -206,7 +262,11 @@ jobs:
   publish-mcp:
     name: Publish metadata to MCP Registry (GitHub OIDC)
     needs: publish
-    if: github.event_name == 'push'
+    # No `if` here any more, and the reason is the same as everywhere else in
+    # this file: a dispatch now carries a version tag and clears the identical
+    # gates, so restricting this job to pushes would leave a dispatched release
+    # published to PyPI and missing from the registry — a half-release the
+    # `needs: publish` chain is supposed to make impossible.
     runs-on: ubuntu-latest
     permissions:
       id-token: write

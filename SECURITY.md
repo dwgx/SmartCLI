@@ -40,14 +40,31 @@ surface is narrow but real:
   directory did not — measured on the Windows dev host with `icacls`, a
   registry directory created under `%TEMP%` carried ten trustees, seven of them
   granted Modify, one of them a local agent-sandbox group. Set but unverified
-  would still be a claim, so `_ensure_reg_dir` **reads the effective DACL back**
-  and walks its ACEs; if it cannot be established, no capability token is
-  written and the command exits with a refusal naming the path and the `icacls`
-  to run. A false "still permissive" costs the user one command; a false
-  "private" hands a stranger control of a live child process, so the
-  unproven case is the refused one. The same DACL is set explicitly on each
-  registry file, so what lands inside the directory is a fact about this call
-  rather than a consequence of a token default nobody chose.
+  would still be a claim, so the DACL is **read back** on every write, on the
+  registry directory *and* on each registry file, and its ACEs are walked; if it
+  cannot be established, no capability token is written, the file is removed
+  rather than left behind, and the command exits with a refusal naming the path
+  and the `icacls` to run. A false "still permissive" costs the user one
+  command; a false "private" hands a stranger control of a live child process,
+  so the unproven case is the refused one. The walk is **fail-closed by
+  classification, not by enumeration**: the ACE types that can grant are listed
+  in full (0x00 allow, 0x04 allow-compound, 0x05 allow-object, 0x09
+  allow-callback, 0x0B allow-callback-object), only a plain
+  `ACCESS_ALLOWED_ACE` is one this build can read a trustee out of, and
+  anything that is neither a listed grant nor a listed non-grant (0x01/0x02/
+  0x03/0x06/0x07/0x08/0x0A/0x0C/0x0D — denials, audits, alarms) ends the walk
+  in a refusal. That direction is the fix for a defect that was measured here:
+  0x09 was filed as inert, and a DACL whose foreign grant was an
+  `ACCESS_ALLOWED_CALLBACK_ACE` read back as PRIVATE while `icacls` showed
+  `BUILTIN\Users:(DE,Rc,WDAC,WO,S,...)` — WRITE_DAC, WRITE_OWNER and DELETE for
+  a stranger. Both facts are gated in `tests/test_drive_security.py`, which
+  builds that DACL, measures the refusal, and re-introduces the old
+  classification to prove the refusal is the classification's doing.
+  The same DACL is set explicitly on each registry file — and the file is
+  **verified** too, not merely set: the file is the object that holds the token,
+  so a directory-only read-back left the secret the one thing checked on the way
+  in only. What lands inside the directory is a fact about that call rather than
+  a consequence of a token default nobody chose.
   **Head-of-line denial of service: FIXED in v0.2.3 (2026-08-09).** The accept loop used to be serial with the unauthenticated transport
   read inline, so any local process could connect, send no newline, and block every
   other caller — measured at ~18s of denial from nine held connections, repeatable.
@@ -80,20 +97,35 @@ surface is narrow but real:
   the deny-list also covers `SMARTCLI_ROOT`, `SMARTCLI_MAX_SESSIONS` and
   `SMARTCLI_AUTO_INSTALL`); a request that is not a JSON object is rejected before
   dispatch, so an unauthenticated peer cannot be answered with an interpreter
-  exception; `close` refuses to delete a session's registry entry while that
-  daemon's pid is still alive, because the file is the only store of both the
-  token and the pid and a socket timeout is not proof of death (`--force`
-  overrides) — and the "still alive" half is checked by **process identity, not
-  by pid alone**: the daemon records its own creation time at spawn
-  (`GetProcessTimes` on Windows, `/proc/<pid>/stat` field 22 on Linux, not
-  cheaply available on macOS), and a pid that answers but was created at a
-  different time has been recycled, so the recorded daemon is treated as alive
-  and the entry is kept for `--force` to decide. An OS that refuses to report
-  the creation time is also treated as alive. The one case identity cannot
-  settle is a legacy entry written before that field existed: it falls back to
-  the weaker pid-only test and says so, in the close output and in a warning,
-  rather than inventing an identity; and the session count (default 8,
-  `SMARTCLI_MAX_SESSIONS`) and
+  exception; `close` refuses to delete a session's registry entry while the
+  recorded daemon cannot be shown to be gone, because the file is the only store
+  of both the token and the pid and a socket timeout is not proof of death
+  (`--force` overrides) — and the "shown to be gone" half is decided by
+  **process identity, not by pid alone**: the daemon records its own creation
+  time at spawn (`GetProcessTimes` on Windows, `/proc/<pid>/stat` field 22 on
+  Linux, not cheaply available on macOS), and the creation time, not the pid, is
+  the name that survives. It gates the unlink in both directions: a pid that
+  answers but was created at a different time has been recycled, and a pid that
+  is gone while some process still carries the recorded creation time means the
+  entry no longer holds the pid of a live daemon — either way the recorded
+  daemon is treated as alive and the entry is kept for `--force` to decide. A
+  pid-only check cannot make that second decision at all, and did not: writing a
+  live entry and overwriting only its `pid` field with a dead pid used to delete
+  the file, the token and the pid of a process that was still running (rc=0,
+  empty stderr). That case, and the one beside it — a dead pid whose recorded
+  creation time nothing alive carries, which is still cleaned up silently — are
+  gated against a real process table in `tests/test_drive_security.py`. An OS
+  that refuses to report a creation time is also treated as
+  alive, and so is a host that could not be enumerated for a process carrying
+  the recorded time. **What the creation time is NOT: proof of who wrote the
+  entry.** Anything able to write the registry file can write a self-consistent
+  `pid`+`pid_born` pair, or omit `pid_born`, or delete the file outright — which
+  is the stronger version of the same attack, and no check inside the file can
+  answer it. This is a consistency check on an entry, not an authorisation one.
+  The one case identity cannot settle is a legacy entry written before that
+  field existed: it falls back to the weaker pid-only test and says so, in the
+  close output and in a warning, rather than inventing an identity; and the
+  session count (default 8, `SMARTCLI_MAX_SESSIONS`) and
   terminal dimensions are bounded. Reports about token bypass, screen-content
   leaks to an unauthenticated peer, or session hijack are in scope.
 - **The MCP server wrapper** (`skills/drive-tui/scripts/mcp_server.py`), which
@@ -142,14 +174,16 @@ surface is narrow but real:
   child, and that is administrative access equivalent to the owner, not less.
   A DACL that is re-applied by sandbox software or group policy *after* our
   read-back is caught the next time the registry is used, because the check runs
-  on every write, not once at install; until then the exposure is exactly the
-  one the verification just ruled out. The registry directory is not the only
-  copy: the daemon holds the token in memory for the life of the session, so
-  read access to that process reaches it too. Note the rest of this clause: it
-  does **not** cover an unprivileged local account that cannot read the token
-  file, and the loopback port is discoverable with `netstat` and no privilege —
-  which is why the head-of-line denial of service above was treated as in scope
-  and fixed rather than dismissed under this clause.
+  on every write — of the directory **and of the file that holds the token**,
+  each verified on the same fail-closed terms — not once at install; until then
+  the exposure is exactly the one the verification just ruled out. The registry
+  directory is not the only copy: the daemon holds the token in memory for the
+  life of the session, so read access to that process reaches it too. Note the
+  rest of this clause: it does **not** cover an unprivileged local account that
+  cannot read the token file, and the loopback port is discoverable with
+  `netstat` and no privilege — which is why the head-of-line denial of service
+  above was treated as in scope and fixed rather than dismissed under this
+  clause.
 - `research/cc-decompiled/` and `research/real-frames/` are gitignored and not
   part of any release.
 

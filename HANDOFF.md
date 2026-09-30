@@ -2026,3 +2026,12 @@ Then open the visual result in a real terminal and show the user before calling
 anything done.
 ```
 
+
+---
+
+**Board (2026-10-01).** Just happened: an adversarial wave closed two shipped P1s — the
+DACL read-back classified `0x09` (ACCESS_ALLOWED_CALLBACK) as inert and so passed a
+directory `BUILTIN\Users` held WRITE_DAC/DELETE on, and the "identity-aware" liveness
+check could not flip a single outcome while `SECURITY.md` promised it would; both now
+gate, each with a red-proof. Next action: bump the ten version sites, tag, and let
+`publish.yml`'s `verify` job gate the release.
