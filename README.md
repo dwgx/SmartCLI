@@ -1,4 +1,19 @@
 <!-- Language: English | [简体中文](docs/i18n/README.zh-Hans.md) | [繁體中文](docs/i18n/README.zh-Hant.md) | [日本語](docs/i18n/README.ja.md) | [한국어](docs/i18n/README.ko.md) -->
+
+<!-- dwgx-banner:BEGIN -->
+<div align="center">
+
+<img src="docs/assets/banner.svg" width="100%" alt="SmartCLI — 三个 Agent Skill 架在一个 PTY + pyte 核心上：驱动 TUI、渲染 cell 级界面" />
+
+<br/>
+
+Python · MIT · ★4
+
+[![docs](https://dwgx.github.io/SmartCLI/)](https://dwgx.github.io/SmartCLI/) [![PyPI](https://pypi.org/project/smartcli-toolkit/)](https://pypi.org/project/smartcli-toolkit/)
+
+</div>
+<!-- dwgx-banner:END -->
+
 <!-- mcp-name: io.github.dwgx/smartcli -->
 <!-- ^ MCP Registry PyPI ownership marker: this string must appear in the
      published package's README (= PyPI description) and match server.json's
