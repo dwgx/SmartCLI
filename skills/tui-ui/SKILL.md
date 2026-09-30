@@ -9,7 +9,7 @@ description: >-
   replica, ANSI frame, truecolor render, pyte PNG screenshot smoke test,
   wide-character alignment, or a new terminal widget.
 allowed-tools: Bash, Read
-version: 0.3.3
+version: 0.3.4
 ---
 
 # tui-ui

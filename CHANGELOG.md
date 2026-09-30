@@ -5,6 +5,110 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.4] - 2026-10-01
+
+The close-out review of 0.3.3, run after 0.3.3 was already tagged and published.
+Every defect below was found by review, and two of the four are cases where a
+green check was actively reporting a false pass.
+
+### Security
+- **Screen text bypassed the payload policy entirely.** `sessionlog` assigned
+  `described["screen_text"] = _screen_text(snapshot)` verbatim, gated only on
+  `record_snapshots`, so a credential echoed on screen landed in the log under
+  **every** policy — including the documented scrub-everything mode — while the
+  new `payload_attrs` docstring certified that screen text was one of the
+  fields routed through the single funnel. That sentence was promising something
+  the code did not do. Screen text is now routed through the policy: a length
+  always, a fingerprint under the default `hash`, the text only under an
+  explicit `full`, and a bare length under `none`. A screen is the most likely
+  place a driving session shows a secret, but it is also where the forensic
+  question lives — *"did this wait see the screen it saw last time, or a
+  different one?"* — and a digest answers that without writing the screen down.
+  The screen's **shape** is not lost either way: rows, cols, selected line,
+  alt-screen, title and status-bar lengths are already recorded free on every
+  event, by default.
+
+### Fixed
+- **A crashing test was reported as a PASS, and every test after it never ran.**
+  The worker-thread wrapper added in 0.3.3 caught only `VirtualRunaway`, so any
+  other exception propagated out of the thread target, was printed by
+  `threading.excepthook`, left the failure list empty — and `main()` printed
+  `PASS` and returned 0. `run_all.py` reports on exit code alone, so the
+  aggregator counted the file green too. This inverted the change's own comment,
+  which said the wall-clock horizon exists *"so one runaway cannot hide the
+  state of everything else"*: a crash now hid everything after it, where the
+  pre-patch plain loop had at least died loudly. All exceptions are now recorded
+  as named failures. Red-proven at both an early and a **last** position, where
+  nothing follows to expose the crash.
+- **The dev-box path ban depended on where the clone lives.** `BANNED_PATHS` is
+  derived from the checkout's own location, and a raw substring match also
+  swallowed a **sibling** directory whose name merely begins with it — on a
+  Windows box `D:\Project\SmartCLI` matched `D:\Project\SmartCLI-v3-runs\`. So
+  the same commit passed locally and failed on all four CI legs, where the
+  workspace is the runner's path. The match now ends at a path component: a
+  separator, or nothing.
+- **`_scan_banned_paths` missed the second path on a line.** It used
+  `re.search`, which returns only the first match, so a second dev-box path
+  appended to an already-flagged line was invisible — an exemption could
+  launder whatever else sat beside it. Now `finditer`.
+- **The published gated-suite count was decremented, not re-derived.**
+  `CLAUDE.md` said 46 of 62; the derivation gives **47 of 62** and **15**
+  local-only. The arithmetic proves it: the entry the 0.3.3 cut removed
+  (`python -m ui.box_junction`) was itself ungated, so removing it should have
+  moved only the denominator. `CLAUDE.md` now carries the derivation and the
+  instruction not to decrement it again.
+- **The release-ref check accepted `v0` and `v9`**, because it matched a name
+  that *looked* like a version; a **branch** named `v0.3.3` produces the same
+  `github.ref_name` as the tag. The hole was closed downstream by the
+  `refs/tags/` fetch, but the two gates disagreed about what a release ref is. It
+  now requires a real tag.
+- **`ci.yml`'s derivation recipe did not reproduce its own numbers** (52 files
+  claimed, 57 measured; 44 AST-clean claimed, 49 measured), and its final step
+  landed on 24 only because two errors cancelled. The recipe is corrected.
+- **HANDOFF §0 named v0.2.3 as current**, which 0.3.3 widened to a four-version
+  gap beneath a file that calls itself the authoritative current-state record.
+  §0 and its header now name 0.3.3 and §10o.
+
+### Documentation
+- **`NEXT-STEPS.md` carried five items marked `[OPEN]` that 0.3.3 had already
+  finished** — the same commit that wrote the block had closed them. A fresh
+  session reads that file first and would have redone finished work.
+- **The dev-box path gate could not see the two instances it was written for.**
+  `PORTABLE_DOC_GLOBS` omitted `HANDOFF.md` and `NEXT-STEPS.md`, which is exactly
+  where the archive pointer went; injecting the path there left the gate green.
+  Both are now scanned, with the project's existing box-local disclaimer
+  convention preserved rather than erased — 172 portable docs, up from 166.
+- **Two counts in the published 0.3.3 notes were wrong and are corrected here
+  with a dated erratum**, so a reader of 0.3.3 can see both the claim and the
+  correction: *"nineteen documents"* is not derivable (9 mention `color_model`,
+  22 "degrade", 26 the union — the delta actually touched 10 degrade lines and 11
+  `box_junction` lines), and *"three documents"* is two, with four occurrences.
+- **The ACE-type comment misnamed four types against the header it cites.**
+  `0x0E` is `SYSTEM_ALARM_CALLBACK`, not `SYSTEM_MANDATORY_LABEL` (that is
+  `0x11`), and `0x10` is `SYSTEM_ALARM_CALLBACK_OBJECT` (not
+  `SYSTEM_RESOURCE_ATTRIBUTE`, which is `0x12`). The classification was already
+  correct — the fix is to the evidence, in the file whose purpose is to be the
+  evidence.
+- **The `INVALID_HANDLE_VALUE` comparison could never fire.** Written as
+  `== -1` while the restype is `c_void_p`, so ctypes hands back the **unsigned**
+  all-ones pointer (measured: `18446744073709551615`) and the guard was dead —
+  while the comment claimed the opposite. The sentinel is now derived from
+  ctypes. Impact was bounded, because a failed snapshot still fails closed via
+  `Process32FirstW`, which is why no gate caught it.
+
+### Notes
+- **Every fix carries a red-proof**, including the credential one: forcing the
+  screen-text policy to `PAYLOAD_FULL` puts `password: hunter2` in the serialised
+  log and turns three checks red.
+- Verified with 21 deterministic gates, `ruff check --select E9,F63,F7,F82 .`,
+  `mypy --platform linux`, and a four-leg CI matrix (Windows/Linux/macOS ×
+  py3.10/py3.14) — all green.
+- The full `tests/run_all.py` was last run on the **0.3.3** tree (62/62, exit 0,
+  3m34s, with real PTYs, under the Owner's standing consent). It has **not** been
+  re-run for this release, which changes session-log, doc gates and the version
+  sites but no runtime path the suite exercises differently; the 21 deterministic
+  gates and the four-leg matrix are the evidence for 0.3.4.
+
 ## [0.3.3] - 2026-10-01
 
 This release is the output of an adversarial review pass over 0.3.2 and the
