@@ -249,3 +249,65 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
         continue-on-error: true
+
+  # The remaining DETERMINISTIC gates from build_suite() that no workflow named.
+  # 13 of them, measured 2026-09-30 (see CLAUDE.md "Tests"): the daemon
+  # head-of-line/concurrency lock SECURITY.md cites, the S6/A05/A06 liveness
+  # tail, the seven A04 transport-budget/close/backlog gates, and the cell-span
+  # / streaming-SGR / partial-write regressions. A green board that skips these
+  # is a board claiming coverage it does not have — the single strongest
+  # security claim in SECURITY.md had no gate at all.
+  #
+  # These 13 are in-process only: AST-checked for zero spawn/fork/Popen/
+  # subprocess calls, and each constructs PtySession/WinptyBackend against an
+  # INJECTED fake transport rather than a real child. They are not the PTY
+  # probes. That is why this job can be unbounded-by-matrix and still cheap —
+  # but the bound is set anyway (the 360-min default is unacceptable), and the
+  # steps stay serial within the runner.
+  #
+  # Deliberately NOT `python tests/run_all.py`: that aggregator also runs the
+  # real-process probes and the real-tmux differential suites, which spawn live
+  # PTY sessions and must stay one-at-a-time — the red line at the top of
+  # CLAUDE.md. Running it here would trade the repo's concurrency rule for a
+  # wider gate, and it is invoked by no workflow on purpose.
+  #
+  # One OS, not the matrix: these gates are pure in-memory/fake-transport logic,
+  # so a second OS buys no new signal and 6x the runner minutes. The matrix
+  # `tests` job above is where OS coverage belongs.
+  deterministic-rest:
+    name: remaining deterministic gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
+      # Fail closed. `set -e` is GitHub's default shell behaviour, and each
+      # `python tests/<g>.py` exits non-zero on failure, so the first red gate
+      # fails the step and the job. No `|| true`, no `continue-on-error`: a gate
+      # that cannot turn red is not a gate.
+      - name: Daemon concurrency + liveness tail
+        run: |
+          python -B tests/test_daemon_concurrency.py
+          python -B tests/test_liveness_gaps.py
+      - name: A04 transport budget / close / backlog
+        run: |
+          python -B tests/test_a04_read_budget.py
+          python -B tests/test_a04_pending_readiness.py
+          python -B tests/test_a04_parser_pending.py
+          python -B tests/test_a04_daemon_service.py
+          python -B tests/test_a04_io_surface.py
+          python -B tests/test_a04_close_state.py
+          python -B tests/test_a04_winpty_backlog.py
+      - name: Cell-span / SGR / partial-write regressions
+        run: |
+          python -B tests/test_cell_span_regression.py
+          python -B tests/test_sgr_stream_regression.py
+          python -B tests/test_partial_write_regression.py
+          python -B tests/test_partial_write_edges.py

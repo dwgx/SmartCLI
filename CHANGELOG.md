@@ -5,6 +5,50 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Security
+- **On Windows, the session registry was not private, and the code's own protection there was inert.**
+  The per-session registry file holds the capability token that grants full control of a live child
+  process. It was created under `%TEMP%`, and everything the code did to protect it is a no-op on
+  Windows: the `0o600` passed to `os.open` buys no POSIX mode, and the `0700`/`chmod`/symlink/ownership
+  block in `_ensure_reg_dir` is on the POSIX branch, which the `os.name == "nt"` case returned
+  *before*. What actually decided access was the ACL of the temp directory, inherited rather than
+  chosen -- and it was not an owner-only ACL. Measured on the Windows dev host with `icacls` against a
+  live registry file: ten trustees, all inherited, seven granted Modify, one of them a local
+  agent-sandbox group. "Only the owner can read the capability token" was false on that host while the
+  code claimed it. Three changes, because no one of them is sufficient:
+  - **Relocated.** The registry now lives at `%USERPROFILE%\.smartcli\sessions`, whose parent SDDL
+    carries inheritable Full ACEs for `SYSTEM`, `Administrators` and the owner and nothing else, so a
+    fresh child inherits owner-only-and-admin by construction. The POSIX path is unchanged.
+  - **An explicit DACL.** The directory's DACL is replaced with exactly three trustees -- this account,
+    `NT AUTHORITY\SYSTEM` and `BUILTIN\Administrators`, full control, inheritable so that a registry
+    file cannot pick up a trustee nobody chose -- and is set `PROTECTED` so nothing is pushed onto it
+    from its parent. The same DACL is set explicitly on each registry file. Set, not inherited: a
+    sandbox agent re-ACL'ing a freshly created directory after the fact was measured on 7 of 9
+    sampled profile subdirectories on that host, so relocation alone is a delay, not a fix.
+  - **Verified, and failed closed.** `_ensure_reg_dir` reads the effective DACL back, walks its ACEs,
+    and refuses to write a capability token if anything outside those three trustees can read or modify
+    it -- or if the DACL cannot be read back, which is treated as unproven rather than as clean. The
+    refusal names the path, the offending trustees and the `icacls` command to run; point
+    `SMARTCLI_TUI_DIR` at a directory your endpoint agents leave alone if the default is re-ACL'd under
+    you. A false "still permissive" costs one command; a false "private" leaks a token that drives a
+    live child, so the unproven case is the refused one.
+  - `tests/test_drive_security.py` now measures the resulting DACL with its own `ctypes` reader --
+    deliberately built in the most permissive parent available, so a green run can only mean the code
+    replaced the inherited ACL -- and covers the fail-closed refusal, the read-back disagreement, and
+    the fact that the POSIX branch is untouched and never reaches the Windows code.
+
+### Changed
+- **Sessions started by a previous version are stranded by the relocation, and you must kill them
+  yourself.** The old registry is neither read nor written any more, so those sessions are unreachable
+  from both `close` and `list`, and their pids -- the only handle left on their child processes -- went
+  with them. Every command now warns once on stderr, naming the old path, how many entries it holds
+  and their pids. **Nothing is killed for you and nothing is migrated**: a pid read out of a file this
+  version cannot see is not this program's to act on. The session cap starts fresh in the new
+  directory and is not charged for the stranded entries. If you are upgrading with a session running,
+  take the pids off the warning and kill them before relying on `list` again.
+
 ## [0.3.2] - 2026-09-16
 
 ### Fixed

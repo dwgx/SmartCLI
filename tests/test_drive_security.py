@@ -2,6 +2,9 @@
 """Pure checks for drive-tui's local control-plane input boundaries."""
 from __future__ import annotations
 
+import contextlib
+import io
+import json
 import os
 import sys
 import tempfile
@@ -232,6 +235,517 @@ def test_close_keeps_a_live_daemons_entry() -> None:
             tui.REG_DIR = old_dir
 
 
+# /proc/<pid>/stat with a comm that itself contains spaces AND parentheses, the
+# two ways the naive "split the whole line on whitespace" parse goes wrong.
+_PROC_STAT = ("1234 (my prog (x)) S 1 1234 1234 0 -1 4194560 100 0 0 0 "
+              "1 2 3 4 20 0 1 0 987654 123 456")
+_PROC_STAT_FIELDS_AFTER_NAME = 22  # starttime's 1-based field number
+
+
+def test_starttime_extraction() -> None:
+    """Field 22 of /proc/<pid>/stat is read by position AFTER the name field.
+
+    The name field is parenthesised and untrusted (it can hold spaces and
+    parentheses of its own), so an implementation that splits the whole line
+    silently returns utime here. Exercised on fixed text: no live process, and
+    no platform where /proc exists is required.
+    """
+    parse = getattr(tui, "_parse_proc_stat_starttime", None)
+    check(callable(parse), "tui.py exposes _parse_proc_stat_starttime")
+    if not callable(parse):
+        return
+    starttime = _PROC_STAT[_PROC_STAT.rfind(")") + 1:].split()[_PROC_STAT_FIELDS_AFTER_NAME - 3]
+    check(parse(_PROC_STAT) == int(starttime) == 987654,
+          f"starttime is read as field 22 ({parse(_PROC_STAT)!r}), not as a "
+          f"whitespace index")
+    check(parse(_PROC_STAT[:_PROC_STAT.rfind(")")]) is None,
+          "a stat body with no closing paren yields None, not a guess")
+    check(parse(_PROC_STAT[:_PROC_STAT.index(" 0 -1 ")]) is None,
+          "a stat body that ends before field 22 yields None, not a short read")
+    nonnumeric = _PROC_STAT.replace("0 987654 ", "0 later ", 1)
+    check(parse(nonnumeric) is None,
+          "a non-numeric starttime yields None instead of raising")
+
+
+def test_close_is_identity_aware() -> None:
+    """close must not read a bare pid as proof that the recorded daemon is alive.
+
+    A pid names a slot, not a process. The slot answers "alive" for whoever
+    holds it next, so the pid-only test that stood in for "is this daemon
+    still there" is wrong twice over with no malice required (an unrelated
+    process inherits the number) and wrong on demand for anyone who can write
+    the registry file. The daemon therefore records its creation time next to
+    the pid, and close treats a contradiction as "not proven dead" — the
+    fail-closed direction, because a false "still running" costs one --force
+    while a false "dead" orphans a PTY child nothing can reach.
+
+    Uses a live pid (this process) and a pinned _proc_identity, so it is
+    deterministic and spawns nothing.
+    """
+    old_dir = tui.REG_DIR
+    me = os.getpid()
+    with tempfile.TemporaryDirectory(prefix="smartcli_identity_") as tmp:
+        tui.REG_DIR = Path(tmp)
+
+        def entry(sid: str, **fields) -> Path:
+            # port 1: nothing listens, so _call always fails -> the recovery path
+            tui._write_reg(sid, {"sid": sid, "port": 1, "pid": me,
+                                 "token": "tok", **fields})
+            return tui._reg_path(sid)
+
+        class Args:
+            def __init__(self, sid: str, force: bool = False) -> None:
+                self.id, self.json, self.force = sid, False, force
+
+        def close(sid: str, force: bool = False) -> tuple[int, str]:
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                rc = tui.cmd_close(Args(sid, force))
+            return rc, err.getvalue()
+
+        patched = hasattr(tui, "_proc_identity")
+        original = tui._proc_identity if patched else None
+        try:
+            if patched:
+                tui._proc_identity = lambda pid: "ident-A"
+
+            # The real round trip, no pinning: this process's identity is
+            # stable across calls and is not the forged string.
+            real = tui._proc_identity(me) if patched else None
+            if real is None:
+                print("SKIP  live-process identity round trip "
+                      "(no /proc and no GetProcessTimes on this platform)")
+            else:
+                check(real == tui._proc_identity(me) and real != "ident-B",
+                      f"_proc_identity is stable and process-specific ({real!r})")
+
+            forged = entry("forged", pid_born="ident-B")
+            rc, err = close("forged")
+            check(rc != 0 and forged.exists() and "recycled" in err,
+                  f"a live pid whose creation time contradicts the record is "
+                  f"KEPT, and the reason says the pid was recycled "
+                  f"(rc={rc}, kept={forged.exists()}, err={err.strip()[:90]!r})")
+
+            agreed = entry("agreed", pid_born="ident-A")
+            rc, err = close("agreed")
+            check(rc != 0 and agreed.exists() and "matches the recorded" in err,
+                  f"a live pid whose creation time MATCHES the record is still "
+                  f"kept (rc={rc}, kept={agreed.exists()}, "
+                  f"err={err.strip()[:90]!r})")
+
+            unreadable = entry("unreadable", pid_born="ident-B")
+            if patched:
+                tui._proc_identity = lambda pid: None
+            rc, err = close("unreadable")
+            check(rc != 0 and unreadable.exists() and "unreadable" in err,
+                  f"an identity the OS will not report fails CLOSED, not open "
+                  f"(rc={rc}, kept={unreadable.exists()}, "
+                  f"err={err.strip()[:90]!r})")
+
+            legacy = entry("legacy")  # written before the identity field existed
+            rc, err = close("legacy")
+            check(rc != 0 and legacy.exists()
+                  and "predates the creation-time field" in err
+                  and "weaker" in err,
+                  f"a legacy entry falls back to the pid-only check AND names "
+                  f"that weakness in the refusal (rc={rc}, kept={legacy.exists()}, "
+                  f"err={err.strip()[:140]!r})")
+
+            # Nothing was guessed here: the pid is positively gone, so even the
+            # pid-only check is a definite answer and the cleanup stays silent.
+            legacy_dead = entry("legacydead", pid=999999)
+            rc, err = close("legacydead")
+            check(rc == 0 and not legacy_dead.exists() and err == "",
+                  f"a legacy entry whose pid is gone is cleaned up silently "
+                  f"(rc={rc}, gone={not legacy_dead.exists()}, err={err!r})")
+
+            forced = entry("forced", pid_born="ident-B")
+            rc, err = close("forced", force=True)
+            check(rc == 0 and not forced.exists(),
+                  f"--force still overrides the identity-aware guard "
+                  f"(rc={rc}, entry gone={not forced.exists()})")
+
+            forced_legacy = entry("forcedlegacy")
+            rc, err = close("forcedlegacy", force=True)
+            check(rc == 0 and not forced_legacy.exists() and "warning" in err,
+                  f"--force on a legacy entry deletes it but still warns "
+                  f"(rc={rc}, entry gone={not forced_legacy.exists()})")
+
+            # A pid that is positively gone is the ONE case that must still be
+            # cleanable, identity or not: a dead slot cannot be the daemon.
+            reaped = entry("reaped", pid=999999, pid_born="ident-A")
+            rc, err = close("reaped")
+            check(rc == 0 and not reaped.exists(),
+                  f"a vanished pid is still cleanable even with a recorded "
+                  f"identity (rc={rc}, entry gone={not reaped.exists()})")
+        finally:
+            if patched:
+                tui._proc_identity = original
+            tui.REG_DIR = old_dir
+
+
+# --- Windows registry privacy -------------------------------------------------
+# Everything below reads the DACL back with its OWN ctypes calls rather than
+# asking tui.py what it thinks it set. A test that re-reads the constant the
+# implementation just computed proves nothing: it would pass unchanged if the
+# code wrote a different constant. Here the question is always "what does the
+# filesystem say about the object the code actually created".
+
+_SID_SYSTEM = "S-1-5-18"
+_SID_ADMINS = "S-1-5-32-544"
+#: Any of these bits in a grant ACE means the trustee can do something here.
+_SENSITIVE_MASK = 0x001F01FF | 0x01000000 | 0x02000000 | 0xF0000000
+
+
+def _win_sid_of_account() -> str:
+    """This account's SID, read from this process's own token.
+
+    The independence that matters is in _win_foreign_grantees, which walks the
+    ACL with its own bindings; resolving who "I" am needs the token either way.
+    """
+    import ctypes
+    from ctypes import wintypes
+    advapi32 = ctypes.WinDLL("advapi32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    advapi32.OpenProcessToken.argtypes = [ctypes.c_void_p, wintypes.DWORD,
+                                          ctypes.POINTER(ctypes.c_void_p)]
+    advapi32.OpenProcessToken.restype = wintypes.BOOL
+    advapi32.GetTokenInformation.argtypes = [ctypes.c_void_p, ctypes.c_int,
+                                              ctypes.c_void_p, wintypes.DWORD,
+                                              ctypes.POINTER(wintypes.DWORD)]
+    advapi32.GetTokenInformation.restype = wintypes.BOOL
+    advapi32.ConvertSidToStringSidW.argtypes = [ctypes.c_void_p,
+                                                ctypes.POINTER(ctypes.c_wchar_p)]
+    advapi32.ConvertSidToStringSidW.restype = wintypes.BOOL
+    kernel32.GetCurrentProcess.argtypes = []
+    kernel32.GetCurrentProcess.restype = ctypes.c_void_p
+    kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+    kernel32.CloseHandle.restype = wintypes.BOOL
+
+    class SidAndAttributes(ctypes.Structure):
+        _fields_ = [("Sid", ctypes.c_void_p), ("Attributes", wintypes.DWORD)]
+
+    class TokenUser(ctypes.Structure):
+        _fields_ = [("User", SidAndAttributes)]
+
+    token = ctypes.c_void_p()
+    if not advapi32.OpenProcessToken(kernel32.GetCurrentProcess(), 0x0008,
+                                     ctypes.byref(token)):
+        raise AssertionError("OpenProcessToken failed")
+    try:
+        needed = wintypes.DWORD(0)
+        advapi32.GetTokenInformation(token, 1, None, 0, ctypes.byref(needed))
+        buf = ctypes.create_string_buffer(needed.value)
+        if not advapi32.GetTokenInformation(token, 1, buf, needed,
+                                            ctypes.byref(needed)):
+            raise AssertionError("GetTokenInformation failed for TOKEN_USER")
+        user = ctypes.cast(buf, ctypes.POINTER(TokenUser)).contents.User
+        text = ctypes.c_wchar_p()
+        advapi32.ConvertSidToStringSidW(user.Sid, ctypes.byref(text))
+        return text.value or ""
+    finally:
+        kernel32.CloseHandle(token)
+
+
+_ALLOWED_CACHE: set | None = None
+
+
+def _win_allowed_sids() -> set:
+    global _ALLOWED_CACHE
+    if _ALLOWED_CACHE is None:
+        _ALLOWED_CACHE = {_win_sid_of_account(), _SID_SYSTEM, _SID_ADMINS}
+    return _ALLOWED_CACHE
+
+
+def _win_foreign_grantees(path: Path) -> set:
+    """SID strings granted something sensitive on ``path`` that we did not name.
+
+    Returns None-ish evidence by RAISING if the DACL cannot be walked at all,
+    which the callers treat as a failure too: an unreadable verdict is not a
+    clean bill of health.
+    """
+    import ctypes
+    from ctypes import wintypes
+    advapi32 = ctypes.WinDLL("advapi32", use_last_error=True)
+    advapi32.GetNamedSecurityInfoW.argtypes = [ctypes.c_wchar_p, ctypes.c_int,
+                                               wintypes.DWORD, ctypes.c_void_p,
+                                               ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p),
+                                               ctypes.c_void_p,
+                                               ctypes.POINTER(ctypes.c_void_p)]
+    advapi32.GetNamedSecurityInfoW.restype = wintypes.DWORD
+    advapi32.GetAclInformation.argtypes = [ctypes.c_void_p, ctypes.c_void_p,
+                                           wintypes.DWORD, ctypes.c_int]
+    advapi32.GetAclInformation.restype = wintypes.BOOL
+    advapi32.GetAce.argtypes = [ctypes.c_void_p, wintypes.DWORD,
+                                ctypes.POINTER(ctypes.c_void_p)]
+    advapi32.GetAce.restype = wintypes.BOOL
+    advapi32.ConvertSidToStringSidW.argtypes = [ctypes.c_void_p,
+                                                ctypes.POINTER(ctypes.c_wchar_p)]
+    advapi32.ConvertSidToStringSidW.restype = wintypes.BOOL
+
+    class AclSizeInformation(ctypes.Structure):
+        _fields_ = [("AceCount", wintypes.DWORD), ("AclBytesInUse", wintypes.DWORD),
+                    ("AclBytesFree", wintypes.DWORD)]
+
+    class AclAceHeader(ctypes.Structure):
+        _fields_ = [("AceType", ctypes.c_ubyte), ("AceSize", ctypes.c_ubyte),
+                    ("AceFlags", ctypes.c_ubyte)]
+
+    class AccessAllowedAce(ctypes.Structure):
+        _fields_ = [("Header", AclAceHeader), ("Mask", wintypes.DWORD),
+                    ("SidStart", wintypes.DWORD)]
+
+    dacl, descriptor = ctypes.c_void_p(), ctypes.c_void_p()
+    rc = advapi32.GetNamedSecurityInfoW(str(path), 1, 0x4, None, None,
+                                         ctypes.byref(dacl), None,
+                                         ctypes.byref(descriptor))
+    if rc != 0 or not dacl:
+        raise AssertionError(f"cannot read the DACL of {path} (rc={rc})")
+    try:
+        info = AclSizeInformation()
+        if not advapi32.GetAclInformation(dacl, ctypes.byref(info), ctypes.sizeof(info), 2):
+            raise AssertionError(f"cannot size the DACL of {path}")
+        allowed = _win_allowed_sids()
+        foreign = set()
+        for index in range(info.AceCount):
+            ace = ctypes.c_void_p()
+            if not advapi32.GetAce(dacl, index, ctypes.byref(ace)):
+                raise AssertionError(f"cannot read ACE {index} of {path}")
+            body = ctypes.cast(ace, ctypes.POINTER(AccessAllowedAce)).contents
+            if body.Header.AceType != 0x00:  # only ACCESS_ALLOWED_ACE grants
+                continue
+            if not body.Mask & _SENSITIVE_MASK:
+                continue
+            sid_at = ctypes.addressof(body) + AccessAllowedAce.SidStart.offset
+            text = ctypes.c_wchar_p()
+            advapi32.ConvertSidToStringSidW(ctypes.c_void_p(sid_at), ctypes.byref(text))
+            sid = text.value or ""
+            if sid and sid not in allowed:
+                foreign.add(sid)
+        return foreign
+    finally:
+        ctypes.WinDLL("kernel32").LocalFree(descriptor)
+
+
+def test_registry_location_per_platform() -> None:
+    """The registry must not live in a directory whose ACL is somebody else's."""
+    default = tui._default_reg_dir()
+    if os.name == "nt":
+        home = Path.home()
+        temp = Path(tempfile.gettempdir()).resolve()
+        check(default == home / ".smartcli" / "sessions",
+              f"the Windows registry lives under the user profile, not %TEMP% "
+              f"({default})")
+        check(temp not in default.parents and default != temp,
+              f"the Windows registry is not inside the temp directory ({default})")
+    else:
+        # POSIX was already correct and stays exactly as it was.
+        runtime = os.environ.get("XDG_RUNTIME_DIR")
+        if runtime:
+            check(default == Path(runtime) / "smartcli_tui",
+                  f"POSIX XDG_RUNTIME_DIR registry unchanged ({default})")
+        elif sys.platform == "darwin":
+            check(default == Path.home() / "Library" / "Caches" / "SmartCLI" / "sessions",
+                  f"POSIX macOS registry unchanged ({default})")
+        else:
+            check(default == Path.home() / ".cache" / "smartcli" / "sessions",
+                  f"POSIX registry unchanged ({default})")
+
+
+def test_windows_registry_dacl_is_private() -> None:
+    """MEASURE the DACL of the directory the code creates, and of a token file.
+
+    The fixture is deliberately built in the most hostile parent available -- a
+    fresh directory under the system temp directory, whose measured ACL on this
+    host grants Modify to seven foreign trustees -- so a passing run can only be
+    explained by the code replacing the inherited DACL, never by the parent
+    having been clean to begin with.
+    """
+    if os.name != "nt":
+        print("SKIP  registry DACL (Windows only; POSIX mode bits are covered "
+              "by test_registry_symlink)")
+        return
+    missing = [name for name in ("_win_dacl_grants", "_win_apply_dacl",
+                                 "_win_secure_registry_dir")
+               if not callable(getattr(tui, name, None))]
+    check(not missing,
+          f"tui.py exposes the Windows DACL helpers (missing: {missing})")
+    if missing:
+        return
+    old_dir = tui.REG_DIR
+    with tempfile.TemporaryDirectory(prefix="smartcli_dacl_") as tmp:
+        registry = Path(tmp)
+        before = _win_foreign_grantees(registry)
+        check(bool(before),
+              f"the fixture parent really is permissive, so this test can go red "
+              f"({len(before)} foreign grantees before the code runs)")
+        tui.REG_DIR = registry
+        try:
+            tui._ensure_reg_dir()
+            after_dir = _win_foreign_grantees(registry)
+            check(not after_dir,
+                  f"no foreign principal can read or modify the registry "
+                  f"directory after _ensure_reg_dir (before={len(before)}, "
+                  f"after={sorted(after_dir)})")
+            check(bool(_win_foreign_grantees(registry.parent)),
+                  "the permissive PARENT is still permissive, so the clean result "
+                  "above is about this directory and not about a safe fixture")
+
+            tui._write_reg("daclprobe", {"sid": "daclprobe", "port": 1,
+                                         "pid": 1, "token": "t"})
+            token_file = tui._reg_path("daclprobe")
+            check(token_file.exists(), "the token file was written")
+            after_file = _win_foreign_grantees(token_file)
+            check(not after_file,
+                  f"no foreign principal can read the capability token file "
+                  f"(after={sorted(after_file)})")
+            check(_win_allowed_sids() <= {
+                sid for sid in tui._win_allowed_sid_strings(tui._win_acl_api())},
+                "the account running the test is one of the allowed trustees")
+        finally:
+            tui.REG_DIR = old_dir
+
+
+def test_windows_registry_fails_closed() -> None:
+    """A DACL that cannot be set, or cannot be proven, must STOP the token write."""
+    if os.name != "nt":
+        print("SKIP  Windows fail-closed refusal (Windows only)")
+        return
+    for name in ("_win_apply_dacl", "_win_verify_private", "_win_dacl_grants"):
+        if not callable(getattr(tui, name, None)):
+            check(False, f"tui.py exposes {name} so the refusal can be exercised")
+            return
+    old_dir, old_apply, old_grants = tui.REG_DIR, tui._win_apply_dacl, tui._win_dacl_grants
+
+    def refused(fn):
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            try:
+                fn()
+            except SystemExit as exc:
+                return True, str(exc), err.getvalue()
+        return False, "", err.getvalue()
+
+    with tempfile.TemporaryDirectory(prefix="smartcli_refuse_") as tmp:
+        registry = Path(tmp) / "sessions"
+        tui.REG_DIR = registry
+        try:
+            def broken(*_a, **_kw):
+                raise OSError("SetNamedSecurityInfoW failed with Win32 error 5")
+            tui._win_apply_dacl = broken
+            ok, msg, _err = refused(tui._ensure_reg_dir)
+            check(ok and "refusing" in msg and str(registry) in msg and "icacls" in msg,
+                  f"a DACL that cannot be SET is a refusal naming the path and "
+                  f"icacls, not a warning (ok={ok}, msg={msg.strip()[:120]!r})")
+
+            tui._win_apply_dacl = old_apply
+            tui._win_dacl_grants = lambda _p: [("S-1-1-0", 0x001F01FF)]
+            ok, msg, _err = refused(tui._ensure_reg_dir)
+            check(ok and "S-1-1-0" in msg and "Everyone" not in msg,
+                  f"a DACL that reads back with a foreign grantee is refused and "
+                  f"NAMES it (ok={ok}, msg={msg.strip()[:120]!r})")
+
+            tui._win_dacl_grants = lambda _p: None
+            ok, msg, _err = refused(tui._ensure_reg_dir)
+            check(ok and "could not be read back" in msg,
+                  f"an UNREADABLE DACL is treated as unproven, not as clean "
+                  f"(ok={ok}, msg={msg.strip()[:120]!r})")
+
+            tui._win_dacl_grants = old_grants
+            tui._ensure_reg_dir()
+            tui._win_apply_dacl = broken
+            ok, _msg, _err = refused(lambda: tui._write_reg(
+                "refused", {"sid": "refused", "port": 1, "pid": 1, "token": "t"}))
+            check(ok and not (registry / "refused.json").exists(),
+                  "a token whose file DACL fails is refused AND removed, not left "
+                  f"on disk (ok={ok}, left={(registry / 'refused.json').exists()})")
+        finally:
+            tui.REG_DIR, tui._win_apply_dacl, tui._win_dacl_grants = (old_dir, old_apply,
+                                                                      old_grants)
+
+
+def test_stranded_sessions_are_named_not_killed() -> None:
+    """Relocation strands old sessions: name them, kill nothing, do not count them."""
+    warn = getattr(tui, "_stranded_session_warning", None)
+    count = getattr(tui, "_active_session_count", None)
+    check(callable(warn) and callable(count),
+          "tui.py exposes _stranded_session_warning and _active_session_count")
+    if not (callable(warn) and callable(count)):
+        return
+    old_dir = tui.REG_DIR
+    with tempfile.TemporaryDirectory(prefix="smartcli_stranded_") as tmp:
+        root = Path(tmp)
+        legacy, fresh = root / "smartcli_tui", root / "sessions"
+        legacy.mkdir()
+        for name, body in (("one.json", {"pid": 4242}), ("two.json", {"pid": 777}),
+                           ("three.json", {"nope": 1}), ("ignored.txt", {})):
+            (legacy / name).write_text(json.dumps(body), encoding="utf-8")
+        fresh.mkdir()
+        tui.REG_DIR = fresh
+        try:
+            message = warn(legacy) or ""
+            check(str(legacy) in message and "3" in message and "4242" in message
+                  and "777" in message,
+                  f"the warning names the old path, the entry count and the "
+                  f"recorded pids ({message[:150]!r})")
+            check("killed by hand" in message,
+                  f"the warning says the pids are the user's to reap "
+                  f"({message[:150]!r})")
+            check(warn(root / "absent") is None,
+                  "an absent old registry produces no warning")
+            (legacy / "three.json").unlink()
+            (legacy / "two.json").unlink()
+            (legacy / "one.json").unlink()
+            check(warn(legacy) is None,
+                  "an empty old registry produces no warning")
+
+            tui.REG_DIR = legacy
+            check(warn(legacy) is None,
+                  "no warning when SMARTCLI_TUI_DIR still points at the old path")
+
+            tui.REG_DIR = fresh
+            for name in ("a.json", "b.json"):
+                (fresh / name).write_text(json.dumps({"pid": 1}), encoding="utf-8")
+            check(count() == 2,
+                  f"the cap counts the CURRENT registry only (got {count()}, "
+                  f"expected 2 -- stranded entries must not consume the limit)")
+        finally:
+            tui.REG_DIR = old_dir
+
+
+def test_posix_registry_branch_is_untouched() -> None:
+    """The POSIX protections must not have been routed through the Windows code."""
+    if os.name == "nt":
+        print("SKIP  POSIX registry branch (Windows only)")
+        return
+    old_dir = tui.REG_DIR
+    reached = []
+
+    def tripwire(*_a, **_kw):
+        reached.append(True)
+        raise AssertionError("the POSIX branch called a Windows ACL helper")
+
+    saved = {name: getattr(tui, name, None) for name in ("_win_secure_registry_dir",)}
+    with tempfile.TemporaryDirectory(prefix="smartcli_posix_") as tmp:
+        registry = Path(tmp) / "sessions"
+        tui.REG_DIR = registry
+        try:
+            for name in saved:
+                if callable(saved[name]):
+                    setattr(tui, name, tripwire)
+            tui._ensure_reg_dir()
+            tui._write_reg("posix", {"sid": "posix", "port": 1, "pid": 1, "token": "t"})
+            mode = registry.stat().st_mode & 0o777
+            file_mode = tui._reg_path("posix").stat().st_mode & 0o777
+            check(not reached and mode == 0o700 and file_mode == 0o600,
+                  f"POSIX still creates 0700/0600 with no Windows ACL call "
+                  f"(dir={oct(mode)}, file={oct(file_mode)}, reached={reached})")
+        finally:
+            for name, value in saved.items():
+                setattr(tui, name, value)
+            tui.REG_DIR = old_dir
+
+
 def main() -> int:
     test_session_ids()
     test_environment_parser()
@@ -240,6 +754,13 @@ def main() -> int:
     test_daemon_resize_survives_bad_size()
     test_registry_symlink()
     test_close_keeps_a_live_daemons_entry()
+    test_starttime_extraction()
+    test_close_is_identity_aware()
+    test_registry_location_per_platform()
+    test_windows_registry_dacl_is_private()
+    test_windows_registry_fails_closed()
+    test_stranded_sessions_are_named_not_killed()
+    test_posix_registry_branch_is_untouched()
     test_non_dict_request_is_rejected_cleanly()
     print()
     if failures:

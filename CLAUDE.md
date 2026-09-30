@@ -190,21 +190,57 @@ and `python tests/test_version_sync.py` (anti-drift gate over all ten sites).
 pass/fail. Tests are standalone scripts, not pytest. Two tiers:
 
 - **Deterministic gates** (pure/in-memory, no PTY): `test_fx_contract`,
-  `test_readiness`, `test_wait_any`, `test_visual_change`,
-  `test_drive_security`, `test_terminal_fidelity`, `test_perf_contract`,
-  `test_sixel`, `test_doc_counts` (anti-drift: doc counts must match code),
-  `test_version_sync` (ten version sites), `test_dependency_sync` (one dependency
-  fact, one value — `requirements.txt` is what the Docker image installs, so it
-  must not drift from pyproject), `test_harbor_agent`, `test_vendor_sync`,
-  `_sandbox_fuzz_core`. The authoritative list is
-  `build_suite()` in run_all.py. These run in CI on a 3-OS matrix
-  (Windows/Ubuntu/macOS × py3.10/3.14).
+  `test_readiness`, `test_wait_any`, `test_visual_change`, `test_wait_change`,
+  `test_char_width`, `test_cpr_reply`, `test_daemon_concurrency`,
+  `test_liveness_gaps`, `test_drive_security`, `test_terminal_fidelity`,
+  `test_golden_frames`, `test_cell_span_regression`, `test_sgr_stream_regression`,
+  `test_partial_write_regression`, `test_partial_write_edges`, the seven
+  `test_a04_*` budget/close/backlog gates, `test_perf_contract`, `test_sixel`,
+  `test_doc_counts` (anti-drift: doc counts must match code), `test_version_sync`
+  (ten version sites), `test_dependency_sync` (one dependency fact, one value —
+  `requirements.txt` is what the Docker image installs, so it must not drift from
+  pyproject), `test_harbor_agent`, `test_tbench_adapter`, `test_vendor_sync`,
+  `_sandbox_fuzz_core`.
 - **Real-process probes** — spawn real ConPTY/pty/tmux; slow, serial-only, one
   at a time, consent required: `_drive_probe*`, `_tui_cli_probe`, `_mcp_probe`,
   `verify_fx`, `probe_pty_fx`, `_sandbox_posix_backend`,
-  `_sandbox_daemon_robustness`, plus the two real-tmux probes
-  (`_diff_tmux_pyte`, `_tmux_launcher_probe`), which SKIP themselves when tmux
-  is absent.
+  `_sandbox_daemon_robustness`, plus the real-tmux probes
+  (`_diff_tmux_pyte`, `_diff_two_refs`, `_diff_fuzz_tmux`,
+  `_tmux_launcher_probe`), which SKIP themselves when tmux is absent.
+
+**`build_suite()` in run_all.py is the full inventory, NOT the CI list.** It
+returns 56 entries and they are not all gated. Measured 2026-09-30 by importing
+`build_suite()`, mapping each entry to its file, and grepping every file in
+`.github/workflows/` (including the indirect path through
+`tools/coverage_run.py`). Before this was reconciled, **29 of the 56 were run by
+no workflow at all**; 40 of 56 are gated now:
+
+- **23** run by name in `ci.yml` (20 in the `tests` matrix job, plus
+  `_tui_cli_probe`, `_mcp_probe` and `_sandbox_daemon_robustness` in
+  `drive-smoke`);
+- **4** more (`test_char_width`, `test_cpr_reply`, `test_golden_frames`,
+  `test_wait_change`) run only indirectly, through `tools/coverage_run.py`,
+  which the `coverage` job invokes and which exits non-zero on failure;
+- **13** more, added as the `deterministic-rest` job, because 13 of the 29
+  ungated files were deterministic PTY-free gates, not probes: the
+  `test_daemon_concurrency` lock `SECURITY.md` names, the `test_liveness_gaps`
+  tail, the seven `test_a04_*` budget/close/backlog gates, and the cell-span /
+  streaming-SGR / partial-write regressions. They construct `PtySession` and the
+  real backend classes against **injected fake transports** — AST-checked for
+  zero `spawn`/`fork`/`Popen`/`subprocess` calls — so they spawn no child.
+- **16 remain local-only by design**: the real-process probes and the real-tmux
+  differential suites (`_drive_probe*`, `probe_pty_fx`, `_tmux_launcher_probe`,
+  `_diff_tmux_pyte`, `_diff_two_refs`, `_diff_fuzz_tmux`, `drive_vim`, and four
+  tui-ui module renders). They spawn live PTY sessions, and a CI matrix runs
+  jobs concurrently — exactly the dense real-process spawning the red line at
+  the top of this file forbids. Run them yourself, serially.
+
+`run_all.py` itself is invoked by **no** workflow (the only `run_all` hit under
+`.github/` is a PR-template checkbox). So a green board does not mean the whole
+inventory passed — it means the gated subset passed. Run `python
+tests/run_all.py` yourself before a release. The inverse gap also exists:
+`_sandbox_posix_backend` gates in `ci.yml` but is not in `build_suite()`, so the
+aggregator does not cover everything CI does either.
 
 Docs and counts are contract-tested: changing the number of effects/widgets/recipes
 requires updating README/SKILL.md counts or `test_doc_counts` fails (it also

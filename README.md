@@ -113,7 +113,7 @@ perceive "which row is highlighted"; a screen model can.
 **How we know the perception is right.** A screen model is only useful if it
 matches what a real terminal shows, so we measure that instead of asserting it:
 identical bytes go to a real **tmux** pane and to our model, and the two cell
-grids are diffed. Three suites do it — 35 curated cases, a three-way check that
+grids are diffed. Three suites do it — 34 curated cases, a three-way check that
 only trusts a behaviour when **tmux *and* GNU screen agree**, and a generative
 fuzz over random VT sequences. That campaign found and fixed **12 emulation bugs**,
 including the alternate screen buffer (`pyte` implements none of modes

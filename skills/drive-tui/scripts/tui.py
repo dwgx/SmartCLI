@@ -33,6 +33,7 @@ import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 # --- locate smartcli_core wherever this skill folder ended up ----------------
 # Package import serves the wheel/entrypoint path; the fallback preserves direct
@@ -51,9 +52,16 @@ from smartcli_core import PtySession  # noqa: E402
 def _default_reg_dir() -> Path:
     """Return a per-user registry location, never a shared fixed /tmp path."""
     if os.name == "nt":
-        # tempfile.gettempdir() resolves to the current user's temp directory on
-        # supported Windows versions and carries that user's ACL.
-        return Path(tempfile.gettempdir()) / "smartcli_tui"
+        # NOT the temp directory. A POSIX mode bit is inert on Windows, so the
+        # only thing protecting this file is the ACL of whatever directory it
+        # is born in -- and an ACL is inherited, not chosen. Measured on the
+        # dev host with icacls: a registry directory created fresh under %TEMP%
+        # carried ten trustees, seven of them granted Modify, one of them a
+        # local agent-sandbox group. The user profile is the one parent whose
+        # SDDL is written to be owner-only (SYSTEM/Administrators/owner, all
+        # inheritable); _ensure_reg_dir then replaces even that inheritance
+        # with an explicit DACL and reads it back.
+        return Path.home() / ".smartcli" / "sessions"
     runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
     if runtime_dir:
         return Path(runtime_dir) / "smartcli_tui"
@@ -171,10 +179,392 @@ def _validate_size(cols: int, rows: int) -> tuple[int, int]:
     return cols, rows
 
 
+# --- Windows registry privacy -------------------------------------------------
+# The POSIX protections in _ensure_reg_dir are inert on Windows: `0o600` passed
+# to `os.open` buys no permission there, and the one `chmod` in the module is
+# POSIX-only. What actually decides access is the ACL -- and the ACL a new
+# directory is born with is INHERITED from its parent, not chosen by us. That
+# inheritance is precisely what made the old location unsafe, so the fix is to
+# stop inheriting: an explicit DACL naming exactly three trustees (this account,
+# NT AUTHORITY\SYSTEM, BUILTIN\Administrators), applied, then READ BACK.
+#
+# Every ctypes entry point below declares argtypes AND restype. Without them
+# ctypes truncates handles and pointers to 32 bits on x64 and these APIs answer
+# plausibly wrong instead of raising -- the dangerous direction, because the
+# answer is the security verdict. TRUSTEE/EXPLICIT_ACCESS are not used:
+# SetEntriesInAclW returned ERROR_INVALID_PARAMETER (87) for every documented
+# grfAccessMode/grfInheritance/TRUSTEE_TYPE combination on the dev host, while
+# building the identical DACL by hand with InitializeAcl +
+# AddAccessAllowedAceEx and handing it to SetNamedSecurityInfoW produced
+# exactly the three ACEs below (verified with icacls).
+
+_WIN_SE_FILE_OBJECT = 1
+_WIN_DACL_SECURITY_INFORMATION = 0x00000004
+_WIN_PROTECTED_DACL_SECURITY_INFORMATION = 0x80000000
+# FILE_ALL_ACCESS: STANDARD_RIGHTS_REQUIRED plus every specific right on an
+# NTFS file or directory -- a superset of DELETE, READ_CONTROL, WRITE_DAC,
+# WRITE_OWNER and SYNCHRONIZE, so holding it means holding the registry.
+_WIN_FILE_ALL_ACCESS = 0x001F01FF
+_WIN_ACL_REVISION = 2
+_WIN_TOKEN_QUERY = 0x0008
+_WIN_TOKEN_USER_CLASS = 1
+#: ACE inheritance flags used when the DACL is applied. The DIRECTORY
+#: propagates its three ACEs to everything created inside it, so a registry
+#: file cannot pick up a trustee we did not name -- inheriting from the parent
+#: is the very behaviour that caused the exposure, and here the parent is ours.
+_WIN_DIR_INHERITANCE = 0x01 | 0x02  # OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE
+_WIN_FILE_INHERITANCE = 0x00  # a file has no children to inherit to
+#: Any of these bits in a grant means the trustee can do something here.
+#: FILE_ALL_ACCESS already covers SYNCHRONIZE and every standard right, so a
+#: grant that misses this mask grants nothing worth stealing.
+_WIN_SENSITIVE_MASK = (0x001F01FF | 0x01000000  # FILE_ALL_ACCESS | ACCESS_SYSTEM_SECURITY
+                       | 0x02000000            # MAXIMUM_ALLOWED
+                       | 0xF0000000)           # GENERIC_* bits, mapped or not
+_WIN_ALLOWED_SIDS = ("S-1-5-18", "S-1-5-32-544")  # NT AUTHORITY\SYSTEM, BUILTIN\Administrators
+_WIN_ACE_ALLOWED = 0x00
+#: ACEs that cannot widen access: denials, audits and alerts. Parsed past, never
+#: counted as grants.
+_WIN_ACE_INERT = frozenset({0x01, 0x02, 0x03, 0x06, 0x07, 0x08, 0x09})
+_WIN_ACL_SIZE_INFO_CLASS = 2
+_WIN_REFUSAL = (
+    "error: refusing to write a session capability token: the {what} at {path} "
+    "could not be proven private to this user ({detail}).\n"
+    "  SmartCLI sets an explicit Windows DACL there -- this account, "
+    "NT AUTHORITY\\SYSTEM and BUILTIN\\Administrators, full control, nothing "
+    "else -- and then reads it back before writing. Anything else that can "
+    "read this directory can drive a live child process, so an unproven DACL "
+    "is treated as a permissive one.\n"
+    '  Check:  icacls "{path}"\n'
+    "  It must list exactly those three trustees. If sandbox software, group "
+    "policy or an endpoint agent re-applies an ACL to a directory we create, "
+    "point SMARTCLI_TUI_DIR at a directory it leaves alone, remove the extra "
+    "trustees, or run as an account that can set the DACL, then retry."
+)
+_WIN_ACL_API: dict[str, Any] | None = None
+
+
+def _win_acl_api() -> dict[str, Any]:
+    """Bind (once) the Windows entry points used to set and read back a DACL."""
+    global _WIN_ACL_API
+    if _WIN_ACL_API is not None:
+        return _WIN_ACL_API
+    import ctypes
+
+    dword = ctypes.c_ulong
+    handle = ctypes.c_void_p
+    # ctypes.windll only exists on Windows; it is touched here, inside a function
+    # no POSIX path ever calls, so the module still imports everywhere else.
+    advapi32 = ctypes.windll.advapi32
+    kernel32 = ctypes.windll.kernel32
+
+    kernel32.GetCurrentProcess.argtypes = []
+    kernel32.GetCurrentProcess.restype = handle
+    kernel32.LocalFree.argtypes = [ctypes.c_void_p]
+    kernel32.LocalFree.restype = ctypes.c_void_p
+    # CloseHandle, not LocalFree: a token handle is a kernel handle, and freeing
+    # one as if it were heap memory corrupts the heap (observed as an access
+    # violation, then 0xC0000374, in the process that did it).
+    kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+    kernel32.CloseHandle.restype = ctypes.c_int
+    advapi32.OpenProcessToken.argtypes = [handle, dword, ctypes.POINTER(handle)]
+    advapi32.OpenProcessToken.restype = ctypes.c_int
+    advapi32.GetTokenInformation.argtypes = [handle, ctypes.c_int, ctypes.c_void_p,
+                                              dword, ctypes.POINTER(dword)]
+    advapi32.GetTokenInformation.restype = ctypes.c_int
+    advapi32.ConvertSidToStringSidW.argtypes = [ctypes.c_void_p,
+                                                ctypes.POINTER(ctypes.c_wchar_p)]
+    advapi32.ConvertSidToStringSidW.restype = ctypes.c_int
+    advapi32.ConvertStringSidToSidW.argtypes = [ctypes.c_wchar_p,
+                                                ctypes.POINTER(ctypes.c_void_p)]
+    advapi32.ConvertStringSidToSidW.restype = ctypes.c_int
+    advapi32.GetLengthSid.argtypes = [ctypes.c_void_p]
+    advapi32.GetLengthSid.restype = dword
+    advapi32.InitializeAcl.argtypes = [ctypes.c_void_p, dword, dword]
+    advapi32.InitializeAcl.restype = ctypes.c_int
+    advapi32.AddAccessAllowedAceEx.argtypes = [ctypes.c_void_p, dword, dword, dword,
+                                               ctypes.c_void_p]
+    advapi32.AddAccessAllowedAceEx.restype = ctypes.c_int
+    advapi32.SetNamedSecurityInfoW.argtypes = [ctypes.c_wchar_p, ctypes.c_int, dword,
+                                               ctypes.c_void_p, ctypes.c_void_p,
+                                               ctypes.c_void_p, ctypes.c_void_p]
+    advapi32.SetNamedSecurityInfoW.restype = dword
+    advapi32.GetNamedSecurityInfoW.argtypes = [ctypes.c_wchar_p, ctypes.c_int, dword,
+                                               ctypes.c_void_p, ctypes.c_void_p,
+                                               ctypes.POINTER(ctypes.c_void_p),
+                                               ctypes.c_void_p,
+                                               ctypes.POINTER(ctypes.c_void_p)]
+    advapi32.GetNamedSecurityInfoW.restype = dword
+    advapi32.GetAclInformation.argtypes = [ctypes.c_void_p, ctypes.c_void_p, dword,
+                                           ctypes.c_int]
+    advapi32.GetAclInformation.restype = ctypes.c_int
+    advapi32.GetAce.argtypes = [ctypes.c_void_p, dword, ctypes.POINTER(ctypes.c_void_p)]
+    advapi32.GetAce.restype = ctypes.c_int
+
+    class SidAndAttributes(ctypes.Structure):
+        _fields_ = [("Sid", ctypes.c_void_p), ("Attributes", dword)]
+
+    class TokenUser(ctypes.Structure):
+        _fields_ = [("User", SidAndAttributes)]
+
+    class AceHeader(ctypes.Structure):
+        _fields_ = [("AceType", ctypes.c_ubyte), ("AceSize", ctypes.c_ubyte),
+                    ("AceFlags", ctypes.c_ubyte)]
+
+    class AccessAllowedAce(ctypes.Structure):
+        # ACCESS_ALLOWED_ACE: header, access mask, then the SID inline. The SID
+        # STARTS at the mask's end, which is why the read-back below walks
+        # pointers instead of trusting a fixed-size struct copy.
+        _fields_ = [("Header", AceHeader), ("Mask", dword), ("SidStart", dword)]
+
+    class AclSizeInformation(ctypes.Structure):
+        _fields_ = [("AceCount", dword), ("AclBytesInUse", dword),
+                    ("AclBytesFree", dword)]
+
+    _WIN_ACL_API = {
+        "ctypes": ctypes, "dword": dword, "advapi32": advapi32, "kernel32": kernel32,
+        "TokenUser": TokenUser, "AceHeader": AceHeader,
+        "AccessAllowedAce": AccessAllowedAce, "AclSizeInformation": AclSizeInformation,
+    }
+    return _WIN_ACL_API
+
+
+def _win_sid_string(api: dict[str, Any], sid: Any) -> str:
+    """Render a PSID as an SID string (``S-1-5-21-...``)."""
+    ctypes = api["ctypes"]
+    text = ctypes.c_wchar_p()
+    if not api["advapi32"].ConvertSidToStringSidW(sid, ctypes.byref(text)):
+        raise OSError("ConvertSidToStringSidW failed")
+    try:
+        value = text.value
+    finally:
+        api["kernel32"].LocalFree(text)
+    if not value:
+        raise OSError("ConvertSidToStringSidW produced an empty SID")
+    return value
+
+
+def _win_current_user_sid(api: dict[str, Any]) -> str:
+    """The SID of the account this process runs as, from its own token."""
+    ctypes, advapi32, dword = api["ctypes"], api["advapi32"], api["dword"]
+    token = ctypes.c_void_p()
+    if not advapi32.OpenProcessToken(api["kernel32"].GetCurrentProcess(),
+                                      _WIN_TOKEN_QUERY, ctypes.byref(token)):
+        raise OSError("OpenProcessToken failed: this process cannot read its own token")
+    try:
+        needed = dword(0)
+        advapi32.GetTokenInformation(token, _WIN_TOKEN_USER_CLASS, None, 0,
+                                     ctypes.byref(needed))
+        if not needed.value:
+            raise OSError("GetTokenInformation reported a zero-sized TOKEN_USER")
+        buf = ctypes.create_string_buffer(needed.value)
+        if not advapi32.GetTokenInformation(token, _WIN_TOKEN_USER_CLASS, buf,
+                                            needed, ctypes.byref(needed)):
+            raise OSError("GetTokenInformation failed for TOKEN_USER")
+        user = ctypes.cast(buf, ctypes.POINTER(api["TokenUser"])).contents.User
+        return _win_sid_string(api, user.Sid)
+    finally:
+        api["kernel32"].CloseHandle(token)
+
+
+def _win_allowed_sid_strings(api: dict[str, Any]) -> tuple[str, ...]:
+    """The only trustees the registry DACL may name: me, SYSTEM, Administrators."""
+    return (_win_current_user_sid(api),) + _WIN_ALLOWED_SIDS
+
+
+def _win_apply_dacl(path: Path, inheritance: int) -> None:
+    """Replace ``path``'s DACL with full control for exactly the allowed SIDs.
+
+    The DACL is set PROTECTED so no ACE is pushed down onto the object from its
+    parent, and the directory's ACEs are inheritable so that what lands inside
+    it is derived from this list rather than from a token default nobody chose.
+    """
+    api = _win_acl_api()
+    ctypes, advapi32, kernel32 = api["ctypes"], api["advapi32"], api["kernel32"]
+    sids: list[Any] = []
+    try:
+        size = 8  # the ACL header
+        for text in _win_allowed_sid_strings(api):
+            sid = ctypes.c_void_p()
+            if not advapi32.ConvertStringSidToSidW(text, ctypes.byref(sid)):
+                raise OSError(f"ConvertStringSidToSidW failed for {text}")
+            sids.append(sid)
+            size += 8 + advapi32.GetLengthSid(sid)
+        acl_buf = ctypes.create_string_buffer(size)
+        acl = ctypes.cast(acl_buf, ctypes.c_void_p)
+        if not advapi32.InitializeAcl(acl, size, _WIN_ACL_REVISION):
+            raise OSError(f"InitializeAcl failed for a {size}-byte ACL")
+        for sid in sids:
+            if not advapi32.AddAccessAllowedAceEx(
+                    acl, _WIN_ACL_REVISION, inheritance, _WIN_FILE_ALL_ACCESS, sid):
+                raise OSError("AddAccessAllowedAceEx failed")
+        rc = advapi32.SetNamedSecurityInfoW(
+            str(path), _WIN_SE_FILE_OBJECT,
+            _WIN_DACL_SECURITY_INFORMATION | _WIN_PROTECTED_DACL_SECURITY_INFORMATION,
+            None, None, acl, None)
+        if rc != 0:
+            raise OSError(f"SetNamedSecurityInfoW failed with Win32 error {rc}")
+    finally:
+        for sid in sids:
+            kernel32.LocalFree(sid)
+
+
+def _win_dacl_grants(path: Path) -> list[tuple[str, int]] | None:
+    """Every ACE on ``path`` that GRANTS something, as (SID string, mask).
+
+    None means the DACL could not be read. A NULL DACL -- the one state that
+    grants everyone everything -- is reported as None too, because "could not
+    establish" and "wide open" both have to end in a refusal.
+    """
+    api = _win_acl_api()
+    ctypes, advapi32 = api["ctypes"], api["advapi32"]
+    acl, descriptor = ctypes.c_void_p(), ctypes.c_void_p()
+    rc = advapi32.GetNamedSecurityInfoW(
+        str(path), _WIN_SE_FILE_OBJECT, _WIN_DACL_SECURITY_INFORMATION,
+        None, None, ctypes.byref(acl), None, ctypes.byref(descriptor))
+    if rc != 0:
+        return None
+    try:
+        if not acl:
+            return None  # NULL DACL: full access for everyone, including us
+        info = api["AclSizeInformation"]()
+        if not advapi32.GetAclInformation(acl, ctypes.byref(info), ctypes.sizeof(info),
+                                          _WIN_ACL_SIZE_INFO_CLASS):
+            return None
+        grants: list[tuple[str, int]] = []
+        sid_offset = api["AccessAllowedAce"].SidStart.offset
+        for index in range(info.AceCount):
+            ace = ctypes.c_void_p()
+            if not advapi32.GetAce(acl, index, ctypes.byref(ace)):
+                return None
+            body = ctypes.cast(ace, ctypes.POINTER(api["AccessAllowedAce"])).contents
+            if body.Header.AceType == _WIN_ACE_ALLOWED:
+                sid = ctypes.c_void_p(ctypes.addressof(body) + sid_offset)
+                try:
+                    grants.append((_win_sid_string(api, sid), body.Mask))
+                except OSError:
+                    return None
+            elif body.Header.AceType not in _WIN_ACE_INERT:
+                # An ACCESS_ALLOWED_OBJECT_ACE or a conditional grant carries its
+                # SID after flags and GUIDs, so this parser would read the wrong
+                # bytes. Refusing is the honest answer: we do not know what it
+                # grants, and the DACL was supposed to contain three plain ACEs.
+                return None
+        return grants
+    finally:
+        api["kernel32"].LocalFree(descriptor)
+
+
+def _win_verify_private(path: Path, what: str) -> None:
+    """Refuse unless ``path``'s DACL is provably {me, SYSTEM, Administrators}."""
+    api = _win_acl_api()
+    allowed = _win_allowed_sid_strings(api)
+    grants = _win_dacl_grants(path)
+    if grants is None:
+        raise SystemExit(_WIN_REFUSAL.format(
+            what=what, path=path,
+            detail="its DACL could not be read back, or holds an ACE shape this "
+                   "build does not parse"))
+    foreign = [(sid, mask) for sid, mask in grants
+               if sid not in allowed and (mask & _WIN_SENSITIVE_MASK)]
+    if foreign:
+        raise SystemExit(_WIN_REFUSAL.format(
+            what=what, path=path,
+            detail=f"{len(foreign)} other trustee(s) can read or modify it: "
+                   + ", ".join(sorted({sid for sid, _ in foreign}))))
+    missing = [sid for sid in allowed if not any(g == sid for g, _ in grants)]
+    if missing:
+        raise SystemExit(_WIN_REFUSAL.format(
+            what=what, path=path,
+            detail="the DACL grants nothing to " + ", ".join(missing)))
+
+
+def _win_secure_registry_dir(path: Path) -> None:
+    """Make ``path`` private on Windows, or refuse to go on writing a token."""
+    try:
+        _win_apply_dacl(path, _WIN_DIR_INHERITANCE)
+    except OSError as exc:
+        raise SystemExit(_WIN_REFUSAL.format(
+            what="session registry directory", path=path, detail=exc)) from exc
+    _win_verify_private(path, "session registry directory")
+
+
+def _win_secure_registry_file(path: Path) -> None:
+    """Same DACL on a registry file; on failure it is removed, not left behind.
+
+    The directory's ACEs are inheritable, so this file is already readable only
+    by the three allowed trustees; setting them explicitly means that guarantee
+    is a fact about this call rather than a consequence of a parent's flags.
+    """
+    try:
+        _win_apply_dacl(path, _WIN_FILE_INHERITANCE)
+    except OSError as exc:
+        try:
+            path.unlink()
+        except OSError:
+            pass
+        raise SystemExit(_WIN_REFUSAL.format(
+            what="session registry file", path=path, detail=exc)) from exc
+
+
+def _legacy_windows_reg_dir() -> Path | None:
+    """The pre-relocation Windows registry directory, or None off Windows.
+
+    Kept so sessions left there can be NAMED rather than silently abandoned:
+    relocating the registry makes every session the previous version started
+    unreachable by both `close` and `list`, and their pids -- the only handle
+    left on their child processes -- go with them.
+    """
+    if os.name != "nt":
+        return None
+    return Path(tempfile.gettempdir()) / "smartcli_tui"
+
+
+def _stranded_session_warning(legacy: Path | None = None) -> str | None:
+    """Describe sessions stranded in the old registry, or None if there are none.
+
+    Nothing is moved and nothing is killed. A pid read out of another version's
+    file is not this program's to act on, and silently killing a process it
+    merely believes it once started is a far worse failure than a session the
+    user has to reap by hand.
+    """
+    if legacy is None:
+        legacy = _legacy_windows_reg_dir()
+    if legacy is None:
+        return None
+    if os.path.normcase(os.path.abspath(legacy)) == os.path.normcase(os.path.abspath(REG_DIR)):
+        return None  # SMARTCLI_TUI_DIR still points at the old location; nothing moved
+    try:
+        entries = sorted(legacy.glob("*.json"))
+    except OSError:
+        return None
+    if not entries:
+        return None
+    pids = []
+    for entry in entries:
+        try:
+            pids.append(int(json.loads(entry.read_text(encoding="utf-8")).get("pid") or 0))
+        except (OSError, ValueError, AttributeError):
+            pids.append(0)
+    known = ", ".join(str(p) for p in pids if p > 0) or "not recorded"
+    return (f"warning: {len(entries)} SmartCLI session(s) from a previous version are "
+            f"still recorded in {legacy}, which this version no longer uses. They are "
+            f"unreachable from `close` and `list`, and their pids ({known}) must be "
+            f"killed by hand -- nothing is killed for you. They do not count against "
+            f"the session limit, which starts fresh in {REG_DIR}.")
+
+
 def _ensure_reg_dir() -> None:
-    """Create the registry directory and reject an unsafe POSIX endpoint."""
+    """Create the registry directory and refuse any endpoint we cannot prove safe.
+
+    POSIX: 0700, and refused if it is a symlink or owned by another user.
+    Windows: an explicit DACL naming three trustees, applied and then read back.
+    Neither platform continues if its own protection cannot be established --
+    an unproven registry directory is treated as a permissive one, because the
+    file inside it is the capability token for a live child process.
+    """
     REG_DIR.mkdir(parents=True, exist_ok=True)
     if os.name == "nt":
+        _win_secure_registry_dir(REG_DIR)
         return
     try:
         info = REG_DIR.lstat()
@@ -190,10 +580,22 @@ def _ensure_reg_dir() -> None:
         raise SystemExit(f"error: cannot secure session registry {REG_DIR}: {exc}") from exc
 
 
+def _active_session_count() -> int:
+    """Sessions counted against the cap: the CURRENT registry only.
+
+    A relocated registry starts with an empty cap even though sessions recorded
+    under the old path may still be running -- their pids are stranded in files
+    this version cannot see, so charging them against the limit would report a
+    full host that has nothing running.
+    """
+    return sum(1 for _ in REG_DIR.glob("*.json"))
+
+
 def _write_reg(sid: str, info: dict) -> None:
     # The reg file holds the per-session capability token, so it must not be
-    # world-readable. On POSIX create the dir 0700 and the file 0600 (a shared
-    # /tmp is multi-user); on Windows the per-user temp dir already restricts it.
+    # readable by anyone else. On POSIX create the dir 0700 and the file 0600 (a
+    # shared /tmp is multi-user); on Windows the mode bits are inert, so the
+    # directory's DACL is what protects it and the file's is set explicitly too.
     _ensure_reg_dir()
     p = _reg_path(sid)
     # O_EXCL prevents a duplicate/racing daemon from replacing another
@@ -207,6 +609,10 @@ def _write_reg(sid: str, info: dict) -> None:
         fd = os.open(str(p), flags, 0o600)
     with os.fdopen(fd, "w", encoding="utf-8") as fh:
         fh.write(json.dumps(info))
+    if os.name == "nt":
+        # Written and closed first: an ACL applied to a still-open handle would
+        # only cover the fd, not the name other processes resolve.
+        _win_secure_registry_file(p)
 
 
 def _read_reg(sid: str) -> dict:
@@ -855,6 +1261,14 @@ def _run_daemon(
     sess.reply_retry_bytes = REPLY_RETRY_BYTES
     sess.start(cmd)
     _write_reg(sid, {"sid": sid, "port": port, "pid": os.getpid(),
+                     # The pid alone cannot identify a process: it is unique
+                     # only while the process lives, so a recycled pid both
+                     # fakes a live daemon and hides a dead one. The creation
+                     # time is the standard companion to the pid, and
+                     # close requires the two to agree before it believes
+                     # either. Written before the token-bearing file exists,
+                     # so an entry without it is a legacy entry (below).
+                     "pid_born": _proc_identity(os.getpid()),
                      "cmd": cmd, "cols": cols, "rows": rows,
                      "cwd": cwd or os.getcwd(),
                      "env_keys": sorted((child_env or {}).keys()),
@@ -943,7 +1357,7 @@ def cmd_start(args) -> int:
     if _reg_path(sid).exists():
         raise SystemExit(f"error: session '{sid}' already exists")
     _ensure_reg_dir()
-    active_count = sum(1 for _ in REG_DIR.glob("*.json"))
+    active_count = _active_session_count()
     max_sessions = _max_sessions()
     if active_count >= max_sessions:
         raise SystemExit(
@@ -1132,6 +1546,72 @@ def cmd_resize(args) -> int:
     return 0
 
 
+def _parse_proc_stat_starttime(text: str) -> int | None:
+    """Pull field 22 (``starttime``) out of a ``/proc/<pid>/stat`` body.
+
+    Pure on purpose: the field layout is the only part that is easy to get
+    wrong, so it is exercised against fixed samples in the deterministic gate
+    rather than needing a live process. Field 2 is the executable name in
+    parentheses and may itself contain spaces and parentheses, so the name is
+    skipped by scanning past the LAST ')' instead of splitting the whole line;
+    what follows starts at field 3, which puts ``starttime`` at index 19.
+    """
+    cut = text.rfind(")")
+    if cut < 0:
+        return None
+    fields = text[cut + 1:].split()
+    if len(fields) < 20:  # 50 fields follow the name; 19 of them precede starttime
+        return None
+    try:
+        return int(fields[19])
+    except ValueError:
+        return None
+
+
+def _proc_identity(pid: int) -> str | None:
+    """A creation-time identity for ``pid``, or None if the OS will not say.
+
+    A pid names a *slot*, not a process: once the owner exits the slot is
+    reusable, so "is this pid alive" answers a question about the slot. Pairing
+    the pid with the time its process was created names the process instead,
+    and that pairing stays meaningful after the pid is recycled. On Windows
+    this comes from ``GetProcessTimes`` through the same
+    ``PROCESS_QUERY_LIMITED_INFORMATION`` handle ``_pid_is_alive`` already
+    opens, so the liveness probe and the identity probe are answered by the
+    kernel about the very same object rather than by two independent races.
+    On Linux it is field 22 of ``/proc/<pid>/stat``. macOS exposes no cheap
+    creation time for another process, so it reports None and ``close`` falls
+    back to the pid-only test (see ``_daemon_liveness``).
+    """
+    if pid <= 0:
+        return None
+    if os.name == "nt":
+        import ctypes
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        k = ctypes.windll.kernel32
+        h = k.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+        if not h:
+            return None
+        try:
+            creation, exit_, kernel, user = (ctypes.c_ulonglong() for _ in range(4))
+            if not k.GetProcessTimes(h, ctypes.byref(creation), ctypes.byref(exit_),
+                                     ctypes.byref(kernel), ctypes.byref(user)):
+                return None
+            # FILETIME: 100ns ticks since 1601 — opaque, monotonic per machine,
+            # and only ever compared against another value from this same host.
+            return f"win:{creation.value}"
+        finally:
+            k.CloseHandle(h)
+    if not os.path.isdir("/proc"):
+        return None
+    try:
+        text = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    ticks = _parse_proc_stat_starttime(text)
+    return None if ticks is None else f"proc:{ticks}"
+
+
 def _pid_is_alive(pid: int) -> bool:
     """Is a process with this pid still running?
 
@@ -1167,6 +1647,51 @@ def _pid_is_alive(pid: int) -> bool:
     return True
 
 
+def _daemon_liveness(info: dict) -> tuple[bool, str, bool]:
+    """Is the daemon named by this registry entry still running?
+
+    Returns ``(alive, reason, legacy)``. The registry file is the ONLY store of
+    the token and the pid, so the verdict has to be evidence, never a guess:
+    the entry is cleanable only when the OS positively says the recorded daemon
+    is gone. Everything short of that — a pid that answers, a pid whose
+    creation time contradicts the recorded one, a creation time the OS refuses
+    to hand over — is reported ALIVE, because the two failure directions are
+    not symmetric: a false "still running" costs the caller one ``--force``,
+    while a false "dead" orphans a live PTY child that nothing can reach.
+
+    ``legacy`` marks the one case that cannot be decided by identity at all —
+    an entry written by a tui.py older than the identity field. Those fall back
+    to the pid-only test this function has always used and say so, rather than
+    inventing an identity for a process that was never asked for one.
+    """
+    pid = int(info.get("pid") or 0)
+    if pid <= 0:
+        return False, f"the entry records no daemon pid (pid={pid})", False
+    if not _pid_is_alive(pid):
+        # A pid that is gone cannot be the recorded daemon either: either it
+        # exited, or it was recycled and the replacement has already exited.
+        return False, f"pid {pid} is not running", False
+    recorded = info.get("pid_born")
+    if not recorded:
+        return True, (f"pid {pid} is running, but this entry predates the "
+                      f"creation-time field, so the check is the weaker "
+                      f"pid-only one"), True
+    actual = _proc_identity(pid)
+    if actual is None:
+        # Fail closed: the OS would not tell us who owns this pid.
+        return True, (f"pid {pid} is running but its creation time is "
+                      f"unreadable, so its identity could not be confirmed"), False
+    if actual != recorded:
+        # The pid slot has been reused by some other process. The recorded
+        # daemon is then not the thing answering, and whether it exited
+        # cleanly is unknowable from here — so refuse, and let --force decide.
+        return True, (f"pid {pid} is running but was created at {actual}, not "
+                      f"the recorded {recorded}: the pid was recycled, so what "
+                      f"the recorded daemon did is unknown"), False
+    return True, (f"pid {pid} is running and its creation time {actual} "
+                  f"matches the recorded one"), False
+
+
 def cmd_close(args) -> int:
     try:
         _call(args.id, {"action": "close"})
@@ -1181,14 +1706,21 @@ def cmd_close(args) -> int:
             info = _read_reg(args.id)
         except SystemExit:
             pass  # entry already gone; nothing to clean up
-        pid = int(info.get("pid") or 0)
-        if pid and _pid_is_alive(pid) and not getattr(args, "force", False):
+        alive, why, legacy = _daemon_liveness(info)
+        if alive and not getattr(args, "force", False):
             print(f"error: session '{args.id}' did not answer, but its daemon "
-                  f"(pid {pid}) is still running, so the registry entry was KEPT "
-                  f"— deleting it would orphan the child and lose the token. "
-                  f"Retry, or kill {pid} and re-run, or pass --force.",
+                  f"is still running — {why} — so the registry entry was KEPT: "
+                  f"deleting it would orphan the child and lose the token. "
+                  f"Retry, or kill pid {int(info.get('pid') or 0)} and re-run, "
+                  f"or pass --force.",
                   file=sys.stderr)
             return 1
+        if legacy:
+            print(f"warning: session '{args.id}' carries no recorded daemon "
+                  f"creation time, so its liveness check was the weaker "
+                  f"pid-only one; a recycled pid would read as this daemon. "
+                  f"Start a new session to get an identity-checked entry.",
+                  file=sys.stderr)
         try:
             _reg_path(args.id).unlink()
         except OSError:
@@ -1405,9 +1937,14 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--id", required=True)
     sp.add_argument("--json", action="store_true")
     sp.add_argument("--force", action="store_true",
-                    help="delete the registry entry even if the daemon's pid is "
-                         "still alive (loses the token and the pid — the child "
-                         "becomes unreachable; kill the pid yourself first)")
+                    help="delete the registry entry even though the daemon may "
+                         "still be running — it deletes whenever close cannot "
+                         "confirm the recorded (pid, creation time) pair: a "
+                         "live daemon, a pid recycled by an unrelated "
+                         "process, an identity the OS will not report, or a "
+                         "legacy entry with no creation time recorded. This "
+                         "loses the token and the pid, so the child becomes "
+                         "unreachable; kill the pid yourself first")
     sp.set_defaults(func=cmd_close)
 
     sp = sub.add_parser("list", help="list active sessions")
@@ -1462,6 +1999,15 @@ def cmd_doctor(args) -> int:
 
 def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
+    # Relocating the registry strands sessions the previous version started:
+    # they are unreachable by `close` and `list`, and their pids -- the only
+    # handle left on their child processes -- went with them. Name them once, on
+    # stderr, and kill nothing. `_daemon` is excluded because it is our own
+    # detached child, whose stderr nobody reads.
+    if getattr(args, "command", None) != "_daemon":
+        stranded = _stranded_session_warning()
+        if stranded:
+            print(stranded, file=sys.stderr)
     # Offer to install missing runtime deps before doing work that needs them.
     # 'doctor' reports on its own; '_daemon' inherits the parent's environment.
     if getattr(args, "command", None) not in ("doctor", "_daemon"):

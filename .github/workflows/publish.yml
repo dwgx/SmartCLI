@@ -38,7 +38,109 @@ on:
   workflow_dispatch:
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # Fail-closed release gate, ahead of the build.
+  #
+  # ci.yml runs on `push: branches: ["**"]` and on `pull_request`; a tag ref
+  # matches NEITHER. So a tag pushed from a side branch, a detached commit or a
+  # revert reaches this workflow with an all-green board and no test ever
+  # executed — and branch protection does not extend to tag refs.
+  #
+  # Rather than re-run the suite here, assert ancestry. ci.yml already ran on
+  # every commit that main took, so `git merge-base --is-ancestor <tagged
+  # commit> origin/main` is precisely the claim "this exact commit has passed
+  # CI": the tag is a promotion of an already-tested commit, and the release
+  # path stays fast.
+  #
+  # The tag/version/metadata agreement assertion — which used to live in, and
+  # only run in, `publish-mcp`, i.e. AFTER PyPI had already been published to —
+  # is stated HERE, once, before anything is built or published, so a mismatch
+  # can no longer half-publish.
+  #
+  # Deliberately no `environment: pypi` and no `id-token: write` here: this job
+  # must be able to fail while nothing publishable exists.
+  # ---------------------------------------------------------------------------
+  verify:
+    name: Verify release ref
+    runs-on: ubuntu-latest
+    steps:
+      # fetch-depth: 0 is load-bearing, not hygiene. The default shallow fetch
+      # (depth 1) carries no parent commits, so `merge-base --is-ancestor` could
+      # only ever answer "no" — right answer, wrong reason, no history to walk.
+      # A full fetch also populates refs/remotes/origin/*, so origin/main exists
+      # to be compared against.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Verify the tagged commit is already on origin/main
+        # workflow_dispatch has no tag to verify: `on:` hands it a branch, and
+        # build's prerelease guard already special-cases that path. "Did this
+        # commit pass CI?" is not a question a manual dispatch can answer.
+        if: github.event_name == 'push'
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if ! git rev-parse --verify --quiet 'origin/main^{commit}' >/dev/null; then
+            echo "::error::origin/main is absent after a full fetch; refusing to guess the protected branch" >&2
+            exit 1
+          fi
+          if ! commit="$(git rev-parse --verify "refs/tags/${REF_NAME}^{commit}")"; then
+            echo "::error::tag ${REF_NAME} does not resolve to a commit in this checkout" >&2
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "${commit}" origin/main; then
+            echo "::error::tag ${REF_NAME} points at ${commit}, which is NOT an ancestor of origin/main. Refusing to release an untested commit: CI never runs on a tag ref and branch protection does not cover tags. Get the commit onto main and let CI go green, then tag." >&2
+            exit 1
+          fi
+          echo "::notice::${REF_NAME} -> ${commit} is an ancestor of origin/main, so ci.yml has already covered it"
+
+      - name: Verify tag version and package metadata agree
+        # Same dispatch carve-out as the step above.
+        if: github.event_name == 'push'
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          # raise SystemExit with a message rather than a bare `assert`: the
+          # message is the diagnosis, and a bare assert is stripped under
+          # `python -O`, which would turn a required check into a no-op. Every
+          # branch below exits non-zero; nothing is defaulted or tolerated.
+          python - <<'PY'
+          import json
+          import os
+          import tomllib
+          from pathlib import Path
+
+          tag = os.environ["REF_NAME"]
+          tag_version = tag.removeprefix("v")
+          package_version = tomllib.loads(
+              Path("pyproject.toml").read_text(encoding="utf-8")
+          )["project"]["version"]
+          server = json.loads(Path("server.json").read_text(encoding="utf-8"))
+          for label, found in (
+              ("pyproject.toml [project].version", package_version),
+              ("server.json .version", server["version"]),
+              ("server.json .packages[0].version", server["packages"][0]["version"]),
+          ):
+              if found != tag_version:
+                  raise SystemExit(
+                      f"{label} is {found!r}, but tag {tag} implies {tag_version!r}"
+                  )
+          print(f"tag {tag} agrees with pyproject.toml and both server.json versions")
+          PY
+
+      - name: Note the manual-dispatch carve-out
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          echo "::notice::workflow_dispatch on ${GITHUB_REF_NAME}: there is no tag, so the ancestry and version-agreement gates do not apply. Build and the PyPI publish still run."
   build:
+    needs: verify
     name: Build distribution
     runs-on: ubuntu-latest
     # Guard: this workflow publishes to PRODUCTION PyPI. Its trigger `tags: v*`
@@ -119,24 +221,12 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Verify tag and registry metadata agree
-        run: |
-          python - <<'PY'
-          import json
-          import os
-          import tomllib
-          from pathlib import Path
-
-          package_version = tomllib.loads(
-              Path("pyproject.toml").read_text(encoding="utf-8")
-          )["project"]["version"]
-          server = json.loads(Path("server.json").read_text(encoding="utf-8"))
-          tag_version = os.environ["GITHUB_REF_NAME"].removeprefix("v")
-          assert package_version == tag_version
-          assert server["version"] == tag_version
-          assert server["packages"][0]["version"] == tag_version
-          PY
-
+      # The tag/pyproject/server.json agreement used to be asserted HERE — after
+      # PyPI had already been published to, so a mismatch could half-publish.
+      # It is now stated once, in the `verify` job, which gates `build`; this
+      # job transitively inherits that gate through build -> publish, and runs
+      # on the same ref. Re-checking it here would only be a second copy to
+      # drift.
       - name: Install pinned MCP publisher
         run: |
           archive="mcp-publisher_linux_amd64.tar.gz"
