@@ -5,7 +5,11 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.3] - 2026-10-01
+
+This release is the output of an adversarial review pass over 0.3.2 and the
+capability work that followed it. Most of it is fixes to things 0.3.2 shipped;
+the defects below were found by review, not by users.
 
 ### Added
 - **A child that dies mid-wait now ends the wait, instead of costing you the whole
@@ -107,6 +111,119 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   version cannot see is not this program's to act on. The session cap starts fresh in the new
   directory and is not charged for the stranded entries. If you are upgrading with a session running,
   take the pids off the warning and kill them before relying on `list` again.
+
+### Fixed
+- **The DACL privacy check failed open on a granting ACE type.** `tui.py`
+  classified `0x09` as an inert ACE. `0x09` is `ACCESS_ALLOWED_CALLBACK_ACE_TYPE`
+  — a *granting* type — so a foreign trustee's grant was parsed past and
+  `_win_verify_private` declared the directory private. Reproduced on Windows:
+  `icacls` reported `BUILTIN\Users` holding `WRITE_DAC`, `WRITE_OWNER` and
+  `DELETE` while the check passed. A stranger who can rewrite the DACL could then
+  read the capability token. The rule is now inverted rather than patched:
+  granting types are enumerated (`0x00`, `0x04`, `0x05`, `0x09`, `0x0B`) and the
+  walk is deny-by-default, so a granting type that is not a plain
+  `ACCESS_ALLOWED` returns *refused*, and so does any type in neither table —
+  an ACE shape nobody enumerated is refused rather than waved through.
+- **The "identity-aware" liveness check could not change any outcome.** After
+  `if not _pid_is_alive(pid): return False`, every remaining branch returned
+  `True`, so the verdict was exactly `_pid_is_alive(pid)` — unchanged from before
+  the patch. An exhaustive 72-case cross-product flipped it zero times, and
+  overwriting only `pid` in a live registry entry orphaned the running daemon,
+  which is the v0.2.2 defect the change claimed to fix. The recorded creation
+  time is now consulted where it is authoritative: when the pid is gone, `close`
+  enumerates the process table and keeps the entry if any live process carries
+  it. Two fail-closed rules stop an unfinished search from reading as evidence
+  — an incomplete enumeration, and a search that read zero creation times, both
+  mean *could not rule it out*. Measured cost: 759 pids in 19.9 ms, paid only on
+  the close-failure path.
+- **`payloads="none"` did not govern `error_message`.** The session log's
+  docstring named error messages as governed by the payload policy, but that one
+  field was merged in unconditionally. A spawn failure — which quotes the
+  command line it was handed, password included — landed verbatim in a log the
+  module says "outlives the session by years". It is now routed through the same
+  policy as every other text-bearing field, with the length cut applied first so
+  the digest names exactly the text `payloads="full"` would have written.
+- **Mouse encoding modes swallowed delete-line.** Mouse *tracking* modes
+  (`9`/`1000`/`1002`/`1003`) and *encoding* modes (`1005`/`1015`/`1006`/`1016`)
+  shared one set, and the union gated the X10 branch. So `?1006h` alone — an
+  encoding, no tracking — made `ESC[M` (byte-identical to delete-line) get
+  consumed as a mouse report: three content bytes eaten, wrong grid, no error
+  signal. The realistic trigger is a program that enables `?1000h ?1006h` and
+  later disables only the tracking mode. Tracking now gates the branch; the
+  encoding stays reported, so a consumer can refuse rather than guess.
+- **The wrapper parity test could not see a dropped argument.** The session-log
+  wrapper mirrors ~15 methods, and its parity check compared signatures and
+  defaults but never the forwarding body — so a keyword accepted and silently
+  not forwarded passed it. All recorded methods are now driven through a spy and
+  each observed call bound against `PtySession`'s own signature.
+- **`_PYTE_CSI_PARAM_BYTES` claimed to be what pyte can carry and omitted seven
+  bytes it does.** The set is now pyte's real carry set, and the test derives it
+  by driving pyte instead of restating the constant — a test that restated the
+  constant could not detect a wrong-but-self-consistent alphabet.
+- **An invariant asserted in three places had no gate that could fail it.**
+  "The anchor gates success only, never the deadline" is claimed in
+  `readiness.py`'s module docstring, at the anchor, and in `wait_ready`'s
+  docstring. Mutating the line it is about left the suite green — including the
+  gate literally titled *respected max_wait ceiling*, which supplies no
+  `changed_since`. The check now exists, with a virtual-clock horizon and a
+  wall-clock budget, because the failure mode of a missing deadline is a *hang*
+  and a hang cannot fail a gate.
+- **`workflow_dispatch` published to production with neither release gate
+  running.** Both gate steps were push-only and the `verify` job had no
+  job-level `if`, so a manual dispatch reached PyPI through the same OIDC
+  Trusted Publisher having run neither the tag-ancestry check nor the
+  version-agreement check. The version half now runs on both paths; the ancestry
+  half is genuinely unanswerable without a tag and is marked as such rather than
+  implied.
+- **The capability token's file DACL was set but never verified.** The
+  *directory* was applied and then verified both ways; the *file* holding the
+  token only had it applied. The capability got the weaker of the two
+  treatments. Both are verified now, and both refuse.
+- **Three documents told readers to run a command that exits 1.** Three
+  documents instructed `python skills/tui-ui/ui/box_junction.py`, which fails
+  with `ImportError: attempted relative import with no known parent package`;
+  the module needs `-m`.
+- **A dev-box path gate banned one literal, so a doc could name the
+  developer's home directory and pass** — which a new archive pointer did. It now
+  bans the class, and is derived from the checkout so it cannot go stale.
+
+### Removed
+- **`ui/color_model.py` and `ui/box_junction.py` (413 lines, unwired).** The
+  truecolor→256→16→mono downgrade ladder and the border/edge algebra both
+  shipped through 0.3.2 with **zero importers**, and `tui-ui` has no pkgutil
+  auto-discovery over `ui/` (that is `fx.registry` and `patterns.registry`,
+  neither of which scans `ui/`), so no caller could ever have reached them.
+  `Canvas.to_ansi()` emits truecolor `38;2` unconditionally and the string
+  `38;5` appears nowhere in the skill, so the ladder's middle tier was never
+  emitted; and the live border path is `BOX_STYLES`/`draw_border` in `core.py`.
+  Both were correct and self-tested, which is not the argument against them —
+  the argument is that a capability with no consumer is weight, and nineteen
+  documents had been edited to describe them as if they were on the render
+  path. `raster.py` and `field.py` *are* imported and survive. The `box_junction`
+  self-test entry is removed from `tests/run_all.py`, so the suite is 62 entries
+  rather than 63.
+- **The `verification/` evidence tree (346 tracked files, 4.6 MB)** is no longer
+  part of the repository. It held eight full copies of `smartcli_core/screen_model.py`
+  taken before three separate bug fixes, so a repo-wide search returned
+  pre-fix code. It was moved byte-for-byte and nothing was deleted; the sha256
+  pins inside it still resolve, because they name files that stayed in the
+  repository.
+
+### Documentation
+- Colour-degrade and `box_junction` claims across nineteen and ten documents
+  respectively were rewritten to state what the renderer actually does, and then
+  the code was cut to match. The modules were briefly documented as
+  "standalone, not wired" before that resolution — the intermediate state was
+  accurate but described something that then stopped existing.
+- `CHANGELOG.md` instructed `pip install "smartcli-toolkit[mcp]"`. There is no
+  `mcp` extra — `mcp>=1.0,<2` has been a required dependency since 0.2.0 — so
+  that command warned and installed nothing extra. The historical entry is kept
+  and annotated rather than rewritten.
+- `CLAUDE.md` stated the suite "returns 56 entries" and several derived counts
+  from it; the live value was 63 (62 after the cut above). Six more count
+  families — MCP tool count, knowledge-file count, theme count, the widget
+  core/ext split, and two CJK site-page claims no existing pattern could match —
+  are now derived from live sources inside `tests/test_doc_counts.py`.
 
 ## [0.3.2] - 2026-09-16
 

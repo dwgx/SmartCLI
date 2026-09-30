@@ -230,11 +230,10 @@ ANSI 프레임을 내보냅니다(SGR 컬러 런 + 줄바꿈만 사용하며, �
 meter, panel, preview_pane, progress, radial_glow, rule, slider_track, table,
 tabs, tree)을 렌더링 경로가 실제로 호출하는 두 엔진 모듈 위에 얹습니다:
 `field.py`(셰이더 컴포지터), `raster.py`(서브 셀 단위 half/quad/braille 픽셀).
-여기에 함께 배포되지만 **렌더러에 연결되지 않은** 독립 헬퍼 두 개가 더 있습니다:
-`box_junction.py`(에지 대수 기반 박스 결합. 실제로 쓰이는 테두리 경로는 `core.py`의
-`BOX_STYLES`/`draw_border`이며, `BoxGrid`는 자체 셀프테스트에서만 실행됩니다),
-`color_model.py`(호출자가 직접 디그레이드할 때 쓰는 트루컬러 → 256 → 16 → mono
-사다리. `Canvas.to_ansi()`는 항상 truecolor `38;2`를 내보내고 이 모듈을 호출하지 않습니다).
+여기에 헬퍼 두 개(`box_junction.py`의 에지 대수 기반 박스 결합, `color_model.py`의
+트루컬러 → 256 → 16 → mono 디그레이드 사다리)가 0.3.2까지 함께 배포되었지만
+**0.3.3에서 삭제**되었습니다: 이를 가져오는 모듈이 없고, `tui-ui`는 `ui/`에 대한
+자동 탐색이 없어 호출자가 도달할 방법 자체가 없었습니다.
 CJK/이모지/ZWJ에 대해 표시 셀 단위로 정확하므로 열이 절대 어긋나지 않습니다.
 
 **`drive-tui`** (`skills/drive-tui`) — 대화형 터미널 프로그램(REPL, 메뉴, 페이저, y/N

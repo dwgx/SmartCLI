@@ -219,11 +219,9 @@ ANSI 帧（仅使用 SGR 颜色段 + 换行；不移动光标，不使用备用�
 meter、panel、preview_pane、progress、radial_glow、rule、slider_track、table、
 tabs、tree），底层是渲染路径真正调用的两个引擎模块：
 `field.py`（着色器合成器）、`raster.py`（子单元格 half/quad/braille 像素）；
-另有两个独立辅助模块随包发布但**未接入渲染器**：
-`box_junction.py`（边代数式的方框连接；实际生效的边框路径是 `core.py` 里的
-`BOX_STYLES`／`draw_border`，`BoxGrid` 只在自己的自测中运行）、
-`color_model.py`（供调用方自行降级用的 truecolor → 256 → 16 → mono 阶梯；
-`Canvas.to_ansi()` 始终输出 truecolor `38;2`，从不调用它）。
+另有两个辅助模块（`box_junction.py` 边代数方框连接、`color_model.py`
+truecolor → 256 → 16 → mono 降色阶梯）随包发布到 0.3.2，但**在 0.3.3 中删除**：
+它们没有任何导入方，且 `tui-ui` 对 `ui/` 没有自动发现，调用方永远无法触及。
 对 CJK/emoji/ZWJ 做到显示单元格精确，列永不错位。
 
 **`drive-tui`**（`skills/drive-tui`）—— 通过 PTY 驱动交互式终端程序（REPL、

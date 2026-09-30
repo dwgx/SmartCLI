@@ -62,7 +62,6 @@ PYTHONIOENCODING=utf-8 python tests/test_fx_contract.py     # 30 effects x sizes
 PYTHONIOENCODING=utf-8 python tests/_readme_literal.py
 ( cd skills/tui-ui && python self_test.py && python -m ui widgets )   # 17 widgets
 ( cd skills/cmd-art && python -m fx list )                            # 30 effects
-( cd skills/tui-ui && python -m ui.box_junction )          # needs -m: relative imports
 ```
 All should exit 0 and are pure/deterministic — fine to run together.
 

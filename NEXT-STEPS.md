@@ -875,3 +875,31 @@ an approved model identity and spend cap), and E6 release verification on a seco
 
 Release: `bea017b` (0.3.0), `c043eda` (examples/probes), `82ba096` (N2), tag `v0.3.0`; the aggregator is
 55/55 (`python tests/run_all.py`).
+
+## 2026-10-01 — the last cut: two dead tui-ui modules deleted
+
+**[DONE]** `git rm skills/tui-ui/ui/box_junction.py` (`BoxGrid` edge algebra) and
+`skills/tui-ui/ui/color_model.py` (truecolor → 256 → 16 → mono ladder). Owner's call:
+瘦身 — slim down to the last version and close out — on the principle that **a
+capability with no consumer is weight.** Not removed because they were unfinished:
+both were complete and self-tested. Removed because **nothing can reach them**,
+re-verified against code before the `rm`: no importer under `skills/tui-ui/`, no
+re-export in `ui/__init__.py`, and `registry.load_all` scans only `ui.widgets` +
+`ui/widgets_ext/*` (tui-ui has no pkgutil auto-discovery over `ui/`). `BoxGrid`'s
+only execution was its own `__main__` self-test; the colour ladder was never reached
+at all (`git grep "38;5" -- skills/tui-ui` is empty — `to_ansi()` emits `38;2`).
+
+**[DONE]** Removed the `ui.box_junction` entry from `tests/run_all.py` (the aggregator
+would otherwise invoke a module that no longer exists). `build_suite()`: **63 → 62**
+entries, measured by importing it, not by counting text.
+
+**[DONE]** `raster.py` and `field.py` deliberately **kept** — live importers at
+`ui/cli.py:147,173`, `ui/widgets_ext/braille_chart.py:15`, `examples/effort_selector.py`.
+
+**[OPEN — doc lane, not the cutter]** `CLAUDE.md:229` "returns **63** entries" and
+`:234` "47 of 63" (now 62 / 46; the 47-of-63 figure is CI-mapping arithmetic, re-measure
+it); `CLAUDE.md:255` "four tui-ui module renders" including `ui.box_junction` (now three);
+`docs/MACOS-VERIFY.md:65` still runs `python -m ui.box_junction` in its exit-0 block and
+**will fail**; `README.md:308-311`, `skills/tui-ui/SKILL.md:316-317` and the four
+`docs/i18n/README.*.md` describe both modules as shipping. `CHANGELOG.md` mentions are
+history and stay as written.

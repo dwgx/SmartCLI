@@ -173,12 +173,13 @@ end-anchored markers like `r">>> $"` never match — use unanchored markers.
 - `skills/tui-ui/` — web-like layout engine emitting **tmux-safe ANSI frames**
   (SGR runs + newlines only; no cursor moves, no alt-screen). CSS box model,
   `VStack/HStack/Grid` with `Fr` units, 17 widgets, plus engine modules:
-  `field.py` (shaders), `raster.py` (sub-cell braille/quad pixels). Two more ship
-  but are NOT on the render path: `box_junction.py` (edge-algebra borders — the live
-  path is `BOX_STYLES`/`draw_border` in `core.py`; `BoxGrid` executes only in its own
-  `__main__` self-test, which `tests/run_all.py` invokes) and `color_model.py` (a
-  truecolor→256→16→mono ladder with zero importers — `to_ansi()` emits `38;2`
-  unconditionally and nothing calls it). All sizing is display-cell accurate via
+  `field.py` (shaders), `raster.py` (sub-cell braille/quad pixels). Two further
+  modules — `box_junction.py` (edge-algebra borders; the live path is
+  `BOX_STYLES`/`draw_border` in `core.py`) and `color_model.py` (a
+  truecolor→256→16→mono ladder) — shipped unwired through 0.3.2 and were
+  **deleted 2026-10-01**: neither had a single importer, and `tui-ui` has no
+  pkgutil auto-discovery over `ui/`, so nothing could ever reach them. All sizing
+  is display-cell accurate via
   `ui.core.width()` — never
   `len()`. It produces frames; something else owns the terminal (contrast with
   drive-tui).
@@ -226,12 +227,14 @@ pass/fail. Tests are standalone scripts, not pytest. Two tiers:
   `_tmux_launcher_probe`), which SKIP themselves when tmux is absent.
 
 **`build_suite()` in run_all.py is the full inventory, NOT the CI list.** It
-returns **63** entries and they are not all gated. Re-measured 2026-10-01 (the
-2026-09-30 measurement found 56) by importing `build_suite()`, mapping each
+returns **62** entries and they are not all gated. Re-measured 2026-10-01 (the
+2026-09-30 measurement found 56, and the 63 measured earlier that same day
+included the `box_junction` self-test removed with that module) by importing
+`build_suite()`, mapping each
 entry to its script, and grepping every file in `.github/workflows/`
 (including the indirect path through `tools/coverage_run.py`). Before the
 first reconciliation, **29 of the then-56 were run by no workflow at all**;
-**47 of 63** are gated now:
+**46 of 62** are gated now:
 
 - **43** run by name in `ci.yml`, across three jobs: 20 in the `tests` matrix
   job, 3 in `drive-smoke` (`_tui_cli_probe`, `_mcp_probe`,
@@ -252,7 +255,7 @@ first reconciliation, **29 of the then-56 were run by no workflow at all**;
 - **16 remain local-only by design**: the real-process probes and the real-tmux
   differential suites (`_drive_probe*`, `probe_pty_fx`, `_tmux_launcher_probe`,
   `_diff_tmux_pyte`, `_diff_two_refs`, `_diff_fuzz_tmux`, `drive_vim`, and the
-  four tui-ui module renders `ui.field` / `ui.raster` / `ui.box_junction` plus
+  three tui-ui module renders `ui.field` / `ui.raster` plus
   `_selftest_effort_widgets.py`). They spawn live PTY sessions, and a CI matrix
   runs jobs concurrently — exactly the dense real-process spawning the red line
   at the top of this file forbids. Run them yourself, serially.

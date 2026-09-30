@@ -9,7 +9,7 @@ description: >-
   replica, ANSI frame, truecolor render, pyte PNG screenshot smoke test,
   wide-character alignment, or a new terminal widget.
 allowed-tools: Bash, Read
-version: 0.3.2
+version: 0.3.3
 ---
 
 # tui-ui
@@ -313,8 +313,6 @@ cleanly at sizes (40,12), (80,24), (120,40), (200,50).
 - `ui/cli.py` — `widgets` / `demo` / `gallery` (+ `--width --height --theme`).
 - `ui/field.py` — CellField shader engine (`Ripple`/`RadialGlow`/`LinearGradient`/`Plasma` + ASPECT dist).
 - `ui/raster.py` — `SubcellRaster`: off-screen pixel buffer downsampled to half/quad/sextant/braille sub-cell glyphs (screen-square pixels — no ASPECT term here).
-- `ui/box_junction.py` — `BoxGrid` edge algebra: lines deposit N/E/S/W arm weights and the glyph is a pure table lookup, so crossings auto-connect (`┼`, `┿`, …). **Standalone: nothing in the renderer imports it.** Borders actually render through `BOX_STYLES`/`draw_border` in `ui/core.py`; `BoxGrid`'s only execution is its own `__main__` self-test (`python -m ui.box_junction`, wired into `tests/run_all.py`). Use it if you want junction algebra for a layout the built-ins don't cover.
-- `ui/color_model.py` — a truecolor → 256 → 16 → mono downgrade ladder (real nearest-match) plus display-width helpers, for callers that want to degrade themselves. **Standalone: `Canvas.to_ansi()` emits truecolor `38;2` unconditionally and never calls it** — there is no colour-depth negotiation in the stack to tell it when degrading is right, so the canvas stays truecolor by design.
 - `ui/sixel.py` — Sixel encoder: any RGB pixel grid → DCS escape string (`encode_sixel`/`print_sixel`, `supports_sixel()` DA1 probe).
 - `self_test.py` — bounded render assertions.
 - `references/HARD-LESSONS.md` — **read before any replica**: 10 rules from a dozen failed iterations (knowledge twin: [[hard-lessons]]).

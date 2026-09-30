@@ -88,7 +88,7 @@ SmartCLI is **published and public**; latest RELEASED version **v0.2.3** (2026-0
 
 **cmd-art skill (`skills/cmd-art/`).** Helps a human design CMD/terminal visual effects and ASCII art from a one-line request, via `fx` — a "living-template" engine: an `Effect` ABC + `@register` decorator + pkgutil auto-discovery, so effects, themes, and multi-effect shows all compose. Pure Python stdlib (optional `pyfiglet`/`PIL`), truecolor tuned for Windows Terminal. CLI is `python -m fx <list|show|play|gallery|random|show --seq/--script>`; `play` is **bounded by default** (10s on a TTY), degrades to one plain frame on non-TTY, and always restores the terminal via try/finally. Effects are **pure frame producers** (return one full frame; never print/sleep/touch ANSI modes — the play loop owns the terminal). 8 themes; a legacy `scripts/ascii_fx.py` shim preserves the old surface.
 
-**tui-ui skill (`skills/tui-ui/`).** A web-like terminal UI layout engine + widgets emitting **tmux-safe ANSI frames** (SGR color runs + newlines only — no cursor moves, no alt-screen). You compose a tree of renderables (CSS box model margin→border→padding→content, border-box default; `VStack/HStack/Grid/Page` with `Fr` fractional units); it resolves sizes, composites cell grids, and serializes **once**. Everything is display-cell accurate (CJK/emoji/ZWJ/VS16/flag-pairs via `ui.core.width()`, never `len()`), so columns never desync. Beyond widgets it has an **ENGINE of two modules the render path actually calls**: `field.py` (CellField shader — LinearGradient/RadialGlow/Ripple/Plasma + Over/Add/Mask/Translate compositors, ASPECT=2 distance) and `raster.py` (sub-cell half/quad/braille pixels). Two further modules ship but are **NOT wired into the renderer** (corrected 2026-10-01): `box_junction.py` (`BoxGrid` edge algebra — borders actually draw through `BOX_STYLES`/`draw_border` in `ui/core.py`, and `BoxGrid` executes only inside its own `__main__` self-test) and `color_model.py` (a truecolor→256→16→mono ladder — `Canvas.to_ansi()` emits `38;2` unconditionally and nothing imports it). It produces *frames*; something else owns the terminal (contrast drive-tui). **17 widgets live** (11 core + 6 in `ui/widgets_ext/`: `gradient_rule`, `radial_glow`, `slider_track`, `braille_chart`).
+**tui-ui skill (`skills/tui-ui/`).** A web-like terminal UI layout engine + widgets emitting **tmux-safe ANSI frames** (SGR color runs + newlines only — no cursor moves, no alt-screen). You compose a tree of renderables (CSS box model margin→border→padding→content, border-box default; `VStack/HStack/Grid/Page` with `Fr` fractional units); it resolves sizes, composites cell grids, and serializes **once**. Everything is display-cell accurate (CJK/emoji/ZWJ/VS16/flag-pairs via `ui.core.width()`, never `len()`), so columns never desync. Beyond widgets it has an **ENGINE of two modules the render path actually calls**: `field.py` (CellField shader — LinearGradient/RadialGlow/Ripple/Plasma + Over/Add/Mask/Translate compositors, ASPECT=2 distance) and `raster.py` (sub-cell half/quad/braille pixels). Two further modules — `box_junction.py` (`BoxGrid` edge algebra) and `color_model.py` (a truecolor→256→16→mono ladder) — were never wired into the renderer and were **deleted 2026-10-01** as dead weight; borders draw through `BOX_STYLES`/`draw_border` in `ui/core.py` and `Canvas.to_ansi()` emits `38;2` unconditionally, so nothing needed either. It produces *frames*; something else owns the terminal (contrast drive-tui). **17 widgets live** (11 core + 6 in `ui/widgets_ext/`: `gradient_rule`, `radial_glow`, `slider_track`, `braille_chart`).
 
 **Knowledge graph (`knowledge/`).** A navigable wiki-link graph — **143 `.md` files**, of which **125 concept/works entries** (98 concept incl. 3 ground-truth + 27 works; 123 unique slugs — `tmux-capture-pane` intentionally ×3), plus 7 READMEs, INDEX, and 10 `sources/` research digests. Each note carries an exact formula/sequence/constant, a **Source:**, and double-bracketed cross-links. Core discipline is lane-selection: **replica task → measure ground truth first** (start at `[[hard-lessons]]` + `[[effort-selector]]`); **creative task → compose the primitives** (start at `[[rendering-model]]`; of the four the note names, `field.py` and `raster.py` are the live render path — see §1 and §3). Integrity (re-checked 2026-07-13): 0 dangling links (every `[[slug]]` resolves; the only bracketed non-links are the literal `[[filename-slug]]`/`[[links]]`/`[[see also]]` syntax examples in the section READMEs). A handful of digest-level uncertainties are still honestly marked `*(verify)*` in `INDEX.md` (neo/sl/notcurses/chafa) — see §3 for the correct status.
 
@@ -174,7 +174,6 @@ python tests\test_degenerate_inputs.py  # the degenerate-input regression locks 
 python tests\test_fx_contract.py        # 30 effects x sizes, exact frame contract (enumerates all_effects())
 python tests\_drive_probe6.py           # pager/form/wizard driven LIVE
 python tests\_tui_cli_probe.py          # drive-tui CLI + token-auth
-(cd skills\tui-ui && python -m ui.box_junction)  # box_junction _selftest; needs -m (relative imports)
 # standing regression gate (must stay exit-0):
 python tests\verify_fx.py               # 38/38 (30 effects + 8 fixed checks); known random-seconds flake — rerun once
 python tests\_readme_literal.py         python tests\probe_pty_fx.py
@@ -189,7 +188,7 @@ Plus: 3 external-AI fixes (2026-07-07) still exit 0 — README literal import-or
 
 **Lane selection (the one discipline that matters):**
 - **Replica task** (recreate a real program's look) → *measure ground truth first.* Start at **`[[hard-lessons]]`** (the 10 rules, §4 below) and **`[[effort-selector]]`** (the worked replica). Decompile / drive / capture the real thing before you write render code.
-- **Creative task** (design something new) → *compose the primitives.* Start at **`[[rendering-model]]`**: field shaders (`field.py`) and sub-cell raster (`raster.py`) are the two the render path actually calls; box junctions (`box_junction.py`) and the colour ladder (`color_model.py`) ship alongside but are **not** wired into the renderer (corrected 2026-10-01 — borders go through `BOX_STYLES`/`draw_border`, and the canvas emits truecolor unconditionally). Most "new" effects are a composition of the live pair plus a case study in `works/`.
+- **Creative task** (design something new) → *compose the primitives.* Start at **`[[rendering-model]]`**: field shaders (`field.py`) and sub-cell raster (`raster.py`) are the two the render path actually calls. Box junctions and the colour ladder used to ship alongside but were **not** wired into the renderer (corrected 2026-10-01 — borders go through `BOX_STYLES`/`draw_border`, and the canvas emits truecolor unconditionally) and were **deleted the same day** once that was established. Most "new" effects are a composition of the live pair plus a case study in `works/`.
 
 The **Works wing** (`works/`, 27 studied programs — cbonsai, no-more-secrets, sl, asciiquarium, cava, firework-rs, chafa, notcurses, neo …) is the design brain: each has a real source URL and the extracted algorithm. The six newest concept notes distilled from them are the ready building blocks: `effects/procedural-branching` (cbonsai recursion), `effects/decrypt-reveal` (nms 3-phase reveal), `effects/sprite-scroll` (sl/asciiquarium blit), `effects/color-mask-sprites` (parallel glyph/color layers), `effects/particle-system` (firework-rs float physics), `effects/spectrum-bars` (cava log-bins + eighth-blocks). `sources/` holds the 10 raw research digests behind the notes. The `neo`/`sl`/`notcurses`/`chafa` notes were **source-verified on 2026-07-08** (each note's `Source:` line names the file checked) and carry no inline `*(verify)*` flags; the one remaining unresolved `*(verify)*` is the galleries note in `works/README.md`. (Re-checked against disk 2026-07-27 — an earlier draft of this paragraph had the direction reversed; when in doubt, grep the notes themselves.)
 
@@ -1869,7 +1868,7 @@ ConPTY/pywinpty and Linux/mac use posix pty). The skills:
                  pure frame-producer Effect ABC + @register auto-discovery.
   - tui-ui     : web-like cell-accurate layout engine emitting tmux-safe ANSI frames
                  (SGR + newlines only). 17 widgets + ENGINE (field/raster are the live
-                 path; box_junction/color_model ship unwired). Produces frames;
+                 path). Produces frames;
                  something else owns the terminal.
 The BRAIN is knowledge/ (143 md files, 0 dangling links):
 a wiki-link graph of formulas+sources+cross-links. The LESSONS are in
@@ -2018,7 +2017,6 @@ Heavy PTY spawners (run_all, verify_fx, probes) need user consent first — red 
     -> wait-regex --id <SID> ">>> " --timeout-ms 15000 -> send-line -> snapshot -> close
     -> list   # zero leaked sessions (ONE session at a time)
   cd skills/tui-ui && python -m ui widgets && python self_test.py   # 17 widgets
-  (cd skills/tui-ui && python -m ui.box_junction)                   # box_junction _selftest (-m)
   Deterministic quick gates (safe anytime): python tests/test_fx_contract.py,
     test_readiness.py, test_visual_change.py, test_drive_security.py,
     test_vendor_sync.py, test_doc_counts.py, test_version_sync.py
@@ -2035,3 +2033,45 @@ directory `BUILTIN\Users` held WRITE_DAC/DELETE on, and the "identity-aware" liv
 check could not flip a single outcome while `SECURITY.md` promised it would; both now
 gate, each with a red-proof. Next action: bump the ten version sites, tag, and let
 `publish.yml`'s `verify` job gate the release.
+
+**Board (2026-10-01, later) — the last cut: `box_junction.py` + `color_model.py` are
+GONE.** The Owner's call was 瘦身 — slim down to the last version and close out — on
+the principle that **a capability with no consumer is weight.** Deleted with `git rm`:
+`skills/tui-ui/ui/box_junction.py` (`BoxGrid` edge algebra, 297 lines) and
+`skills/tui-ui/ui/color_model.py` (truecolor → 256 → 16 → mono ladder, 116 lines).
+Both were complete and self-tested — that was never the argument against them; the
+argument is that **nothing can reach them**, and that was re-verified against the
+code, not the prose, before deleting: no module under `skills/tui-ui/` imports either
+one, `ui/__init__.py` re-exports neither, `registry.load_all` discovers only
+`ui.widgets` + `ui/widgets_ext/*` (tui-ui has **no** pkgutil auto-discovery over
+`ui/`), and `git grep "38;5" -- skills/tui-ui` returns **nothing**, so the ladder was
+never reached — `Canvas.to_ansi()` emits `38;2` unconditionally. `BoxGrid`'s only
+execution was its own `__main__` self-test, wired at `tests/run_all.py:196`; that
+entry is removed, so **`build_suite()` is 62 entries, was 63** (measured by importing
+`build_suite()`, before and after). **Nothing was lost** — no capability regressed,
+because neither module was on any live path; the live border path is
+`BOX_STYLES`/`draw_border` in `ui/core.py` consumed by `ui/widgets.py`. **The
+documents were corrected BEFORE the deletion**, so no promise was ever broken: the
+prose already said "standalone, nothing in the renderer imports it", and this cut
+made the code match it. `raster.py` and `field.py` were deliberately **kept** — they
+have live importers (`ui/cli.py:147,173`, `ui/widgets_ext/braille_chart.py:15`,
+`examples/effort_selector.py`) and the split is real, not rhetorical.
+
+**Reconciled by Main after the cut (all four done, all measured):**
+`CLAUDE.md:229` now reads **62** entries and `:234` reads **46 of 62** — the
+63-count included the `box_junction` self-test that went with the module, and
+the 47-of-63 was CI-mapping arithmetic re-measured rather than decremented;
+`CLAUDE.md:255` calls the tui-ui module renders "three"; the dead
+`python -m ui.box_junction` line is **removed** from `docs/MACOS-VERIFY.md:65`;
+and `README.md`, `skills/tui-ui/SKILL.md` and the four `docs/i18n/README.*.md`
+now say the two modules shipped to 0.3.2 and were removed in 0.3.3, rather than
+describing them as shipping. The `CHANGELOG.md` mentions of both are historical
+release records and stay as written. Suite is 62 entries; 0.3.3 bumped across all
+ten version sites.
+
+Verified green after the cut: `python -B tests/test_doc_counts.py`, `test_enforced_claims.py`,
+`test_vendor_sync.py`, `test_version_sync.py`, `test_fx_contract.py`, `test_sixel.py`,
+`test_terminal_fidelity.py`, `test_terminal_modes.py`, `test_char_width.py`,
+`test_harbor_agent.py`, `ruff check --select E9,F63,F7,F82 .`, `mypy --platform linux`,
+plus `python -c "import ui, ui.cli, ui.widgets, ui.core"`, `python self_test.py` and
+`python -m ui widgets` (17) from `skills/tui-ui`.

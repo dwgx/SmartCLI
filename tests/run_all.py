@@ -193,8 +193,6 @@ def build_suite():
                       [PY, "-m", "ui.field"], TUI, 60))
     suite.append(Test("tui-ui ui.raster (python -m ui.raster)",
                       [PY, "-m", "ui.raster"], TUI, 60))
-    suite.append(Test("tui-ui ui.box_junction (python -m ui.box_junction)",
-                      [PY, "-m", "ui.box_junction"], TUI, 60))
 
     # --- optional readiness gate (another agent may add it) ---------------
     suite.append(Test("test_readiness (optional)",

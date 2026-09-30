@@ -303,13 +303,11 @@ ANSI frames (SGR color runs + newlines only; no cursor moves, no alt-screen). **
 widgets** (badge, banner, braille_chart, card, fuzzy_filter_list, gradient_rule, kv,
 meter, panel, preview_pane, progress, radial_glow, rule, slider_track, table, tabs,
 tree) over an engine of two modules the render path actually calls — `field.py`
-(shader compositors) and `raster.py` (sub-cell half/quad/braille pixels) — plus two
-standalone helpers that ship but are **not wired into the renderer**:
-`box_junction.py` (edge-algebra box joins; the live border path is `BOX_STYLES` /
-`draw_border` in `core.py`, and `BoxGrid` runs only under its own self-test) and
-`color_model.py` (a truecolor → 256 → 16 → mono downgrade ladder for callers that
-want to degrade themselves — `Canvas.to_ansi()` emits truecolor `38;2` and never
-calls it). Display-cell accurate for CJK/emoji/ZWJ so columns never desync.
+(shader compositors) and `raster.py` (sub-cell half/quad/braille pixels). Two
+further helpers, `box_junction.py` and `color_model.py`, shipped unwired through
+0.3.2 and were **removed in 0.3.3**: nothing imported them, and `tui-ui` has no
+auto-discovery over `ui/`, so no caller could ever reach them.
+Display-cell accurate for CJK/emoji/ZWJ so columns never desync.
 
 **`drive-tui`** (`skills/drive-tui`) — drives interactive terminal programs (REPLs,
 menus, pagers, y/N prompts, wizards) through a PTY via a

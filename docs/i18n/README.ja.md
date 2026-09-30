@@ -243,11 +243,10 @@ ocean、synthwave、viridis、pastel、matrix-green、rainbow）にわたって�
 preview_pane、progress、radial_glow、rule、slider_track、table、tabs、tree）を載せています。
 レンダリング経路が実際に呼ぶのは 2 つのエンジンモジュール——
 `field.py`（シェーダコンポジタ）、`raster.py`（サブセルの half/quad/braille ピクセル）——
-で、加えて同梱しているが**レンダラーには結線されていない**独立ヘルパーが 2 つあります:
-`box_junction.py`（辺の代数による罫線結合。実際に効く罫線経路は `core.py` の
-`BOX_STYLES`／`draw_border` で、`BoxGrid` は自身のセルフテストでのみ実行される）、
-`color_model.py`（呼び出し側が自分でデグレードするためのトゥルーカラー → 256 → 16 → mono
-のラダー。`Canvas.to_ansi()` は常に truecolor `38;2` を出力し、これを呼ぶことはない）。
+さらに 2 つのヘルパー（`box_junction.py` の辺代数による罫線結合、`color_model.py` の
+トゥルーカラー → 256 → 16 → mono デグレード・ラダー）は 0.3.2 まで同梱されていましたが
+**0.3.3 で削除**されました: インポートする者はおらず、`tui-ui` は `ui/` に対して
+自動発見を持たないため、呼び出し側が到達できることがあり得ませんでした。
 CJK / 絵文字 / ZWJ に対して表示セル単位で正確なので、列がずれることはありません。
 
 **`drive-tui`**（`skills/drive-tui`）— 対話型のターミナルプログラム（REPL、メニュー、ページャ、
