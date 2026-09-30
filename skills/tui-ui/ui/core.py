@@ -27,6 +27,80 @@ try:  # optional but preferred: the SAME per-codepoint width table pyte/tmux use
 except Exception:  # pragma: no cover - fallback path
     _wcwidth_pkg = None
 
+try:  # terminal-aware *string* measuring: the per-terminal correction tables
+    from wcwidth import wcstwidth as _wcstwidth_pkg  # type: ignore
+except Exception:  # pragma: no cover - older wcwidth spelling
+    try:
+        from wcwidth import wcswidth as _wcstwidth_pkg  # type: ignore
+    except Exception:  # pragma: no cover - fallback path
+        _wcstwidth_pkg = None
+
+try:  # names this build knows; empty set => cannot validate a term_program
+    from wcwidth import list_term_programs as _list_term_programs  # type: ignore
+except Exception:  # pragma: no cover - older wcwidth has no such table
+    _list_term_programs = None
+
+# Terminal-aware measuring is OPT-IN and off by default: the default answer stays
+# per-codepoint, so every existing frame/measurement is byte-identical. The knob
+# is worth having because `wcwidth`'s per-terminal tables (generated from the
+# ucs-detect project) disagree with per-codepoint accounting exactly where our
+# layout is most fragile — VS16 text-vs-emoji presentation, ZWJ sequences, and
+# regional-indicator flag pairs — and they disagree *per terminal*: kitty scores
+# ZWJ/VS16 100 (it clusters), xterm scores 1 (it does not).
+#
+# `term_program` lives on wcwidth's *string* functions (`wcstwidth`), NOT on the
+# integer-per-codepoint `wcwidth()` we measure with — so the opt-in path is a
+# whole-string measurement and therefore deliberately stops being the sum of
+# `char_width()`. `width(s, term_program=...)` answers "what would <terminal>
+# advance by", not "how many cells will our Canvas occupy".
+def _probe_term_program_support() -> bool:
+    """Does this wcwidth build accept ``term_program=`` on its string function?
+
+    Probed once at import: 0.2.x has neither the keyword nor the name table, so a
+    raised ``TypeError`` here is the version gate. Probing by call rather than by
+    version string keeps working across builds that add the keyword and backports
+    that do not.
+    """
+    if _wcstwidth_pkg is None or _list_term_programs is None:
+        return False
+    try:
+        _wcstwidth_pkg("a", term_program="xterm")
+    except TypeError:  # pragma: no cover - only on a pre-feature wcwidth
+        return False
+    except Exception:  # pragma: no cover - keyword exists, table unhappy
+        return True
+    return True
+
+
+TERM_PROGRAM_SUPPORTED: bool = _probe_term_program_support()
+#: Terminal names this build carries correction tables for (empty when the
+#: installed wcwidth is too old, or exposes no name table).
+TERM_PROGRAMS: frozenset[str] = (
+    frozenset(_list_term_programs()) if TERM_PROGRAM_SUPPORTED else frozenset()
+)
+
+
+def _term_width(s: str, *, unicode_version: str, ambiguous_wide: bool,
+                term_program: str) -> Optional[int]:
+    """Width of *s* under *term_program*'s tables, or None to fall back.
+
+    None is the single, explicit "use the default" signal, returned for every
+    degradation: no wcwidth string function, no ``term_program`` keyword (0.2.x),
+    a name this build has no table for, or an error from the call itself. Falling
+    back here reproduces today's per-codepoint answer exactly rather than
+    approximating it — an unknown terminal name is a typo, and a typo must not
+    silently change column arithmetic on one terminal only.
+    """
+    if not TERM_PROGRAM_SUPPORTED or term_program not in TERM_PROGRAMS:
+        return None
+    try:
+        w = _wcstwidth_pkg(s, unicode_version=unicode_version,
+                           ambiguous_width=2 if ambiguous_wide else 1,
+                           term_program=term_program)
+    except Exception:  # pragma: no cover - defensive: table edge, not a typo
+        return None
+    return None if w is None or w < 0 else w
+
 RGB = tuple[int, int, int]
 
 # -- text attribute bitmask ------------------------------------------------
@@ -80,7 +154,8 @@ def _char_width_stdlib(ch: str, ambiguous_wide: bool = False) -> int:
 
 
 def char_width(ch: str, *, unicode_version: str = "auto",
-               ambiguous_wide: bool = False) -> int:
+               ambiguous_wide: bool = False,
+               term_program: Optional[str] = None) -> int:
     """Terminal cell advance of a single scalar: 0, 1, or 2 (controls -> 0).
 
     THE per-codepoint primitive. Prefers ``wcwidth.wcwidth`` (the exact table
@@ -100,10 +175,21 @@ def char_width(ch: str, *, unicode_version: str = "auto",
         version only).
       * ``ambiguous_wide`` — count East-Asian Ambiguous glyphs as 2 cells (a
         CJK-locale terminal) instead of the default 1 (glibc/most terminals).
+      * ``term_program`` — opt in to the installed wcwidth's per-terminal
+        correction tables (e.g. "kitty", "xterm"; see :data:`TERM_PROGRAMS`).
+        ``None`` (the default) keeps the per-codepoint answer exactly. Only
+        meaningful for a *scalar*: the tables' cluster logic needs the whole
+        string, so ask :func:`width` about anything multi-scalar.
     """
     if not ch:
         return 0
     c0 = ch[0]
+    if term_program is not None:
+        tw = _term_width(c0, unicode_version=unicode_version,
+                         ambiguous_wide=ambiguous_wide,
+                         term_program=term_program)
+        if tw is not None:
+            return tw
     if _wcwidth_pkg is not None:
         try:
             w = _wcwidth_pkg(c0, unicode_version=unicode_version,
@@ -118,7 +204,8 @@ def char_width(ch: str, *, unicode_version: str = "auto",
 
 
 def width(s: str, *, unicode_version: str = "auto",
-          ambiguous_wide: bool = False) -> int:
+          ambiguous_wide: bool = False,
+          term_program: Optional[str] = None) -> int:
     """Display-cell width of *s* (ANSI stripped first). Never negative.
 
     THE width function the whole engine uses instead of ``len``. Defined as the
@@ -130,10 +217,27 @@ def width(s: str, *, unicode_version: str = "auto",
 
     ``unicode_version`` / ``ambiguous_wide`` are forwarded to :func:`char_width`
     (see there); the defaults reproduce the previous behavior byte-for-byte.
+
+    ``term_program`` is the one knob that changes the *model*, not just a table:
+    it measures the whole string against wcwidth's per-terminal correction
+    tables, so the answer is what that terminal would actually advance rather
+    than a per-codepoint sum. That breaks the ``width(s) == put_text(s)`` identity
+    above on purpose — the two answer different questions — so the caller has to
+    know it is targeting one specific terminal. ``None`` (the default) never
+    takes this path and stays byte-for-byte identical to the previous behavior. A
+    name the installed wcwidth has no table for degrades to that same default
+    rather than raising.
     """
     s = strip_ansi(s)
+    if term_program is not None:
+        tw = _term_width(s, unicode_version=unicode_version,
+                         ambiguous_wide=ambiguous_wide,
+                         term_program=term_program)
+        if tw is not None:
+            return tw
     return sum(char_width(ch, unicode_version=unicode_version,
-                          ambiguous_wide=ambiguous_wide) for ch in s)
+                          ambiguous_wide=ambiguous_wide,
+                          term_program=term_program) for ch in s)
 
 
 def _visible_len_fallback(s: str) -> int:
