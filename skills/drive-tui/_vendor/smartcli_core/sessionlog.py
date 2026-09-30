@@ -242,11 +242,12 @@ def _screen_text(snapshot: Snapshot) -> str:
     return snapshot.to_text()
 
 
-# -- outcome describers -----------------------------------------------------
 # One per recorded verb whose return value says something. Module-level (not
-# methods) so the disabled path allocates nothing to pass them, and they return
-# the private ``_snapshot`` key that :meth:`LoggedSession._timed` expands into
-# ``screen_text`` only when ``record_snapshots`` is on.
+# methods) so the disabled path allocates nothing to pass them. They hand back
+# the private keys -- `_snapshot`, `_last_progress` -- that `_timed` expands:
+# the first into `screen_text` (only when `record_snapshots` is on), the second
+# into the payload-policy ladder. A describer writes no text of its own under
+# any policy.
 
 
 def _describe_ready(result: Any) -> dict[str, Any]:
@@ -295,6 +296,17 @@ def _describe_snapshot(result: Any) -> dict[str, Any]:
 
 def _describe_close(result: Any) -> dict[str, Any]:
     # close() -> the close-protocol state dict: what could actually be CONFIRMED.
+    # `last_progress` is handed back under a PRIVATE key for the same reason
+    # `_snapshot` is: it is a STRING THE RUNTIME BUILT, not a fixed status
+    # word. `PtySession.close_state()` catches whatever the backend's own
+    # close_state raised and formats it as
+    # `close_state raised <Type>: <message>` (session.py:333) -- an exception
+    # message, which is the exact class `error_attrs` exists to scrub. It used
+    # to be written verbatim here under every policy, so under the
+    # scrub-everything mode a failing spawn's whole command line, password
+    # included, rode straight into the log. `_timed` expands it through
+    # `payload_attrs`, so `payload_attrs`' claim to be the single funnel is now
+    # true of this field too.
     return {
         "outcome": "OK",
         "close_requested": bool(result.get("close_requested")),
@@ -302,7 +314,7 @@ def _describe_close(result: Any) -> dict[str, Any]:
         "close_unconfirmed": bool(result.get("close_unconfirmed")),
         "output_eof": bool(result.get("output_eof")),
         "generation": result.get("generation"),
-        **({"last_progress": str(result.get("last_progress"))[:200]}
+        **({"_last_progress": str(result.get("last_progress"))}
            if result.get("last_progress") else {}),
     }
 
@@ -699,6 +711,16 @@ class LoggedSession:
             if snapshot is not None and log.record_snapshots:
                 described.update(payload_attrs("screen_text", _screen_text(snapshot),
                                                log.screen_text_policy))
+            last_progress = described.pop("_last_progress", None)
+            if last_progress is not None:
+                # The 200-char cut is MAX_ERROR_MESSAGE_CHARS, for the reason
+                # `error_attrs` uses it: this is an exception message, and a
+                # traceback-derived one must not ride along under
+                # payloads="full" either. Cut BEFORE the policy runs, so the
+                # digest identifies exactly the text "full" would have written.
+                described.update(payload_attrs(
+                    "last_progress", last_progress[:MAX_ERROR_MESSAGE_CHARS],
+                    log.payloads))
             payload.update(described)
         log.record(name, payload, elapsed_ms=round((log.monotonic() - t0) * 1000.0, 3))
         return result

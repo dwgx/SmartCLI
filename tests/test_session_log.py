@@ -483,8 +483,22 @@ def test_screen_digest_is_free_and_text_is_opt_in():
     screen = attrs_named(log, "wait.wait_ready").get("screen")
     check(isinstance(screen, dict) and screen["cols"] == 40 and screen["rows"] == 10,
           "a wait's event carries the screen digest by default", f"screen={screen}")
-    check("screen_text" not in attrs_named(log, "wait.wait_ready"),
-          "the screen TEXT is not recorded unless asked")
+    # The CONSENT check, and it has to be a PREFIX, not one literal key. It used
+    # to assert `"screen_text" not in attrs`, which stopped being able to see
+    # the thing it exists to police in the very change that closed the leak:
+    # once the screen text is routed through `payload_attrs`, the RAW key can
+    # only appear under `payloads="full"`, so deleting `and log.record_snapshots`
+    # from the runtime left this line green while every wait event grew a
+    # 132-char `screen_text_chars`, a fingerprint, and a `to_text()` call nobody
+    # consented to. The claim is "no screen text is recorded unless it was asked
+    # for", so it is asserted over EVERY attribute whose name starts with
+    # `screen_text` -- whatever the policy would have spelled it.
+    off_attrs = attrs_named(log, "wait.wait_ready")
+    leaked = sorted(k for k in off_attrs if k.startswith("screen_text"))
+    check(not leaked,
+          "the screen TEXT is not recorded unless asked -- no screen_text* "
+          "attribute at all, whatever the policy would have spelled it",
+          f"leaked={leaked} attrs={off_attrs}")
 
     # `record_snapshots` is consent to LOOK at the screen; `payloads` decides
     # how much of it gets written down. The three checks below walk that ladder
@@ -557,6 +571,82 @@ def test_screen_digest_is_free_and_text_is_opt_in():
           and scrubbed.get("screen_text_chars") is not None,
           "the screen degrades to a length under payloads='none', as every other "
           "text field does", f"attrs={scrubbed}")
+
+
+class CloseStateExplodes(ScriptedBackend):
+    """A backend whose own `close_state()` raises.
+
+    That is the shape the runtime actually catches: `PtySession.close_state()`
+    wraps whatever came back and formats `close_state raised <Type>: <message>`
+    into the state dict (session.py:333). Driving it through a real
+    `PtySession.close()` means this gate exercises the production string, not a
+    hand-written stand-in that happens to look like it.
+    """
+
+    def __init__(self, message: str) -> None:
+        super().__init__()
+        self.message = message
+
+    def close_state(self) -> dict:
+        raise OSError(self.message)
+
+
+def test_close_progress_follows_the_payload_policy():
+    """`last_progress` is an exception message wearing a different hat.
+
+    The reviewer who found it could only read fixed status strings in practice,
+    which bounds the severity -- but the value is built from `str(exc)`, and an
+    exception message is exactly the class `error_attrs` exists to scrub. It was
+    assigned verbatim under EVERY policy, so under the documented
+    scrub-everything mode the credential a failing spawn quoted rode into the
+    log. These checks walk the ladder the other text fields walk, and the
+    200-character cut is `MAX_ERROR_MESSAGE_CHARS` for the same reason
+    `error_attrs` applies it.
+    """
+    secret = "failed to spawn: ssh root@host --password hunter2"
+    state_message = f"close_state raised OSError: {secret}"
+    long_message = f"close_state raised OSError: {secret}{'x' * 400}"
+
+    def close_and_log(message, **log_kw):
+        session = PtySession(cols=40, rows=10, backend=CloseStateExplodes(message))
+        collected: list[str] = []
+        log = SessionLog("agent-test", collected.append,
+                         wall_clock=SteppingClock(0.5), monotonic=SteppingClock(0.25),
+                         **log_kw)
+        LoggedSession(session, log).close()
+        events = [ev for ev in log.events if ev.name == "session.close"]
+        assert len(events) == 1, events
+        return log, events[0].attrs
+
+    scrubbed, none_attrs = close_and_log(secret, payloads=PAYLOAD_NONE,
+                                         queries=PAYLOAD_NONE, record_snapshots=True)
+    check("hunter2" not in scrubbed.to_ndjson(),
+          "the scrub-everything mode scrubs the close-path progress message: the "
+          "credential a failing spawn quoted is nowhere in the serialised log",
+          f"attrs={none_attrs}")
+    check("last_progress" not in none_attrs
+          and none_attrs.get("last_progress_chars") == len(state_message),
+          "…and the message degrades to a length under payloads='none', like "
+          "every other text field", f"attrs={none_attrs}")
+
+    _hashed_log, hashed = close_and_log(secret)
+    check("last_progress" not in hashed
+          and hashed.get("last_progress_sha256_16") == text_fingerprint(state_message)
+          and hashed.get("last_progress_chars") == len(state_message),
+          "under the default 'hash' the progress message is a length and a "
+          "fingerprint of the very text the close state carried",
+          f"attrs={hashed}")
+
+    _full_log, full = close_and_log(secret, payloads=PAYLOAD_FULL)
+    check(full.get("last_progress") == state_message,
+          "an explicit payloads='full' still records the close-path progress, so "
+          "the routing costs the forensic reader nothing", f"attrs={full}")
+
+    _long_log, bounded = close_and_log(long_message, payloads=PAYLOAD_FULL)
+    check(bounded.get("last_progress_chars") == MAX_ERROR_MESSAGE_CHARS,
+          "…but not past MAX_ERROR_MESSAGE_CHARS, the same bound error_attrs "
+          "applies: a traceback-derived message must not ride along either",
+          f"chars={bounded.get('last_progress_chars')} attrs={bounded}")
 
 
 def test_elapsed_comes_from_the_injected_clock():
@@ -900,6 +990,7 @@ def main() -> int:
         test_key_tokens_are_recorded_as_a_query,
         test_every_wait_outcome_is_recorded_as_reported,
         test_screen_digest_is_free_and_text_is_opt_in,
+        test_close_progress_follows_the_payload_policy,
         test_elapsed_comes_from_the_injected_clock,
         test_error_is_recorded_then_reraised,
         test_error_messages_follow_the_payload_policy,

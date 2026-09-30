@@ -1348,6 +1348,38 @@ def test_windows_registry_fails_closed() -> None:
                                                                       old_grants)
 
 
+def test_win_proc_api_derives_invalid_handle() -> None:
+    """INVALID_HANDLE_VALUE must be DERIVED from ctypes, or the guard is dead.
+
+    The comparison was once written `== -1` while the entry point's restype is
+    ``c_void_p``, so ctypes hands back the UNSIGNED all-ones pointer -- measured
+    18446744073709551615, which is not ``== -1`` -- and the branch could never
+    fire. It is now read out of ctypes instead, which follows the module's own
+    stated rule in a second place, and nothing gated that: three mutations of
+    the derivation left this whole suite green. These checks read the bound
+    singleton itself, so they go red the moment the derivation does.
+    """
+    if os.name != "nt":
+        print("SKIP  INVALID_HANDLE_VALUE derivation (Windows only)")
+        return
+    import ctypes
+
+    api = tui._win_proc_api()
+    sentinel = api["invalid_handle"]
+    want = ctypes.c_void_p(-1).value
+    check(isinstance(sentinel, int) and sentinel == want,
+          f"the sentinel is INVALID_HANDLE_VALUE as a c_void_p-restype binding "
+          f"actually returns it (sentinel={sentinel!r}, c_void_p(-1).value={want})")
+    check(sentinel != -1,
+          f"…and NOT the -1 the Win32 macro is spelled with, which is the form "
+          f"that made the comparison dead (sentinel={sentinel!r})")
+    snapshot = api["kernel32"].CreateToolhelp32Snapshot
+    check(snapshot.restype is ctypes.c_void_p,
+          "the entry point the sentinel is compared against declares restype "
+          f"c_void_p -- that is what makes the returned value unsigned "
+          f"(restype={snapshot.restype!r})")
+
+
 def test_stranded_sessions_are_named_not_killed() -> None:
     """Relocation strands old sessions: name them, kill nothing, do not count them."""
     warn = getattr(tui, "_stranded_session_warning", None)
@@ -1667,6 +1699,7 @@ def main() -> int:
     test_registry_location_per_platform()
     test_windows_registry_dacl_is_private()
     test_windows_readback_refuses_every_grant_it_cannot_parse()
+    test_win_proc_api_derives_invalid_handle()
     test_windows_registry_fails_closed()
     test_stranded_sessions_are_named_not_killed()
     test_posix_registry_branch_is_untouched()

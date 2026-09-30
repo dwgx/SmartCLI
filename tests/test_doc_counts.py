@@ -284,6 +284,13 @@ def _spelling_variants(path_str):
         out.add(s.lower())
     return tuple(sorted(out))
 
+#: The tail characters that make a match a LONGER NAME rather than this path:
+#: the checkout's own directory name with more characters glued onto it, which
+#: is how a sibling (``SmartCLI-v3-runs``) is spelled. Everything else -- a
+#: space, a backtick, a bracket, a comma, end of line, a separator -- means the
+#: path was really written down, and the ban has to reach it.
+_LONGER_NAME_CHARS = "-_.~"
+
 
 BANNED_PATHS = _spelling_variants(REPO_ROOT_STR)
 
@@ -578,9 +585,21 @@ def _scan_banned_paths(text, exempt=()):
             # failed on CI, where ROOT is the runner's workspace. The ban is
             # about *this checkout's* path, so require the match to end at a
             # separator or a non-path character.
+            #
+            # "a non-path character" is the whole rule, and the previous
+            # version read it backwards: it skipped every tail that was not a
+            # separator, which is to say it skipped precisely the non-path
+            # characters -- a space, a backtick, a bracket, a comma. Measured
+            # against the real 172-document corpus, that made all four
+            # ordinary ways of naming the path in prose CLEAN while the
+            # raw-substring rule it replaced flagged all four. Fixing a false
+            # positive by narrowing the rule below what its own comment claims
+            # is the same class of hole as the one the narrowing was written
+            # to close: a check that cannot fail. The probes at the bottom of
+            # this file are what keeps the two directions honest.
             for m in re.finditer(re.escape(banned.lower()), low):
                 tail = low[m.end():m.end() + 1]
-                if tail and tail not in "\\/":
+                if tail and (tail.isalnum() or tail in _LONGER_NAME_CHARS):
                     continue          # a longer name, not this path
                 findings.append((i, banned.lower(),
                                  f"hard-coded repo path '{banned}'"))
@@ -767,6 +786,37 @@ for pinned in sorted(BOX_LOCAL_EXEMPT):
     check(pinned in _scanned_rel,
           f"{pinned}: BOX_LOCAL_EXEMPT names it, and PORTABLE_DOC_GLOBS "
           f"actually scans it (a pin in an unscanned doc is a silent hole)")
+
+# --- …and the boundary rule itself, on lines no shipping doc happens to have --
+# The scan above can only report what the shipping docs happen to CONTAIN, and
+# that corpus is exactly how the rule's reach was quietly narrowed once already:
+# the four most ordinary ways of naming the path in prose — followed by a space,
+# a backtick, a bracket, a comma — do not appear in it, so a boundary test that
+# skipped them was indistinguishable from one that flagged them. These probes
+# name this checkout's own path, derived from this file's ROOT, and assert BOTH
+# directions: prose must be flagged, a genuinely LONGER sibling name must not.
+# The red-proof is the old test inverted — `tail not in "\\/"` instead of
+# `_LONGER_NAME_CHARS` turns the four prose rows red and leaves the two sibling
+# rows green, which is the whole hole in a single run.
+_PATH_BOUNDARY_PROBES = (
+    ("path mid-sentence", "run it from {p} before pushing", True),
+    ("path in backticks", "see `{p}` for details", True),
+    ("path in parentheses", "(see {p}) for details", True),
+    ("path before a comma", "{p}, which is", True),
+    ("a child of the checkout", "{p}/tests/x.py", True),
+    ("the bare path at end of line", "{p}", True),
+    ("a SIBLING directory", "{p}-v3-runs\\", False),
+    ("a child of that sibling", "{p}-v3-runs\\y", False),
+)
+for _label, _template, _want_flagged in _PATH_BOUNDARY_PROBES:
+    _line = _template.format(p=REPO_ROOT_STR)
+    _bad = _scan_banned_paths(_line, ())
+    _got = bool(_bad)
+    check(_got == _want_flagged,
+          f"path boundary: {_label} is "
+          + ("flagged" if _want_flagged else "clean") + f" — {_line}"
+          + ("" if _got == _want_flagged
+             else f" — got {'flagged: ' + _bad[0] if _got else 'clean'}"))
 
 if FAILURES:
     print(f"\ntest_doc_counts FAIL -- {len(FAILURES)} doc(s) drifted from code:")
