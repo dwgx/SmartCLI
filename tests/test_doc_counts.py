@@ -256,7 +256,6 @@ BOX_LOCAL_EXEMPT = {
     "NEXT-STEPS.md": [
         ("C:\\Users\\dwgx1\\.omp\\extra-hands\\RESEARCH\\smartcli-verification-archive\\",
          r"box-local"),
-        ("D:\\Project\\SmartCLI-v3-runs\\", r"box-local"),
     ],
 }
 #: A portable doc must not carry a machine-specific absolute path. Banned by
@@ -570,9 +569,22 @@ def _scan_banned_paths(text, exempt=()):
     for i, line in enumerate(lines, 1):
         low = line.lower()
         for banned in BANNED_PATHS:
-            if banned.lower() in low:
+            # Match the checkout path only at a PATH-COMPONENT boundary. A raw
+            # substring match also flags a SIBLING directory whose name merely
+            # starts with the checkout's -- on this box `D:\Project\SmartCLI`
+            # swallowed `D:\Project\SmartCLI-v3-runs\`, which is a different
+            # directory. That made the ban's reach depend on where this
+            # particular clone happens to live: the same tree passed here and
+            # failed on CI, where ROOT is the runner's workspace. The ban is
+            # about *this checkout's* path, so require the match to end at a
+            # separator or a non-path character.
+            for m in re.finditer(re.escape(banned.lower()), low):
+                tail = low[m.end():m.end() + 1]
+                if tail and tail not in "\\/":
+                    continue          # a longer name, not this path
                 findings.append((i, banned.lower(),
                                  f"hard-coded repo path '{banned}'"))
+                break
         # finditer, not search: search returns only the FIRST match on a line,
         # so a second path appended to an already-flagged line was invisible.
         # Found by mutation — adding `C:\Users\other\b\` beside a pinned path
