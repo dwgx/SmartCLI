@@ -187,7 +187,10 @@ def payload_attrs(key: str, text: str, policy: str) -> dict[str, Any]:
 
     The single funnel every text-bearing attribute goes through -- keystrokes,
     argv, screen text, queries, exception messages. One implementation is what
-    makes the promise in the module docstring true rather than aspirational.
+    makes the promise in the module docstring true rather than aspirational,
+    and it is true only because every one of those callers actually routes
+    here; the screen text's own policy is
+    :attr:`SessionLog.screen_text_policy`, which is ``payloads`` itself.
     """
     attrs: dict[str, Any] = {f"{key}_chars": len(text)}
     if policy == PAYLOAD_NONE:
@@ -445,7 +448,11 @@ class SessionLog:
                 scrub-everything mode.
             record_snapshots: also write the screen TEXT on every event that has
                 a snapshot. Off by default: a 200x60 screen is the largest
-                thing that can go in a log.
+                thing that can go in a log. The TEXT obeys ``payloads`` like
+                every other payload -- length always, a fingerprint under the
+                default ``"hash"``, the text itself only under ``"full"`` (see
+                :attr:`SessionLog.screen_text_policy`). The screen's SHAPE is
+                recorded either way, and for free, by ``screen_digest``.
             record_pumps: record ``pump()`` calls. Off by default: it is the only
                 high-frequency verb here.
             max_attr_chars: per-attribute cut; longer values are truncated and
@@ -533,6 +540,38 @@ class SessionLog:
     def query_attrs(self, key: str, text: str) -> dict[str, Any]:
         """Same, for an AGENT-AUTHORED query: a marker, a regex, a key sequence."""
         return payload_attrs(key, text, self.queries)
+
+    @property
+    def screen_text_policy(self) -> str:
+        """How the screen TEXT appears: the same policy as every other payload.
+
+        The screen text is not a special case and does not get its own opinion
+        about what a log may contain. ``payloads`` governs it exactly as it
+        governs keystrokes, argv and exception messages: a length always, a
+        64-bit fingerprint under the default ``"hash"``, the text itself only
+        under an explicit ``"full"``, and nothing but the length under
+        ``"none"``.
+
+        It used to be assigned verbatim -- ``described["screen_text"] =
+        _screen_text(snapshot)`` -- which bypassed the funnel entirely, so a
+        credential echoed on screen landed in the log under *every* policy
+        including the scrub-everything mode, while :func:`payload_attrs`'
+        docstring claimed to be the single funnel that keystrokes, argv, screen
+        text, queries and exception messages all pass through. It was
+        certifying a promise the code did not keep.
+
+        Why ``"hash"`` gets a fingerprint rather than nothing: a screen is the
+        most likely place a driving session shows a secret, but it is also
+        where the forensic question lives -- "did this wait see the screen it
+        saw last time, or a different one?" -- and a digest answers that
+        without writing the screen down, exactly as it does for a retried
+        keystroke. Note the SHAPE is not lost to that choice:
+        :func:`screen_digest` already records rows, cols, selected line,
+        alt-screen, title and status-bar lengths on every event that observed a
+        screen, free, by default. What the policy withholds is the content, not
+        the structure. A caller who wants the content says ``"full"``.
+        """
+        return self.payloads
 
     def record(self, name: str, attrs: Mapping[str, Any] | None = None,
                **fields: Any) -> SessionEvent | None:
@@ -658,7 +697,8 @@ class LoggedSession:
             described = _DESCRIBERS[kind](result)
             snapshot = described.pop("_snapshot", None)
             if snapshot is not None and log.record_snapshots:
-                described["screen_text"] = _screen_text(snapshot)
+                described.update(payload_attrs("screen_text", _screen_text(snapshot),
+                                               log.screen_text_policy))
             payload.update(described)
         log.record(name, payload, elapsed_ms=round((log.monotonic() - t0) * 1000.0, 3))
         return result

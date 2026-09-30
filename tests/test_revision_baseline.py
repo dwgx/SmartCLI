@@ -46,6 +46,7 @@ from __future__ import annotations
 import os
 import sys
 import threading
+import traceback
 import time as _real_time
 from pathlib import Path
 
@@ -934,10 +935,26 @@ def _run(functions) -> None:
         # The clock's horizon turns a runaway readiness loop into an ordinary
         # reported FAIL and lets the tests after it still run, so one runaway
         # cannot hide the state of everything else.
+        #
+        # A CRASH is caught for exactly the same reason, and it is BaseException
+        # rather than Exception because these tests run on a worker thread: an
+        # uncaught exception there is printed by threading.excepthook, leaves
+        # _fails EMPTY, and let main() go on to print PASS and return 0 -- so a
+        # refactor of smartcli_core that broke every call site after the fourth
+        # test read as a green gate while the five tests after it never ran. A
+        # gate that cannot turn red on the normal failure mode is worse than no
+        # gate at all. Pre-thread this was a plain `for fn in (...): fn()`, and
+        # the same exception killed the process non-zero; a named FAIL is
+        # strictly better than that, and it is the only form of it that also
+        # lets the remaining tests report.
         try:
             fn()
         except VirtualRunaway as exc:
             check(False, f"{fn.__name__}: a wait outlived its max_wait ceiling", str(exc))
+        except BaseException as exc:
+            check(False, f"{fn.__name__}: the test raised "
+                         f"{type(exc).__name__} — reported, not swallowed",
+                  "".join(traceback.format_exception_only(type(exc), exc)).strip())
 
 
 def main() -> int:

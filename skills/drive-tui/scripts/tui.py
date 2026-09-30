@@ -245,13 +245,20 @@ _WIN_ACE_ALLOWED = 0x00
 _WIN_ACE_GRANTING = frozenset({0x00, 0x04, 0x05, 0x09, 0x0B})
 #: Types that can only take access away or only record it: 0x01 deny, 0x02 audit,
 #: 0x03 alarm, 0x06 deny-object, 0x07 audit-object, 0x08 alarm-object, and the
-#: callback flavours of the same -- 0x0A deny-callback, 0x0C audit-callback,
-#: 0x0D alarm-callback. Parsed past, never counted as grants. 0x0E
-#: (SYSTEM_MANDATORY_LABEL) and 0x10 (SYSTEM_RESOURCE_ATTRIBUTE) are
-#: deliberately absent: they are SACL entries, not DACL ACEs, so seeing one in a
-#: DACL means this walk is reading something it does not understand.
+#: callback flavours of the same -- 0x0A deny-callback, 0x0C
+#: deny-callback-object, 0x0D audit-callback. Parsed past, never counted as
+#: grants. Names are the SDK's, from the ACE-type block in winnt.h (what the
+#: cited Ace Strings page renders as SDDL "XA"): 0x0C is
+#: ACCESS_DENIED_CALLBACK_OBJECT_ACE_TYPE and 0x0D is
+#: SYSTEM_AUDIT_CALLBACK_ACE_TYPE -- they had been labelled by two positions'
+#: worth of drift. Everything from 0x0E up is deliberately absent: 0x0E
+#: SYSTEM_ALARM_CALLBACK, 0x0F SYSTEM_AUDIT_CALLBACK_OBJECT, 0x10
+#: SYSTEM_ALARM_CALLBACK_OBJECT, and the two SACL types 0x11
+#: SYSTEM_MANDATORY_LABEL and 0x12 SYSTEM_RESOURCE_ATTRIBUTE. An unenumerated
+#: type is refused, not waved past, so this list records what a DACL must never
+#: contain rather than claiming those are known and inert.
 _WIN_ACE_NON_GRANTING = frozenset({0x01, 0x02, 0x03, 0x06, 0x07, 0x08,
-                                    0x0A, 0x0C, 0x0D})
+                                   0x0A, 0x0C, 0x0D})
 _WIN_ACL_SIZE_INFO_CLASS = 2
 _WIN_REFUSAL = (
     "error: refusing to write a session capability token: the {what} at {path} "
@@ -1752,7 +1759,6 @@ _WIN_STILL_ACTIVE = 259
 #: is not exported by kernel32 on every host -- measured here, where it resolves
 #: only from psapi.dll -- so the enumeration uses the API kernel32 does have.)
 _WIN_TH32CS_SNAPPROCESS = 0x00000002
-_WIN_INVALID_HANDLE_VALUE = -1
 _WIN_PROC_API: dict[str, Any] | None = None
 
 
@@ -1806,8 +1812,19 @@ def _win_proc_api() -> dict[str, Any]:
     # having called the other first; the two declarations are identical.
     kernel32.CloseHandle.argtypes = [handle]
     kernel32.CloseHandle.restype = ctypes.c_int
+    # `invalid_handle` is INVALID_HANDLE_VALUE as a c_void_p-restype binding
+    # actually returns it. CreateToolhelp32Snapshot declares restype c_void_p
+    # below, and ctypes hands the Win32 sentinel back UNSIGNED: measured on this
+    # host, CreateFileW on a missing path with the same restype returns
+    # 18446744073709551615 (last_error 3, ERROR_PATH_NOT_FOUND), and that value
+    # is not == -1. So the sentinel is read out of ctypes itself
+    # (`c_void_p(-1).value`) rather than written down as the -1 the Win32 macro
+    # is spelled with -- written down, that comparison can never be true and
+    # the branch is dead. NULL comes back as None, which the caller's
+    # `not snapshot` half covers.
     _WIN_PROC_API = {"ctypes": ctypes, "dword": dword, "kernel32": kernel32,
-                     "ProcessEntry32W": ProcessEntry32W}
+                     "ProcessEntry32W": ProcessEntry32W,
+                     "invalid_handle": handle(-1).value}
     return _WIN_PROC_API
 
 
@@ -1912,9 +1929,13 @@ def _enumerable_pids() -> list[int] | None:
         entry = api["ProcessEntry32W"]()
         entry.dwSize = ctypes.sizeof(entry)
         snapshot = kernel32.CreateToolhelp32Snapshot(_WIN_TH32CS_SNAPPROCESS, 0)
-        # INVALID_HANDLE_VALUE (-1) and NULL (0) are both "no snapshot"; the
-        # handle is 64-bit, so it is compared as the int ctypes hands back.
-        if not snapshot or snapshot == _WIN_INVALID_HANDLE_VALUE:
+        # INVALID_HANDLE_VALUE and NULL are both "no snapshot". The handle is
+        # 64-bit and its restype is c_void_p, so ctypes hands back the UNSIGNED
+        # all-ones pointer -- 18446744073709551615, NOT the -1 the Win32 macro is
+        # spelled with -- and `_win_proc_api` derives the sentinel the same way
+        # rather than writing down a value the comparison can never match. NULL
+        # comes back as None, which the `not snapshot` half covers.
+        if not snapshot or snapshot == api["invalid_handle"]:
             return None
         try:
             if not kernel32.Process32FirstW(snapshot, ctypes.byref(entry)):

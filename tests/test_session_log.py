@@ -486,12 +486,77 @@ def test_screen_digest_is_free_and_text_is_opt_in():
     check("screen_text" not in attrs_named(log, "wait.wait_ready"),
           "the screen TEXT is not recorded unless asked")
 
-    backend2, _s2, full, logged_full = build(record_snapshots=True)
+    # `record_snapshots` is consent to LOOK at the screen; `payloads` decides
+    # how much of it gets written down. The three checks below walk that ladder
+    # -- default "hash" gives a fingerprint, explicit "full" gives the text,
+    # and "none" gives a bare length. They used to assert the raw text at the
+    # DEFAULT, which is a gate written against the implementation: it pinned
+    # the one behaviour the fix had to remove, and would have gone red on the
+    # correct change. The screen's SHAPE is not lost either way -- the free
+    # `screen` digest above already carries rows/cols/selected/alt/title.
+    backend2, _s2, hashed, logged_hashed = build(record_snapshots=True)
     backend2.feed(b">>> ")
+    logged_hashed.wait_ready(marker=">>> ", min_wait_ms=0, max_wait_ms=0)
+    hashed_attrs = attrs_named(hashed, "wait.wait_ready")
+
+    backend2b, _s2b, full, logged_full = build(record_snapshots=True,
+                                              payloads=PAYLOAD_FULL)
+    backend2b.feed(b">>> ")
     logged_full.wait_ready(marker=">>> ", min_wait_ms=0, max_wait_ms=0)
     text = attrs_named(full, "wait.wait_ready").get("screen_text", "")
-    check(">>>" in text, "record_snapshots=True adds the rendered screen",
+    check(">>>" in text,
+          "an explicit payloads='full' still records the rendered screen",
           f"screen_text={text!r}")
+
+    # The case that made this a defect, and the one the DEFAULT policy decides:
+    # a credential that was actually on the screen. Asserted against the
+    # serialised log rather than against an attribute name, because the claim
+    # is that the secret does not come back -- not that a key is spelled a
+    # particular way. Without this check the default-hash gate above would still
+    # go green if the screen were written verbatim under some other key, and
+    # `payloads="hash"` being the default is exactly why it matters.
+    backend4, _s4, cred, logged_cred = build(record_snapshots=True)
+    backend4.feed(b"password: hunter2\n>>> ")
+    logged_cred.wait_ready(marker=">>> ", min_wait_ms=0, max_wait_ms=0)
+    cred_attrs = attrs_named(cred, "wait.wait_ready")
+    check("hunter2" not in cred.to_ndjson(),
+          "under the DEFAULT payloads='hash', a credential visible on screen is "
+          f"nowhere in the serialised log (attrs={cred_attrs})")
+    check(cred_attrs.get("screen_text_chars", 0) > 0,
+          "…while the screen is still accounted for by length, so the event is "
+          f"not silently blank (attrs={cred_attrs})")
+
+    # The strong form: the default describes the SAME screen the explicit
+    # 'full' run wrote down, so the fingerprint is provably a fingerprint of
+    # the real thing rather than of nothing.
+    check("screen_text" not in hashed_attrs
+          and hashed_attrs.get("screen_text_sha256_16") == text_fingerprint(text)
+          and hashed_attrs.get("screen_text_chars") == len(text),
+          "under the default 'hash' the screen is described by a length and a "
+          "fingerprint of the very text the 'full' run wrote -- enough to "
+          "answer 'did this wait see the same screen twice?' without writing it",
+          f"hashed={hashed_attrs} full_text={text!r}")
+
+    # The combination the two gates above do NOT cover: the caller asked for
+    # the screen AND chose the scrub-everything policy. `record_snapshots` is
+    # consent to record the screen; `payloads="none"` is a promise that nothing
+    # carrying user data comes back. A credential echoed on screen is the most
+    # likely secret a driving session touches, so the stricter promise has to
+    # win -- and the only thing that keeps it winning is this check. Deleting
+    # `screen_text_policy` and returning `self.payloads` passes both gates
+    # above and fails exactly this one.
+    backend3, _s3, bare, logged_bare = build(record_snapshots=True,
+                                            payloads=PAYLOAD_NONE)
+    backend3.feed(b"password: hunter2")
+    logged_bare.wait_ready(marker=">>> ", min_wait_ms=0, max_wait_ms=0)
+    scrubbed = attrs_named(bare, "wait.wait_ready")
+    check("hunter2" not in bare.to_ndjson(),
+          "the scrub-everything policy scrubs the screen TEXT too, even when "
+          "record_snapshots asked for it", f"ndjson={bare.to_ndjson()[:200]!r}")
+    check("screen_text" not in scrubbed
+          and scrubbed.get("screen_text_chars") is not None,
+          "the screen degrades to a length under payloads='none', as every other "
+          "text field does", f"attrs={scrubbed}")
 
 
 def test_elapsed_comes_from_the_injected_clock():

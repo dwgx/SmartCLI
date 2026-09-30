@@ -1199,8 +1199,22 @@ def test_windows_readback_refuses_every_grant_it_cannot_parse() -> None:
                                     (0x04, "ACCESS_ALLOWED_COMPOUND_ACE"),
                                     (0x05, "ACCESS_ALLOWED_OBJECT_ACE"),
                                     (0x0B, "ACCESS_ALLOWED_CALLBACK_OBJECT_ACE"),
-                                    (0x0E, "SYSTEM_MANDATORY_LABEL (a SACL type "
-                                           "with no business in a DACL)"),
+                                    # 0x0E is SYSTEM_ALARM_CALLBACK_ACE_TYPE in
+                                    # winnt.h, NOT SYSTEM_MANDATORY_LABEL (that is
+                                    # 0x11, with SYSTEM_RESOURCE_ATTRIBUTE at
+                                    # 0x12). It is audit/alarm, so it cannot
+                                    # grant; and since this build deliberately
+                                    # does not enumerate it, the walk must
+                                    # REFUSE it rather than wave it past. The
+                                    # SACL pair is deliberately not exercised
+                                    # here: Windows normalises a label ACE into
+                                    # a DACL to 0x00 rather than storing it, so
+                                    # the case would measure the OS, not the
+                                    # classification.
+                                    (0x0E, "SYSTEM_ALARM_CALLBACK_ACE_TYPE "
+                                           "(non-granting per winnt.h, but "
+                                           "deliberately unenumerated, so it "
+                                           "must still be refused)"),
                                     (0x7F, "an UNASSIGNED type nobody enumerated")):
                 try:
                     _win_retype_ace(reg, len(plain) - 1, ace_type)
