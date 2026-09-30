@@ -224,8 +224,8 @@ MODE_REGISTRY: Mapping[Mode, ModeSpec] = MappingProxyType({
 # This is deliberately NOT a member of :class:`Mode`. That enum's contract is
 # "a member is a single bit in ``Screen.mode``", with exactly two documented
 # exceptions (the alternate buffer and the cursor, neither of which is a bit).
-# Mouse reporting is NINE private mode numbers with no single bit: 9/1000/1002/
-# 1003 say what is tracked, 1005/1015/1006/1016 say how the coordinates are
+# Mouse reporting is EIGHT private mode numbers with no single bit: 9/1000/1002/
+# 1003 say WHAT is tracked, 1005/1015/1006/1016 say HOW the coordinates are
 # encoded. ``ModeSpec`` cannot express that — ``bit`` raises on a multi-number
 # spec rather than pick one number and report a mode that is never set as
 # permanently on — so folding it in would mean a third probe in a set whose
@@ -235,18 +235,33 @@ MODE_REGISTRY: Mapping[Mode, ModeSpec] = MappingProxyType({
 # (:attr:`ModeSpec.bit`).
 # ---------------------------------------------------------------------------
 
-#: DEC private mode numbers that mean "this program is receiving mouse events",
-#: mapped to the report ENCODING that number selects.
+#: The four TRACKING modes: "this program is receiving mouse events". 9 is the
+#: original X10 mode; 1000/1002/1003 are the VT200 ones (press, any-event,
+#: any-motion). These, and ONLY these, are what make a mouse LIVE — they are
+#: the modes that can cause a report to be sent at all.
 #:
-#: 9 is the original X10 tracking mode and 1000/1002/1003 are the VT200 tracking
-#: modes; all four carry the X10 encoding unless one of the coordinate encodings
-#: is also set. 1005 (utf8) and 1015 (urxvt) change the encoding, not what is
-#: tracked. 1016 is the SGR encoding measured in PIXELS.
+#: They are a separate set from the ENCODING modes below because conflating the
+#: two has a measured cost. ``ESC[M`` is byte-identical to delete-one-line, so
+#: the filter has to decide which one it is from the mode state — and reading
+#: "some mouse mode is on" over the UNION means a program that enabled
+#: ``?1000h ?1006h`` and later disabled only the TRACKING mode leaves the
+#: encoding set behind, after which every ``ESC[M`` on screen is a swallowed
+#: delete-line plus three eaten content bytes, with no error signal at all. A
+#: mode that says only HOW a report would be encoded cannot cause one to exist.
 #:
-#: 2004 (focus reporting) is deliberately ABSENT. It is enabled alongside mouse
-#: tracking often enough that counting it would report a live mouse on a program
-#: that only ever asked to be told about focus — a false "the mouse is live" is
-#: exactly the kind of guess this module refuses to make.
+#: 2004 (focus reporting) is deliberately ABSENT from both sets. It is enabled
+#: alongside mouse tracking often enough that counting it would report a live
+#: mouse on a program that only ever asked to be told about focus — a false
+#: "the mouse is live" is exactly the kind of guess this module refuses to make.
+MOUSE_TRACKING_MODES: frozenset[int] = frozenset({9, 1000, 1002, 1003})
+
+#: Every mouse DEC private mode number, mapped to the report ENCODING that
+#: number selects: the TRACKING modes above plus the coordinate encodings.
+#:
+#: 9/1000/1002/1003 carry the X10 encoding unless one of the coordinate
+#: encodings is also set. 1005 (utf8) and 1015 (urxvt) change the encoding, NOT
+#: what is tracked. 1016 is the SGR encoding measured in PIXELS. Read the "is
+#: anything reporting" half from :data:`MOUSE_TRACKING_MODES`.
 MOUSE_REPORTING_MODES: Mapping[int, str] = MappingProxyType({
     9: "x10",
     1000: "x10",
@@ -278,16 +293,21 @@ class MouseReport(NamedTuple):
     grid (see :data:`UNKNOWN_SEQUENCE_POLICY`).
     """
 
-    #: Is any tracking mode set? A program that has enabled reporting expects
-    #: events, so a click may land at any moment and an agent must not assume
-    #: the screen is only ever changed by the program.
+    #: Is a TRACKING mode set (:data:`MOUSE_TRACKING_MODES`)? A program that has
+    #: enabled tracking expects events, so a click may land at any moment and an
+    #: agent must not assume the screen is only ever changed by the program. An
+    #: ENCODING mode alone is deliberately NOT this: 1005/1006/1015/1016 say how
+    #: a report would be written, not that one will arrive, so ``?1006h`` by
+    #: itself leaves this False with :attr:`modes` still reporting 1006.
     enabled: bool
     #: The mode numbers currently set, e.g. ``(1006,)``. Read this against
-    #: :data:`MOUSE_REPORTING_MODES` for the encoding each one selects.
+    #: :data:`MOUSE_REPORTING_MODES` for the encoding each one selects. Reported
+    #: even when :attr:`enabled` is False, because 1006-vs-1016 is the one thing
+    #: a consumer cannot work out for itself — the two are byte-identical.
     modes: tuple[int, ...]
     #: ``True`` when a report's coordinates are CELL indices, ``False`` when
-    #: they are PIXELS, and ``None`` when nothing is reporting OR when the unit
-    #: is genuinely ambiguous.
+    #: they are PIXELS, and ``None`` when no encoding mode is set OR when the
+    #: unit is genuinely ambiguous.
     #:
     #: That last case is the reason this is a field and not a bool. 1006 (SGR)
     #: and 1016 (SGR-pixels) produce BYTE-IDENTICAL reports and differ only in
@@ -318,7 +338,14 @@ def _mouse_report(screen: pyte.Screen) -> MouseReport:
         cells = False
     else:
         cells = True            # sgr, x10 and urxvt all report CELLS
-    return MouseReport(enabled=True, modes=active, cells=cells)
+    # `enabled` is the TRACKING question ALONE, never the union with the
+    # encodings: an encoding mode is an instruction about reports that nothing
+    # is currently sending, so reporting it as a live mouse is the same false
+    # answer as counting focus reporting. `cells` is deliberately still read
+    # from the encodings, because knowing WHICH of 1006/1016 is set is exactly
+    # what lets a consumer refuse instead of guessing.
+    enabled = any(number in MOUSE_TRACKING_MODES for number in active)
+    return MouseReport(enabled=enabled, modes=active, cells=cells)
 
 
 # ---------------------------------------------------------------------------
@@ -391,14 +418,28 @@ UNKNOWN_SEQUENCE_POLICY = UnknownSequencePolicy(
 )
 
 #: Parameter bytes pyte's own CSI parser carries through a sequence without
-#: ending it early: digits, the ';' separator, the DEC private '?' marker, and
-#: the '>' and space it explicitly skips (secondary DA). pyte's loop treats ANY
-#: other byte as a final byte — it dispatches on it and returns to GROUND — so
-#: everything after it is drawn as text. Two live families live in that gap: the
-#: SGR 1006 mouse report (``ESC[<b;x;yM``, the '<' ends the sequence) and the
-#: kitty keyboard protocol (``ESC[=1u``, the '=' does the same). Naming neither
-#: here is the point: they are two instances of one rule.
-_PYTE_CSI_PARAM_BYTES = frozenset(b"0123456789;? >")
+#: ending it early: digits, the ';' separator, the DEC private '?' marker, the
+#: '>' and space it explicitly skips (secondary DA), and the seven C0 controls
+#: it EXECUTES in place mid-sequence — BEL BS HT LF VT FF CR, which pyte runs
+#: through ``basic_dispatch`` (``ALLOWED_IN_CSI`` in its ``_parser_fsm``).
+#: pyte's loop treats ANY other byte as a final byte — it dispatches on it and
+#: returns to GROUND — so everything after it is drawn as text. Two live
+#: families live in that gap: the SGR 1006 mouse report (``ESC[<b;x;yM``, the
+#: '<' ends the sequence) and the kitty keyboard protocol (``ESC[=1u``, the
+#: '=' does the same). Naming neither here is the point: they are two instances
+#: of one rule.
+#:
+#: This is a pyte-derived fact, and the test derives it the same way: it drives
+#: the installed pyte byte by byte and compares, rather than asserting equality
+#: with a second copy of this literal (which is how a wrong-but-self-consistent
+#: alphabet used to pass). Two bytes pyte ends a CSI at are deliberately NOT
+#: here: '$' and CAN/SUB ABORT the sequence instead of dispatching it — pyte
+#: draws the substitute character, or swallows one extra byte for '$' — so
+#: forwarding one would hand pyte a shape it mishandles. That is the single
+#: place the set is narrower than "what pyte carries", and it is a narrowing by
+#: choice, not by omission.
+_PYTE_CSI_PARAM_BYTES = frozenset(
+    b"0123456789;? >" + bytes((0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D)))
 
 #: How many parameters each pyte CSI entry point was written for, as
 #: ``(non-private, private)``, keyed by the single-byte final byte. -1 is the
@@ -626,7 +667,18 @@ class _ByteStream(pyte.ByteStream):
                     # guessed from the report itself: that is the whole point
                     # of tracking the mode.
                     if out:
-                        self._state = state  # stay consistent if pyte raises
+                        # The CSI is COMPLETE — parameters collected, final
+                        # byte consumed — so the state to store here is
+                        # _GROUND, not the _CSI we are standing in. If this
+                        # flush raises, ScreenModel.feed swallows it and the
+                        # NEXT feed() resumes from whatever is stored here;
+                        # a stored _CSI with an empty parameter buffer would
+                        # make it read leading bytes as parameters. _GROUND is
+                        # the state that is correct whether or not the flush
+                        # returns, which is the only kind of "stay consistent"
+                        # worth having.
+                        state = self._GROUND
+                        self._state = state
                         super().feed(bytes(out))
                         out.clear()
                     if self._mouse_reporting():
@@ -720,16 +772,22 @@ class _ByteStream(pyte.ByteStream):
             self.last_unknown = why
 
     def _mouse_reporting(self) -> bool:
-        """Is a mouse tracking mode set on the screen we are feeding?
+        """Is a mouse TRACKING mode set on the screen we are feeding?
 
         Read from ``Screen.mode`` through the same shift the mode registry uses
         (:data:`_PRIVATE_MODE_SHIFT`), because "the mouse is live" must not be
         a second, independent notion of that fact. This is the disambiguator
-        for X10, whose introducer is byte-identical to delete-one-line.
+        for X10, whose introducer is byte-identical to delete-one-line — and
+        which is exactly why it reads the four TRACKING numbers and not the
+        union with the encodings: ``ESC[M`` is a report only while something
+        can send one. An encoding mode left set after the program disabled its
+        tracking mode (``?1000h ?1006h ?1000l``) must not turn every
+        delete-one-line on the screen into a swallowed sequence plus three
+        eaten bytes.
         """
         mode = getattr(self.listener, "mode", ())
         return any(number << _PRIVATE_MODE_SHIFT in mode
-                   for number in MOUSE_REPORTING_MODES)
+                   for number in MOUSE_TRACKING_MODES)
 
     def _disposition(self, params: bytes, final: int) -> bytes | None:
         """The single place :data:`UNKNOWN_SEQUENCE_POLICY` is applied.

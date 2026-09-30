@@ -23,13 +23,18 @@ Covered here:
     CHANGED, each recorded exactly as the wait reported it, with the free screen
     digest; screen TEXT only when asked.
   * FAILURE IS STILL RECORDED: a raising call is logged with its error type and
-    re-raised; a raising sink degrades the record and never the drive.
+    re-raised; a raising sink degrades the record and never the drive. The error
+    MESSAGE is the one field that can quote a command line — password included —
+    so it obeys `payloads` like every other text: hashed by default, a length
+    only under `payloads="none"`, and absent from the serialised log entirely.
   * BOUNDS: the in-memory ring is bounded, long attributes are cut with a count,
     `close()` stops recording without touching the child, and a truncated final
     line does not cost the reader the events before it.
   * NO DRIFT: `LoggedSession`'s recorded methods have the same parameter names and
     defaults as `PtySession`'s, checked by introspection — so a wrapper can never
-    quietly default a wait differently from the runtime it wraps.
+    quietly default a wait differently from the runtime it wraps — AND every
+    parameter is watched arriving at the session with the value the caller
+    passed, which signature parity cannot see on its own.
 
 Pure/in-memory: a fake backend (no PTY, no child process), a JSON Lines file in
 a temp dir, and injected clocks — nothing here sleeps for real or spawns
@@ -53,6 +58,7 @@ from smartcli_core import PtySession  # noqa: E402
 from smartcli_core.pty_backend import PtyBackend  # noqa: E402
 from smartcli_core.readiness import EXITED_REASON  # noqa: E402
 from smartcli_core.sessionlog import (  # noqa: E402
+    MAX_ERROR_MESSAGE_CHARS,
     PAYLOAD_FULL,
     PAYLOAD_HASH,
     PAYLOAD_NONE,
@@ -152,6 +158,75 @@ def names_of(log) -> list[str]:
 def attrs_named(log, name, index=-1) -> dict:
     return log.events[index].attrs
 
+
+class CallSpy:
+    """Records every call made through the wrapper, then delegates to the real
+    session.
+
+    Recording happens BEFORE the delegation, so a call that then fails is still
+    observed: this fake is here to answer "what did the wrapper actually pass
+    on", not "what came back". Delegating keeps the return value genuine, so
+    the recorder downstream (`_timed` and its describers) still sees real
+    results rather than a stub shaped like one.
+    """
+
+    def __init__(self, session) -> None:
+        self._session = session
+        self.calls: list[tuple[str, tuple, dict]] = []
+
+    def __getattr__(self, name):
+        target = getattr(self._session, name)
+
+        def record(*args, **kwargs):
+            self.calls.append((name, args, kwargs))
+            return target(*args, **kwargs)
+
+        return record
+
+
+def _sentinel_poll(*_args, **_kwargs) -> None:
+    """A poll hook that ignores everything: a sentinel value, not a behaviour."""
+
+
+def _sentinel_alive() -> bool:
+    """A liveness predicate that agrees the fake child is alive."""
+    return True
+
+
+#: Every recorded method of the wrapper, by name. One list, so the signature
+#: parity gate and the forwarding gate cannot drift onto different subsets.
+_RECORDED_METHODS = ("start", "close", "resize", "is_alive", "send_text",
+                     "send_keys", "send_line", "snapshot", "pump", "wait_ready",
+                     "wait_stable", "wait_for", "wait_any", "wait_change",
+                     "wait_visual_change")
+
+#: One distinctive value per parameter name of those methods, chosen to differ
+#: from EVERY default ``PtySession`` declares, so a parameter the wrapper drops
+#: cannot pass for a forwarded one — it comes back as the default the session
+#: silently substituted. The waits are capped at tens of milliseconds because a
+#: sentinel marker/baseline is never going to match.
+_SENTINELS = {
+    "cmd": "sentinel-cmd",
+    "cols": 137,
+    "rows": 41,
+    "text": "sentinel-text",
+    "keys": ["SentinelDown", "SentinelEnter"],
+    "max_bytes": 3,
+    "marker": "SENTINEL-MARKER ",
+    "pattern": "SENTINEL-PATTERN",
+    "patterns": ["SENTINEL-A", "SENTINEL-B"],
+    "baseline_hash": 0x5E47,
+    "quiet_ms": 1111,
+    "poll_ms": 37,
+    "max_wait_ms": 60,
+    "min_wait_ms": 3,
+    "grace_ms": 7,
+    "flags": 3,
+    "timeout_ms": 60,
+    "on_poll": _sentinel_poll,
+    "alive_fn": _sentinel_alive,
+    "after_revision": 4242,
+}
 
 # =========================================================================
 # Off by default
@@ -434,6 +509,13 @@ def test_elapsed_comes_from_the_injected_clock():
 
 
 def test_error_is_recorded_then_reraised():
+    """A failure is recorded by POLICY, not by whatever the fix happened to be.
+
+    The message is the one attribute that can quote a command line, so the gate
+    asserts the policy itself — under the default a reader gets the length and
+    the digest, and the text is nowhere in the serialised log under ANY key. A
+    gate that only checked "the message is kept" would have pinned the leak.
+    """
     backend, _session, log, logged = build()
     backend.write_error = OSError("pty gone")
     raised = None
@@ -445,9 +527,70 @@ def test_error_is_recorded_then_reraised():
     attrs = attrs_named(log, "input.send_line")
     check(attrs.get("error_type") == "OSError",
           "the failure is in the log with its type", f"attrs={attrs}")
-    check("pty gone" in attrs.get("error_message", ""),
-          "the message is kept, cut to a length", f"attrs={attrs}")
+    check(attrs.get("error_chars") == len("pty gone")
+          and attrs.get("error_sha256_16") == text_fingerprint("pty gone"),
+          "the message is described by the policy like any other text: "
+          "length + digest", f"attrs={attrs}")
+    check("error" not in attrs,
+          "the default policy does not write the message itself down")
+    check("pty gone" not in log.to_ndjson(),
+          "the message text is nowhere in the serialised log, under any key name")
     check("outcome" not in attrs, "a failed action is not dressed up as an outcome")
+
+
+def test_error_messages_follow_the_payload_policy():
+    """`payloads="none"` has to reach the field that can carry a credential.
+
+    The probe is a spawn failure, because that is the realistic shape of this
+    leak: the runtime raises the whole command line it was handed, password
+    included, and the docstring promises the payload policy governs error
+    messages like everything else.
+    """
+    secret = "failed to spawn: ssh root@host --password hunter2"
+
+    backend, _session, log, logged = build(payloads=PAYLOAD_NONE)
+    backend.write_error = RuntimeError(secret)
+    raised = False
+    try:
+        logged.send_line("ls")
+    except RuntimeError:
+        raised = True
+    check(raised, "payloads='none' does not stop the failure reaching the caller")
+    scrubbed = attrs_named(log, "input.send_line")
+    check(scrubbed.get("error_type") == "RuntimeError",
+          "the class name survives the scrub-everything policy (a class name is "
+          "not user data)", f"attrs={scrubbed}")
+    check("error" not in scrubbed and scrubbed.get("error_chars") == len(secret),
+          "payloads='none' leaves the message as a length only", f"attrs={scrubbed}")
+    check("hunter2" not in log.to_ndjson() and secret not in log.to_ndjson(),
+          "the password is nowhere in the serialised log")
+
+    b2, _s2, full, logged_full = build(payloads=PAYLOAD_FULL)
+    b2.write_error = RuntimeError(secret)
+    try:
+        logged_full.send_line("ls")
+    except RuntimeError:
+        pass
+    clear = attrs_named(full, "input.send_line")
+    check(clear.get("error") == secret,
+          "payloads='full' opts into the message in clear, like any other text",
+          f"attrs={clear}")
+    check(clear.get("error_sha256_16") == text_fingerprint(secret),
+          "and the digest is still recorded alongside it")
+
+    b3, _s3, long_log, logged_long = build(payloads=PAYLOAD_FULL)
+    b3.write_error = RuntimeError("boom " + "x" * 400)
+    try:
+        logged_long.send_line("ls")
+    except RuntimeError:
+        pass
+    cut = attrs_named(long_log, "input.send_line")
+    written = ("boom " + "x" * 400)[:MAX_ERROR_MESSAGE_CHARS]
+    check(cut.get("error_chars") == MAX_ERROR_MESSAGE_CHARS and cut.get("error") == written,
+          "a huge message is cut to a length before anything is written",
+          f"error_chars={cut.get('error_chars')}")
+    check(cut.get("error_sha256_16") == text_fingerprint(written),
+          "the digest identifies the text that was written, not the whole message")
 
 
 def test_broken_sink_degrades_the_record_not_the_drive():
@@ -607,11 +750,13 @@ def test_the_log_never_consumes_what_it_describes():
 
 
 def test_wrapper_signatures_match_the_session():
-    """A wrapper that defaults a wait differently is a silent behaviour change."""
-    methods = ("start", "close", "resize", "is_alive", "send_text", "send_keys",
-               "send_line", "snapshot", "pump", "wait_ready", "wait_stable",
-               "wait_for", "wait_any", "wait_change", "wait_visual_change")
-    for name in methods:
+    """A wrapper that defaults a wait differently is a silent behaviour change.
+
+    Necessary, and not sufficient: it says the wrapper ACCEPTS what the session
+    accepts, with the same defaults. It cannot see whether the wrapper then
+    passes it on, which is what the next gate is for.
+    """
+    for name in _RECORDED_METHODS:
         wrapped = inspect.signature(getattr(LoggedSession, name)).parameters
         plain = inspect.signature(getattr(PtySession, name)).parameters
         check(list(wrapped) == list(plain),
@@ -621,6 +766,56 @@ def test_wrapper_signatures_match_the_session():
                       if wrapped[p].default != plain[p].default or p in ("args", "kwargs")]
         check(not mismatched, f"{name}: every default matches PtySession",
               f"differs at {mismatched}")
+
+
+def test_every_parameter_reaches_the_session():
+    """The blind spot signature parity cannot cover: the forwarding BODY.
+
+    A wrapper can accept ``after_revision``, record it in the event, and forget
+    to pass it on — the session then applies its own default and the caller
+    gets a wait that was never anchored to the screen it looked at. Introspection
+    is blind to that by construction, so this drives every recorded method with
+    a distinctive value per parameter, through a spy that records the call the
+    wrapper really made, and binds that call against ``PtySession``'s own
+    signature: a dropped parameter comes back as the default that was silently
+    substituted for it, which is exactly what must never happen.
+    """
+    for name in _RECORDED_METHODS:
+        params = inspect.signature(getattr(PtySession, name)).parameters
+        sent = {p: _SENTINELS[p] for p in params if p != "self"}
+        ambiguous = [p for p in sent
+                     if any(sent[p] == q.default for q in params.values())]
+        check(not ambiguous,
+              f"{name}: every sentinel differs from every default, so a dropped "
+              "parameter cannot pass for a forwarded one", f"ambiguous={ambiguous}")
+
+        _backend, session, log, _logged = build()
+        spy = CallSpy(session)
+        logged = LoggedSession(spy, log)
+        try:
+            getattr(logged, name)(**sent)
+        except Exception:
+            # A sentinel can make the DRIVE object (nothing ever matches it);
+            # the call was already recorded, and the call is what is asserted.
+            pass
+        calls = [c for c in spy.calls if c[0] == name]
+        check(len(calls) == 1,
+              f"{name}: the wrapper calls the session exactly once",
+              f"calls={[c[0] for c in spy.calls]}")
+        if not calls:
+            continue
+        try:
+            bound = inspect.signature(getattr(PtySession, name)).bind(
+                object(), *calls[0][1], **calls[0][2])
+        except TypeError as exc:
+            check(False, f"{name}: the forwarding call still binds to "
+                         f"PtySession.{name}", str(exc))
+            continue
+        reached = {p: v for p, v in bound.arguments.items() if p != "self"}
+        wrong = {p: {"sent": s, "reached": reached.get(p, "<NOT FORWARDED>")}
+                 for p, s in sent.items() if reached.get(p) != s}
+        check(not wrong, f"{name}: every parameter reaches the session unchanged",
+              f"wrong={wrong}")
 
 
 def main() -> int:
@@ -642,6 +837,7 @@ def main() -> int:
         test_screen_digest_is_free_and_text_is_opt_in,
         test_elapsed_comes_from_the_injected_clock,
         test_error_is_recorded_then_reraised,
+        test_error_messages_follow_the_payload_policy,
         test_broken_sink_degrades_the_record_not_the_drive,
         test_close_stops_recording_but_not_the_child,
         test_in_memory_ring_is_bounded,
@@ -651,6 +847,7 @@ def main() -> int:
         test_unrecorded_surface_passes_through,
         test_the_log_never_consumes_what_it_describes,
         test_wrapper_signatures_match_the_session,
+        test_every_parameter_reaches_the_session,
     ):
         fn()
     wall = _real_time.perf_counter() - t0

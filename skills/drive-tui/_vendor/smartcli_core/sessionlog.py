@@ -75,6 +75,12 @@ something different?" -- without writing the keystrokes down. Pass
 sensitive; ``payloads="none"`` drops even the digest. The same policy governs
 argv, screen text, error messages and anything else that can carry user data.
 
+An exception message is the sharpest case of that rule, and the easiest to get
+wrong: a spawn that fails raises the whole command line it was handed --
+``RuntimeError('failed to spawn: ssh root@host --password hunter2')`` is a real
+string a real backend produces -- so the message is scrubbed like any other
+text. What stays verbatim is ``error_type``: a class name is not user data.
+
 WHAT IS FREE
 ------------
 The screen digest on a wait's event is read off the :class:`Snapshot` the wait
@@ -132,6 +138,10 @@ PAYLOAD_FULL = "full"    # the text itself
 #: gets decided.
 DEFAULT_MAX_ATTR_CHARS = 4096
 
+#: Longest exception message kept, cut BEFORE the payload policy runs, so the
+#: digest always identifies exactly the text ``payloads="full"`` would write.
+MAX_ERROR_MESSAGE_CHARS = 200
+
 #: How many events stay retrievable in memory. The sink (a file, a queue) is the
 #: record of truth; this ring is a convenience for a post-mortem in the same
 #: process, and it is bounded so a long session cannot grow without limit.
@@ -167,13 +177,43 @@ def text_fingerprint(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:_FINGERPRINT_HEX]
 
 
-def error_attrs(exc: BaseException) -> dict[str, Any]:
-    """How a raised exception appears in an event.
+def payload_attrs(key: str, text: str, policy: str) -> dict[str, Any]:
+    """How one piece of text appears in an event, under ``policy``.
 
-    The message is cut: a traceback-derived message can be enormous, and the
-    exception TYPE is what identifies the failure.
+    Always ``<key>_chars``; with ``"hash"`` (the default) also
+    ``<key>_sha256_16``; with ``"full"`` also ``<key>``; with ``"none"``
+    nothing else. The length is metadata, not content, so it survives even
+    the scrub-everything policy.
+
+    The single funnel every text-bearing attribute goes through -- keystrokes,
+    argv, screen text, queries, exception messages. One implementation is what
+    makes the promise in the module docstring true rather than aspirational.
     """
-    return {"error_type": type(exc).__name__, "error_message": str(exc)[:200]}
+    attrs: dict[str, Any] = {f"{key}_chars": len(text)}
+    if policy == PAYLOAD_NONE:
+        return attrs
+    attrs[f"{key}_sha256_16"] = text_fingerprint(text)
+    if policy == PAYLOAD_FULL:
+        attrs[key] = text
+    return attrs
+
+
+
+def error_attrs(exc: BaseException, *, policy: str = PAYLOAD_HASH) -> dict[str, Any]:
+    """How a raised exception appears in an event, under the payload policy.
+
+    ``error_type`` is recorded whatever the policy: it is a class name, and it
+    is what identifies the failure. The MESSAGE is the opposite -- it can quote
+    the command line that failed, token included -- so it goes through
+    ``policy`` exactly like every other text-bearing field. It is cut to
+    :data:`MAX_ERROR_MESSAGE_CHARS` first, so a huge traceback-derived message
+    cannot ride along under ``payloads="full"``, and the digest then identifies
+    precisely the text that policy would have written.
+    """
+    return {
+        "error_type": type(exc).__name__,
+        **payload_attrs("error", str(exc)[:MAX_ERROR_MESSAGE_CHARS], policy),
+    }
 
 
 def screen_digest(snapshot: Snapshot) -> dict[str, Any]:
@@ -488,20 +528,11 @@ class SessionLog:
         nothing else. The length is metadata, not content, so it survives even
         the scrub-everything policy.
         """
-        return self._text_attrs(key, text, self.payloads)
+        return payload_attrs(key, text, self.payloads)
 
     def query_attrs(self, key: str, text: str) -> dict[str, Any]:
         """Same, for an AGENT-AUTHORED query: a marker, a regex, a key sequence."""
-        return self._text_attrs(key, text, self.queries)
-
-    def _text_attrs(self, key: str, text: str, policy: str) -> dict[str, Any]:
-        attrs: dict[str, Any] = {f"{key}_chars": len(text)}
-        if policy == PAYLOAD_NONE:
-            return attrs
-        attrs[f"{key}_sha256_16"] = text_fingerprint(text)
-        if policy == PAYLOAD_FULL:
-            attrs[key] = text
-        return attrs
+        return payload_attrs(key, text, self.queries)
 
     def record(self, name: str, attrs: Mapping[str, Any] | None = None,
                **fields: Any) -> SessionEvent | None:
@@ -620,7 +651,7 @@ class LoggedSession:
         try:
             result = call()
         except Exception as exc:
-            payload.update(error_attrs(exc))
+            payload.update(error_attrs(exc, policy=log.payloads))
             log.record(name, payload, elapsed_ms=round((log.monotonic() - t0) * 1000.0, 3))
             raise
         if kind is not None:

@@ -50,6 +50,7 @@ from pathlib import Path
 import random
 import sys
 import unittest
+from unittest import mock
 
 ap = argparse.ArgumentParser(add_help=False)
 ap.add_argument("--repo", type=Path, default=Path(__file__).resolve().parents[1])
@@ -60,6 +61,7 @@ try:
     from smartcli_core.screen_model import (
         MODE_REGISTRY,
         MOUSE_REPORTING_MODES,
+        MOUSE_TRACKING_MODES,
         UNKNOWN_SEQUENCE_POLICY,
         Mode,
         ScreenModel,
@@ -114,6 +116,37 @@ def state(model: ScreenModel):
 
 def row0(model: ScreenModel) -> str:
     return model.display[0].rstrip()
+
+
+def _pyte_carries(byte: int) -> bool:
+    """Does the INSTALLED pyte carry ``byte`` through a CSI without ending it?
+
+    Derived by driving pyte rather than asserted about it, because the failure
+    this feeds is a wrong-but-self-consistent alphabet, which a second copy of
+    the constant cannot catch. The probe is ``ESC[1;<b>2h`` on a fresh stock
+    screen: ``set_mode`` is the one pyte handler that accepts any arity AND
+    is visible in ``Screen.mode``, so the byte under test can neither raise
+    nor draw, and the verdict is a set difference against the modes a bare
+    screen starts with:
+
+    * carried — the CSI is still open, so the handler sees both parameters
+      (mode 1 alongside 2, or 32 alongside 64 when ``<b>`` was the private
+      marker), and the gain is not the bare ``{2}``;
+    * ended — only the fresh ``ESC[2h`` ran, so the gain IS ``{2}``;
+    * ended by ABORT (``$``, CAN, SUB) — nothing was dispatched at all, so the
+      gain is empty, which is likewise not "carried".
+
+    A byte that ends the sequence by raising (the arity trap at ``ESC[1;'``)
+    answers False: a sequence pyte cannot parse is not one it can carry.
+    """
+    bare = frozenset(pyte.Screen(20, 4).mode)
+    screen = pyte.Screen(20, 4)
+    try:
+        pyte.ByteStream(screen).feed(b"\x1b[1;" + bytes((byte,)) + b"2h")
+    except Exception:            # a byte that made pyte raise is one it cannot carry
+        return False
+    gained = frozenset(screen.mode) - bare
+    return bool(gained) and gained != frozenset({2})
 
 
 class MouseReportsNeverReachPyte(unittest.TestCase):
@@ -239,6 +272,29 @@ class X10NeedsTheMode(unittest.TestCase):
                         b"\x1b[M\x20\x2b\x25")
                 self.assertEqual(m.display[1].rstrip(), "B")
                 self.assertEqual(m.unknown_sequences, 1)
+
+    def test_an_encoding_alone_leaves_esc_m_a_delete_one_line(self):
+        # The measured defect. A program that enabled ?1000h ?1006h and later
+        # disabled ONLY the tracking mode leaves the encoding set behind, and
+        # from then on ESC[M is delete-one-line in xterm. Read as a report it
+        # swallowed the sequence AND the three bytes after it — content — with
+        # no error signal: the exact defect REJECT-DON'T-GUESS exists to end,
+        # reintroduced through the disambiguator added to prevent it.
+        for modes in (b"\x1b[?1005h", b"\x1b[?1006h", b"\x1b[?1015h",
+                      b"\x1b[?1016h",
+                      b"\x1b[?1000h\x1b[?1006h\x1b[?1000l"):
+            with self.subTest(modes=modes):
+                m = fed(b"one\r\ntwo\r\nthree", modes, b"\x1b[H", b"\x1b[M")
+                self.assertEqual(m.display[0].rstrip(), "two")
+                self.assertEqual(m.unknown_sequences, 0, m.last_unknown)
+                # And those three bytes are CONTENT, not a payload: 'X' is
+                # what proves it, and DL keeps the cursor column, so it lands
+                # over the first character of the shifted line.
+                trailing = fed(b"one\r\ntwo\r\nthree", modes, b"\x1b[H",
+                               b"\x1b[M", b"X")
+                self.assertEqual(trailing.display[0].rstrip(), "Xwo",
+                                 "the byte after ESC[M was swallowed")
+                self.assertEqual(trailing.unknown_sequences, 0)
 
     def test_a_half_arrived_report_is_not_a_complete_observation(self):
         m = fed(X10_ON, b"A\x1b[M\x20\x2b")
@@ -396,13 +452,42 @@ class ThePolicyItself(unittest.TestCase):
         self.assertTrue(_CSI_PRIVATE_OK <= set(_CSI_MAX_PARAMS))
 
     def test_the_param_alphabet_is_what_pyte_can_carry(self):
-        # pyte's loop ends a CSI at the first byte it does not absorb, so the
-        # accepted set is digits, ';', '?', and the two it explicitly skips.
-        self.assertEqual(_PYTE_CSI_PARAM_BYTES,
-                         frozenset(b"0123456789;? >"))
+        # DERIVED from the installed pyte, byte by byte, rather than restated.
+        # The domain is every byte the filter can collect as a parameter:
+        # everything except 0x40-0x7E, which are the FINAL bytes and the other
+        # half of the same rule (see the arity table above).
+        probe = [b for b in range(0x100) if not 0x40 <= b <= 0x7E]
+        derived = frozenset(b for b in probe if _pyte_carries(b))
+        self.assertEqual(_PYTE_CSI_PARAM_BYTES, derived)
         for bad in (b"<", b"=", b":", b"!", b"@", b"/"):
             with self.subTest(byte=bad):
                 self.assertNotIn(bad, _PYTE_CSI_PARAM_BYTES)
+        # So the comparison above cannot pass vacuously: if the derivation ever
+        # answered True for everything, this is the assertion that turns red.
+        self.assertLess(len(derived), len(probe))
+
+    def test_a_c0_control_inside_a_csi_is_executed_not_rejected(self):
+        # Seven of the alphabet's bytes are the C0 controls pyte RUNS mid-CSI
+        # (ALLOWED_IN_CSI), and they belong there: a real terminal executes a
+        # control that arrives inside a sequence, so rejecting one would drop a
+        # sequence pyte handles. VT is the visible case — 'B' lands on the
+        # next line instead of the sequence being consumed.
+        m = fed(b"A\x1b[1;\x0b0mB")
+        self.assertEqual(m.unknown_sequences, 0, m.last_unknown)
+        self.assertEqual(m.display[0].rstrip(), "A")
+        self.assertEqual(m.display[1].rstrip().strip(), "B")
+        self.assertEqual(m.cursor, (1, 2),
+                         "the VT ran mid-sequence, down one line in place")
+
+    def test_a_byte_pyte_aborts_a_csi_on_is_still_rejected(self):
+        # The one deliberate narrowing: '$', CAN and SUB end a CSI in pyte
+        # WITHOUT dispatching it (pyte draws the substitute, or swallows one
+        # more byte for '$'), so forwarding one hands pyte a shape it mishandles.
+        for payload in (b"A\x1b[1;$0mB", b"A\x1b[1;\x180mB", b"A\x1b[1;\x1a0mB"):
+            with self.subTest(payload=payload):
+                m = fed(payload)
+                self.assertEqual(row0(m), "AB")
+                self.assertEqual(m.unknown_sequences, 1)
 
     def test_every_expressible_mouse_mode_is_registered(self):
         # 2004 reports focus, not the mouse; counting it would report a live
@@ -410,6 +495,14 @@ class ThePolicyItself(unittest.TestCase):
         self.assertEqual(set(MOUSE_REPORTING_MODES), {9, 1000, 1002, 1003,
                                                       1005, 1006, 1015, 1016})
         self.assertNotIn(2004, MOUSE_REPORTING_MODES)
+        # The tracking/encoding split is a policy, not a convenience: the four
+        # numbers that can make a report EXIST are the four that make the mouse
+        # live, and an encoding left set after the tracking mode is switched off
+        # must not resurrect it. Two asserted sets, so folding them back
+        # together fails here rather than in a wrong grid.
+        self.assertEqual(MOUSE_TRACKING_MODES, frozenset({9, 1000, 1002, 1003}))
+        self.assertTrue(MOUSE_TRACKING_MODES <= set(MOUSE_REPORTING_MODES))
+        self.assertNotIn(2004, MOUSE_TRACKING_MODES)
 
 
 class ConsumedGraphicsStringsAreObservable(unittest.TestCase):
@@ -588,6 +681,33 @@ class UnknownSequencesStayRecoverable(unittest.TestCase):
         self.assertEqual(m.unknown_sequences, 400)
         self.assertEqual(m.feed_errors, 0)
 
+    def test_a_raising_flush_cannot_leave_the_stream_mid_csi(self):
+        # The X10 disambiguator flushes the pending batch before it reads the
+        # mode, so the state it stores has to be right for the case where that
+        # flush raises. It used to store the _CSI it was standing in, which is
+        # right only if the flush RETURNS — and the comment next to it claimed a
+        # consistency the code did not have. Unreachable through pyte today
+        # (_disposition pre-rejects every shape pyte raises on), so the gate
+        # makes pyte raise here on purpose.
+        m = fed()
+        stream = m.stream
+
+        def boom(_self, _data):
+            raise RuntimeError("pyte raised on the flush")
+
+        # "A" and the ESC[M have to arrive in ONE read: the flush only happens
+        # when the pending batch is still un-forwarded, which is the whole
+        # reason the X10 branch flushes first.
+        with mock.patch.object(pyte.ByteStream, "feed", boom):
+            m.feed(b"A\x1b[M")
+        self.assertEqual(m.feed_errors, 1, "the raise must be visible, not silent")
+        self.assertEqual(stream._state, stream._GROUND,
+                         "a raising flush left the filter mid-sequence")
+        m.feed(b"B")
+        self.assertEqual(row0(m), "B",
+                         "the next feed resumed inside a stale CSI, so 'B' was "
+                         "read as a final byte instead of drawn")
+
 
 class MouseModeQuery(unittest.TestCase):
     """An agent must be able to ask whether the mouse is live, and in what unit."""
@@ -598,11 +718,23 @@ class MouseModeQuery(unittest.TestCase):
         self.assertEqual(r.modes, ())
         self.assertIsNone(r.cells)
 
-    def test_every_registered_mode_is_reported(self):
-        for number in MOUSE_REPORTING_MODES:
+    def test_every_tracking_mode_is_reported_as_a_live_mouse(self):
+        for number in MOUSE_TRACKING_MODES:
             with self.subTest(mode=number):
                 r = fed(b"\x1b[?%dh" % number).mouse_report
                 self.assertTrue(r.enabled)
+                self.assertEqual(r.modes, (number,))
+
+    def test_an_encoding_alone_is_reported_but_is_not_a_live_mouse(self):
+        # The policy, asserted as the policy. 1005/1006/1015/1016 say HOW a
+        # report would be written; nothing is sending one, so "enabled" on
+        # their strength is the same false "the mouse is live" that keeping
+        # 2004 out avoids. The encoding is still reported — 1006 and 1016 are
+        # byte-identical and a consumer cannot work that out for itself.
+        for number in set(MOUSE_REPORTING_MODES) - MOUSE_TRACKING_MODES:
+            with self.subTest(mode=number):
+                r = fed(b"\x1b[?%dh" % number).mouse_report
+                self.assertFalse(r.enabled)
                 self.assertEqual(r.modes, (number,))
 
     def test_modes_are_stored_the_way_pyte_stores_them(self):
@@ -615,7 +747,8 @@ class MouseModeQuery(unittest.TestCase):
                          "pyte stores private modes shifted left by five")
         m = fed(b"\x1b[?1006h")
         self.assertIn(1006 * factor, m.screen.mode)
-        self.assertTrue(m.mouse_report.enabled)
+        self.assertFalse(m.mouse_report.enabled,
+                         "a stored ENCODING bit is not a live mouse")
 
     def test_sgr_1006_reports_cells(self):
         self.assertIs(fed(b"\x1b[?1000h\x1b[?1006h").mouse_report.cells, True)
@@ -623,14 +756,23 @@ class MouseModeQuery(unittest.TestCase):
     def test_sgr_1016_reports_pixels(self):
         # Byte-identical reports; the unit is the only difference, and reading
         # pixels as cells points at a row that does not exist.
-        r = fed(b"\x1b[?1016h").mouse_report
+        r = fed(b"\x1b[?1000h\x1b[?1016h").mouse_report
         self.assertTrue(r.enabled)
         self.assertIs(r.cells, False)
+        # The unit survives the refusal to call it enabled, because it is still
+        # the fact a consumer needs: dropping it would force the guess this
+        # field exists to prevent.
+        encoding_only = fed(b"\x1b[?1016h").mouse_report
+        self.assertFalse(encoding_only.enabled)
+        self.assertIs(encoding_only.cells, False)
 
     def test_1006_and_1016_together_refuse_rather_than_guess(self):
-        r = fed(b"\x1b[?1006h\x1b[?1016h").mouse_report
+        r = fed(b"\x1b[?1000h\x1b[?1006h\x1b[?1016h").mouse_report
         self.assertTrue(r.enabled)
         self.assertIsNone(r.cells, "an unknowable unit must not be resolved")
+        encoding_only = fed(b"\x1b[?1006h\x1b[?1016h").mouse_report
+        self.assertFalse(encoding_only.enabled)
+        self.assertIsNone(encoding_only.cells)
 
     def test_reset_turns_it_off_again(self):
         for number in MOUSE_REPORTING_MODES:
@@ -655,11 +797,11 @@ class MouseModeQuery(unittest.TestCase):
 
     def test_mouse_is_not_reachable_through_the_closed_mode_enum(self):
         # The closed set is a single-bit contract with two documented
-        # exceptions; mouse reporting is nine numbers with no single bit, so
+        # exceptions; mouse reporting is eight numbers with no single bit, so
         # adding it there would need a third probe. Assert the consequence
         # rather than the preference, so the next person to "just add it as a
         # Mode" meets a failure instead of a comment.
-        m = fed(b"\x1b[?1006h")
+        m = fed(b"\x1b[?1000h\x1b[?1006h")
         self.assertTrue(m.mouse_report.enabled)
         self.assertNotIn("mouse_report", {member.value for member in Mode})
         with self.assertRaises(ValueError):

@@ -698,8 +698,11 @@ golden-frame regression suite for tui-ui, multi-process coverage, and the
 contributor onramp.
 
 ### Added
-- **MCP server over the drive-tui daemon** (`skills/drive-tui/scripts/mcp_server.py`,
-  `pip install "smartcli-toolkit[mcp]"`). Exposes the daemon's verb surface as 11
+- **MCP server over the drive-tui daemon** (`skills/drive-tui/scripts/mcp_server.py`;
+  it shipped behind a `smartcli-toolkit[mcp]` extra, **since removed** — `mcp` is a
+  required dependency from v0.2.0 on, so plain `pip install smartcli-toolkit` is the
+  install command and the `[mcp]` extra no longer resolves). Exposes the daemon's
+  verb surface as 11
   MCP tools (`start`, `list_sessions`, `snapshot`, `send_text`, `send_line`,
   `send_keys`, `wait_regex`, `wait_ready`, `alive`, `resize`, `close`) so any MCP
   client can drive interactive TUIs. It reuses the CLI's client layer, so the
@@ -820,7 +823,11 @@ Initial public release.
 - **`tui-ui` skill** — a web-like, cell-accurate terminal layout engine emitting
   tmux-safe ANSI frames (SGR + newlines only), with **15 widgets** and an engine of four
   primitives (`field.py`, `raster.py`, `box_junction.py`, `color_model.py`). Correct
-  CJK/emoji/ZWJ cell-width handling so columns never desync.
+  CJK/emoji/ZWJ cell-width handling so columns never desync. *(0.1.0 record, kept as
+  written: the "15 widgets" was right then and is 17 now. Annotated 2026-10-01 —
+  of the four primitives named above, only `field.py` and `raster.py` are on the
+  render path; `box_junction.py` and `color_model.py` ship unwired, so "engine of
+  four primitives" overstates what the renderer composes.)*
 - **Knowledge graph (`knowledge/`)** — a 122-note wiki-link graph of measured rendering
   formulas, ANSI sequences, and constants, each note sourced and cross-linked; entry
   point `knowledge/INDEX.md`.

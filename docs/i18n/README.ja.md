@@ -240,10 +240,15 @@ ocean、synthwave、viridis、pastel、matrix-green、rainbow）にわたって�
 **`tui-ui`**（`skills/tui-ui`）— tmux セーフな ANSI フレーム（SGR カラーラン + 改行のみ。
 カーソル移動なし、代替スクリーンなし）を出力する、Web ライクなターミナルレイアウトエンジン。**17 種の
 ウィジェット**（badge、banner、braille_chart、card、fuzzy_filter_list、gradient_rule、kv、meter、panel、
-preview_pane、progress、radial_glow、rule、slider_track、table、tabs、tree）を、本物の**エンジン**の上に載せています。
-`field.py`（シェーダコンポジタ）、`raster.py`（サブセルの half/quad/braille ピクセル）、
-`box_junction.py`（辺の代数による罫線結合）、`color_model.py`（トゥルーカラー → 256 → 16 → mono
-への正直なデグレード）。CJK / 絵文字 / ZWJ に対して表示セル単位で正確なので、列がずれることはありません。
+preview_pane、progress、radial_glow、rule、slider_track、table、tabs、tree）を載せています。
+レンダリング経路が実際に呼ぶのは 2 つのエンジンモジュール——
+`field.py`（シェーダコンポジタ）、`raster.py`（サブセルの half/quad/braille ピクセル）——
+で、加えて同梱しているが**レンダラーには結線されていない**独立ヘルパーが 2 つあります:
+`box_junction.py`（辺の代数による罫線結合。実際に効く罫線経路は `core.py` の
+`BOX_STYLES`／`draw_border` で、`BoxGrid` は自身のセルフテストでのみ実行される）、
+`color_model.py`（呼び出し側が自分でデグレードするためのトゥルーカラー → 256 → 16 → mono
+のラダー。`Canvas.to_ansi()` は常に truecolor `38;2` を出力し、これを呼ぶことはない）。
+CJK / 絵文字 / ZWJ に対して表示セル単位で正確なので、列がずれることはありません。
 
 **`drive-tui`**（`skills/drive-tui`）— 対話型のターミナルプログラム（REPL、メニュー、ページャ、
 y/N プロンプト、ウィザード）を PTY 経由で駆動します。ブラインドスリープではなく、

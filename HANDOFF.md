@@ -88,9 +88,9 @@ SmartCLI is **published and public**; latest RELEASED version **v0.2.3** (2026-0
 
 **cmd-art skill (`skills/cmd-art/`).** Helps a human design CMD/terminal visual effects and ASCII art from a one-line request, via `fx` — a "living-template" engine: an `Effect` ABC + `@register` decorator + pkgutil auto-discovery, so effects, themes, and multi-effect shows all compose. Pure Python stdlib (optional `pyfiglet`/`PIL`), truecolor tuned for Windows Terminal. CLI is `python -m fx <list|show|play|gallery|random|show --seq/--script>`; `play` is **bounded by default** (10s on a TTY), degrades to one plain frame on non-TTY, and always restores the terminal via try/finally. Effects are **pure frame producers** (return one full frame; never print/sleep/touch ANSI modes — the play loop owns the terminal). 8 themes; a legacy `scripts/ascii_fx.py` shim preserves the old surface.
 
-**tui-ui skill (`skills/tui-ui/`).** A web-like terminal UI layout engine + widgets emitting **tmux-safe ANSI frames** (SGR color runs + newlines only — no cursor moves, no alt-screen). You compose a tree of renderables (CSS box model margin→border→padding→content, border-box default; `VStack/HStack/Grid/Page` with `Fr` fractional units); it resolves sizes, composites cell grids, and serializes **once**. Everything is display-cell accurate (CJK/emoji/ZWJ/VS16/flag-pairs via `ui.core.width()`, never `len()`), so columns never desync. Beyond widgets it has a real **ENGINE**: `field.py` (CellField shader — LinearGradient/RadialGlow/Ripple/Plasma + Over/Add/Mask/Translate compositors, ASPECT=2 distance), `raster.py` (sub-cell half/quad/braille pixels), `box_junction.py` (edge-algebra auto-connecting `┼┬┤`), `color_model.py` (honest truecolor→256→16→mono degrade). It produces *frames*; something else owns the terminal (contrast drive-tui). **17 widgets live** (11 core + 6 in `ui/widgets_ext/`: `gradient_rule`, `radial_glow`, `slider_track`, `braille_chart`).
+**tui-ui skill (`skills/tui-ui/`).** A web-like terminal UI layout engine + widgets emitting **tmux-safe ANSI frames** (SGR color runs + newlines only — no cursor moves, no alt-screen). You compose a tree of renderables (CSS box model margin→border→padding→content, border-box default; `VStack/HStack/Grid/Page` with `Fr` fractional units); it resolves sizes, composites cell grids, and serializes **once**. Everything is display-cell accurate (CJK/emoji/ZWJ/VS16/flag-pairs via `ui.core.width()`, never `len()`), so columns never desync. Beyond widgets it has an **ENGINE of two modules the render path actually calls**: `field.py` (CellField shader — LinearGradient/RadialGlow/Ripple/Plasma + Over/Add/Mask/Translate compositors, ASPECT=2 distance) and `raster.py` (sub-cell half/quad/braille pixels). Two further modules ship but are **NOT wired into the renderer** (corrected 2026-10-01): `box_junction.py` (`BoxGrid` edge algebra — borders actually draw through `BOX_STYLES`/`draw_border` in `ui/core.py`, and `BoxGrid` executes only inside its own `__main__` self-test) and `color_model.py` (a truecolor→256→16→mono ladder — `Canvas.to_ansi()` emits `38;2` unconditionally and nothing imports it). It produces *frames*; something else owns the terminal (contrast drive-tui). **17 widgets live** (11 core + 6 in `ui/widgets_ext/`: `gradient_rule`, `radial_glow`, `slider_track`, `braille_chart`).
 
-**Knowledge graph (`knowledge/`).** A navigable wiki-link graph — **143 `.md` files**, of which **125 concept/works entries** (98 concept incl. 3 ground-truth + 27 works; 123 unique slugs — `tmux-capture-pane` intentionally ×3), plus 7 READMEs, INDEX, and 10 `sources/` research digests. Each note carries an exact formula/sequence/constant, a **Source:**, and double-bracketed cross-links. Core discipline is lane-selection: **replica task → measure ground truth first** (start at `[[hard-lessons]]` + `[[effort-selector]]`); **creative task → compose the four primitives** (start at `[[rendering-model]]`). Integrity (re-checked 2026-07-13): 0 dangling links (every `[[slug]]` resolves; the only bracketed non-links are the literal `[[filename-slug]]`/`[[links]]`/`[[see also]]` syntax examples in the section READMEs). A handful of digest-level uncertainties are still honestly marked `*(verify)*` in `INDEX.md` (neo/sl/notcurses/chafa) — see §3 for the correct status.
+**Knowledge graph (`knowledge/`).** A navigable wiki-link graph — **143 `.md` files**, of which **125 concept/works entries** (98 concept incl. 3 ground-truth + 27 works; 123 unique slugs — `tmux-capture-pane` intentionally ×3), plus 7 READMEs, INDEX, and 10 `sources/` research digests. Each note carries an exact formula/sequence/constant, a **Source:**, and double-bracketed cross-links. Core discipline is lane-selection: **replica task → measure ground truth first** (start at `[[hard-lessons]]` + `[[effort-selector]]`); **creative task → compose the primitives** (start at `[[rendering-model]]`; of the four the note names, `field.py` and `raster.py` are the live render path — see §1 and §3). Integrity (re-checked 2026-07-13): 0 dangling links (every `[[slug]]` resolves; the only bracketed non-links are the literal `[[filename-slug]]`/`[[links]]`/`[[see also]]` syntax examples in the section READMEs). A handful of digest-level uncertainties are still honestly marked `*(verify)*` in `INDEX.md` (neo/sl/notcurses/chafa) — see §3 for the correct status.
 
 ---
 
@@ -174,7 +174,7 @@ python tests\test_degenerate_inputs.py  # the degenerate-input regression locks 
 python tests\test_fx_contract.py        # 30 effects x sizes, exact frame contract (enumerates all_effects())
 python tests\_drive_probe6.py           # pager/form/wizard driven LIVE
 python tests\_tui_cli_probe.py          # drive-tui CLI + token-auth
-python skills\tui-ui\ui\box_junction.py # box_junction _selftest (module-level)
+(cd skills\tui-ui && python -m ui.box_junction)  # box_junction _selftest; needs -m (relative imports)
 # standing regression gate (must stay exit-0):
 python tests\verify_fx.py               # 38/38 (30 effects + 8 fixed checks); known random-seconds flake — rerun once
 python tests\_readme_literal.py         python tests\probe_pty_fx.py
@@ -189,7 +189,7 @@ Plus: 3 external-AI fixes (2026-07-07) still exit 0 — README literal import-or
 
 **Lane selection (the one discipline that matters):**
 - **Replica task** (recreate a real program's look) → *measure ground truth first.* Start at **`[[hard-lessons]]`** (the 10 rules, §4 below) and **`[[effort-selector]]`** (the worked replica). Decompile / drive / capture the real thing before you write render code.
-- **Creative task** (design something new) → *compose the four primitives.* Start at **`[[rendering-model]]`**: field shaders (`field.py`), sub-cell raster (`raster.py`), box junctions (`box_junction.py`), honest color degrade (`color_model.py`). Most "new" effects are a composition of these plus a case study in `works/`.
+- **Creative task** (design something new) → *compose the primitives.* Start at **`[[rendering-model]]`**: field shaders (`field.py`) and sub-cell raster (`raster.py`) are the two the render path actually calls; box junctions (`box_junction.py`) and the colour ladder (`color_model.py`) ship alongside but are **not** wired into the renderer (corrected 2026-10-01 — borders go through `BOX_STYLES`/`draw_border`, and the canvas emits truecolor unconditionally). Most "new" effects are a composition of the live pair plus a case study in `works/`.
 
 The **Works wing** (`works/`, 27 studied programs — cbonsai, no-more-secrets, sl, asciiquarium, cava, firework-rs, chafa, notcurses, neo …) is the design brain: each has a real source URL and the extracted algorithm. The six newest concept notes distilled from them are the ready building blocks: `effects/procedural-branching` (cbonsai recursion), `effects/decrypt-reveal` (nms 3-phase reveal), `effects/sprite-scroll` (sl/asciiquarium blit), `effects/color-mask-sprites` (parallel glyph/color layers), `effects/particle-system` (firework-rs float physics), `effects/spectrum-bars` (cava log-bins + eighth-blocks). `sources/` holds the 10 raw research digests behind the notes. The `neo`/`sl`/`notcurses`/`chafa` notes were **source-verified on 2026-07-08** (each note's `Source:` line names the file checked) and carry no inline `*(verify)*` flags; the one remaining unresolved `*(verify)*` is the galleries note in `works/README.md`. (Re-checked against disk 2026-07-27 — an earlier draft of this paragraph had the direction reversed; when in doubt, grep the notes themselves.)
 
@@ -853,8 +853,18 @@ on entry (measured). `ScreenModel.screen.alt_screen` exposes the state.
 routinely. Colons inside `CSI ... m` are now normalised to ';' before parsing —
 the attribute may degrade, no debris reaches the grid.
 
-Also verified already-correct and now locked: DECCKM, mouse 1000/1002/1006,
-OSC 0/7, bracketed paste, DECAWM off, cursor hide/show.
+Also verified already-correct and now locked: DECCKM, OSC 0/7, bracketed paste,
+DECAWM off, cursor hide/show. **Mouse 1000/1002/1006 was in that list and should
+not have been — corrected 2026-10-01.** Neither differential probe has a mouse
+case at all (`tests/_diff_tmux_pyte.py` and `tests/_diff_two_refs.py` contain no
+mouse case and no `1000/1002/1006` byte), so nothing was ever arbitrated against a
+reference emulator. What *is* locked is the **mode bits**: pyte records them and
+`MOUSE_REPORTING_MODES` (`smartcli_core/screen_model.py:250`) maps each of the nine
+DEC private mode numbers to the encoding it selects, read over the same
+`Screen.mode` shift — that mapping is unit-tested. And mouse **reports are
+consumed, never drawn**: there is no mouse cursor or drag in the grid model. The
+glyph-level rendering of a mouse report is *not* verified and should not be read
+into that sentence.
 
 Totals after this round: curated tmux probe **35/35**, three-way probe **35/35**,
 generative fuzz **10/10 seeds x 40 payloads**, deterministic gates **17** + the
@@ -1150,8 +1160,30 @@ files apply cleanly and the suite stays at 117 passed / 1 xfailed. So the six ca
 be filed without waiting on #212 — which matters, because that upstream's last
 merge was ~11 months ago and attaching mechanical wins to an unreviewed PR makes
 them hostage to it. Do NOT upstream IL/DL from outside a scroll region (tmux performs
-it, GNU screen discards it — no ground truth) or ZWJ cluster width (master already
-picked tmux's side via `grapheme_clusters`).
+it, GNU screen discards it — no ground truth).
+
+**The ZWJ-cluster-width entry above was justified as "no ground truth". That is no
+longer accurate and is corrected here (2026-10-01).** `ucs-detect` publishes
+automated per-terminal measurements (its results table covers **39** emulators),
+so ground truth now *exists* — it just does not agree with one answer. Measured
+ZWJ/VS16 scores split by terminal: kitty 100/100, Windows Terminal 100/100 (**our
+dev target — it clusters**), ghostty 100/100, tmux 81/98, xterm 1/50,
+urxvt 1/50, alacritty 1/50. So the current position is:
+
+- **The default stays per-codepoint.** `char_width()` is deliberately
+  per-codepoint, not grapheme-cluster (`ui/core.py:161-167`), so a ZWJ emoji or
+  flag pair consumes the sum of its scalar widths.
+- **An opt-in `term_program` knob exists** (`ui/core.py:178-182`), reading the
+  installed wcwidth's per-terminal correction tables, which are generated from
+  ucs-detect and disagree with each other exactly where our layout is most
+  fragile (VS16, ZWJ, flag pairs). 33 terminal names are available locally;
+  it is off by default, so every existing frame stays byte-identical.
+- **The arbitration rig is NOT built.** Nothing in the repo drives a real
+  terminal through ucs-detect and diffs our grid against it, so we cannot claim
+  our per-codepoint default is right for *any* particular terminal today — only
+  that it is the conservative choice that cannot desync a per-codepoint reader.
+- The upstream no-file decision may still stand on its own merits; "no ground
+  truth" is simply the wrong reason for it. Re-derive before relying on either.
 
 **A third review round (7 agents, serialised, 4 hours) found one HIGH that was
 mine.** Adding mode 1048 routed it through the same `_alt_savepoint` slot as 1049,
@@ -1742,6 +1774,50 @@ error message — because its anchor search missed and `str.index` found the nex
 matching bracket far away. Caught by reading the diff, not by a test. Scripted edits
 need their insertion point asserted, not assumed.
 
+### 10o. The `verification/` evidence tree left the repository, byte-for-byte (2026-10-01)
+
+`verification/` (346 tracked files, ~4.6 MB) is **no longer in the repository**. It was
+copied — not moved — to
+`C:\Users\dwgx1\.omp\extra-hands\RESEARCH\smartcli-verification-archive\`, verified
+byte-for-byte (all 373 on-disk files sha256-matched source-vs-archive before the removal),
+then `git rm -r verification/`. Copy-then-verify, because the failure mode of
+move-then-hope is losing the evidence with no way to notice.
+
+**Why now, and why it was not simply deleted.** The tree held **8 stale full copies of
+`smartcli_core/screen_model.py`**, each taken before a later bug fix. They are worse than
+dead weight: a repo-wide `grep`/symbol search lands on a pre-fix copy and answers from
+code the product no longer contains. Verified the hazard was real before acting —
+`find verification/ -name screen_model.py` returns exactly those 8.
+
+**The record that had to survive the move.**
+`runs/v2/A04-P/scope-baseline.json:366` pins
+`skills/tui-ui/_shot_effort_widgets.py` = `da96797cd13766eca8645ca1a47f69d44f1e9864b0950dfde82822268248f9d9`.
+The pinned target is repo-relative and stays in the repository, so the pin still
+resolves; re-ran `sha256sum` on it after the move and it is unchanged. The baseline
+itself is preserved in the archive, so the pin is still checkable, not merely still
+true. Breaking it would have falsified a recorded scope baseline.
+
+**Pointer placement.** The pointer lives in `README.md` (Documentation), not as a stub
+inside `verification/`. A *tracked* stub would make `git ls-files verification/`
+non-empty — exactly the property this change was made to establish — and an *untracked*
+one is invisible to a fresh clone and sits in the tree forever as `?? verification/`.
+One tracked paragraph satisfies both the "leave a pointer" and "nothing still tracked"
+requirements; a stub file satisfies them mutually exclusively.
+
+**Two entries deliberately left alone.** `pyproject.toml:151` (`extend-exclude` names
+`verification`) and `MANIFEST.in:1` (`prune verification`) are glob patterns, not
+pointers, and a missing match is a silent no-op in both tools — ruff does not error on an
+`extend-exclude` path that does not exist, and `prune` of an absent directory excludes
+nothing. They are also outside this change's file scope.
+
+**KNOWN OUTSTANDING — one real dangling reference, in a file this change may not touch.**
+`skills/drive-tui/references/LIMITATIONS.md:278` still says
+``Repro: `verification\runs\v3\A04\s5-highwater\fair_highwater_probe.py` ``, a path that no
+longer exists in the repo. The file was outside the permitted edit set for this change
+(and is the living log the concurrent `screen_model.py` / `sessionlog.py` lanes append
+to), so it was left for its owner. The one-line fix is to reword the repro pointer to
+name the archive path above.
+
 ---
 
 ## CONTINUATION PROMPT (paste to next AI)
@@ -1792,8 +1868,9 @@ ConPTY/pywinpty and Linux/mac use posix pty). The skills:
   - cmd-art    : DESIGN terminal visuals via `python -m fx` — 30 effects, 8 themes,
                  pure frame-producer Effect ABC + @register auto-discovery.
   - tui-ui     : web-like cell-accurate layout engine emitting tmux-safe ANSI frames
-                 (SGR + newlines only). 17 widgets + ENGINE (field/raster/box_junction/
-                 color_model). Produces frames; something else owns the terminal.
+                 (SGR + newlines only). 17 widgets + ENGINE (field/raster are the live
+                 path; box_junction/color_model ship unwired). Produces frames;
+                 something else owns the terminal.
 The BRAIN is knowledge/ (143 md files, 0 dangling links):
 a wiki-link graph of formulas+sources+cross-links. The LESSONS are in
 skills\tui-ui\references\HARD-LESSONS.md ⇄ [[hard-lessons]].
@@ -1941,7 +2018,7 @@ Heavy PTY spawners (run_all, verify_fx, probes) need user consent first — red 
     -> wait-regex --id <SID> ">>> " --timeout-ms 15000 -> send-line -> snapshot -> close
     -> list   # zero leaked sessions (ONE session at a time)
   cd skills/tui-ui && python -m ui widgets && python self_test.py   # 17 widgets
-  python skills/tui-ui/ui/box_junction.py                          # box_junction _selftest
+  (cd skills/tui-ui && python -m ui.box_junction)                   # box_junction _selftest (-m)
   Deterministic quick gates (safe anytime): python tests/test_fx_contract.py,
     test_readiness.py, test_visual_change.py, test_drive_security.py,
     test_vendor_sync.py, test_doc_counts.py, test_version_sync.py

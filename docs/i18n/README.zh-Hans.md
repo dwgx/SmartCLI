@@ -217,10 +217,14 @@ ocean、synthwave、viridis、pastel、matrix-green、rainbow）。效果都是�
 ANSI 帧（仅使用 SGR 颜色段 + 换行；不移动光标，不使用备用屏幕）。**17 个
 组件**（badge、banner、braille_chart、card、fuzzy_filter_list、gradient_rule、kv、
 meter、panel、preview_pane、progress、radial_glow、rule、slider_track、table、
-tabs、tree），底层是一套真正的**引擎**：
-`field.py`（着色器合成器）、`raster.py`（子单元格 half/quad/braille 像素）、
-`box_junction.py`（边代数式的方框连接）、`color_model.py`（诚实的 truecolor → 256 →
-16 → mono 降级）。对 CJK/emoji/ZWJ 做到显示单元格精确，列永不错位。
+tabs、tree），底层是渲染路径真正调用的两个引擎模块：
+`field.py`（着色器合成器）、`raster.py`（子单元格 half/quad/braille 像素）；
+另有两个独立辅助模块随包发布但**未接入渲染器**：
+`box_junction.py`（边代数式的方框连接；实际生效的边框路径是 `core.py` 里的
+`BOX_STYLES`／`draw_border`，`BoxGrid` 只在自己的自测中运行）、
+`color_model.py`（供调用方自行降级用的 truecolor → 256 → 16 → mono 阶梯；
+`Canvas.to_ansi()` 始终输出 truecolor `38;2`，从不调用它）。
+对 CJK/emoji/ZWJ 做到显示单元格精确，列永不错位。
 
 **`drive-tui`**（`skills/drive-tui`）—— 通过 PTY 驱动交互式终端程序（REPL、
 菜单、分页器、y/N 提示、向导），采用

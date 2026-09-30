@@ -221,10 +221,14 @@ gradient_text、banner_scroll、image2ascii、typewriter、julia、mandelbrot、
 ANSI 畫格（只有 SGR 色彩序列 + 換行；沒有游標移動、沒有 alt-screen）。建構在真正的**引擎**之上的 **17 種
 widget**（badge、banner、braille_chart、card、fuzzy_filter_list、gradient_rule、kv、
 meter、panel、preview_pane、progress、radial_glow、rule、slider_track、table、
-tabs、tree）：
-`field.py`（shader 合成器）、`raster.py`（子儲存格 half/quad/braille 像素）、
-`box_junction.py`（邊緣代數框線接合）、`color_model.py`（誠實的 truecolor → 256 →
-16 → mono 降階）。對 CJK／emoji／ZWJ 做到顯示儲存格精確，讓欄位永遠不會失去對齊。
+tabs、tree）。渲染路徑真正呼叫的是兩個引擎模組：
+`field.py`（shader 合成器）、`raster.py`（子儲存格 half/quad/braille 像素）；
+另有兩個獨立輔助模組隨包發布但**未接入渲染器**：
+`box_junction.py`（邊緣代數框線接合；實際生效的邊框路徑是 `core.py` 的
+`BOX_STYLES`／`draw_border`，`BoxGrid` 只在自己的自我測試中執行）、
+`color_model.py`（供呼叫端自行降級用的 truecolor → 256 → 16 → mono 階梯；
+`Canvas.to_ansi()` 一律輸出 truecolor `38;2`，從不呼叫它）。
+對 CJK／emoji／ZWJ 做到顯示儲存格精確，讓欄位永遠不會失去對齊。
 
 **`drive-tui`**（`skills/drive-tui`）— 透過 PTY 驅動互動式終端機程式（REPL、
 選單、pager、y/N 提示、精靈），採用

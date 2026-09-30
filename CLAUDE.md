@@ -173,9 +173,13 @@ end-anchored markers like `r">>> $"` never match — use unanchored markers.
 - `skills/tui-ui/` — web-like layout engine emitting **tmux-safe ANSI frames**
   (SGR runs + newlines only; no cursor moves, no alt-screen). CSS box model,
   `VStack/HStack/Grid` with `Fr` units, 17 widgets, plus engine modules:
-  `field.py` (shaders), `raster.py` (sub-cell braille/quad pixels),
-  `box_junction.py` (auto-connecting borders), `color_model.py` (truecolor→mono
-  degrade). All sizing is display-cell accurate via `ui.core.width()` — never
+  `field.py` (shaders), `raster.py` (sub-cell braille/quad pixels). Two more ship
+  but are NOT on the render path: `box_junction.py` (edge-algebra borders — the live
+  path is `BOX_STYLES`/`draw_border` in `core.py`; `BoxGrid` executes only in its own
+  `__main__` self-test, which `tests/run_all.py` invokes) and `color_model.py` (a
+  truecolor→256→16→mono ladder with zero importers — `to_ansi()` emits `38;2`
+  unconditionally and nothing calls it). All sizing is display-cell accurate via
+  `ui.core.width()` — never
   `len()`. It produces frames; something else owns the terminal (contrast with
   drive-tui).
 
@@ -222,31 +226,36 @@ pass/fail. Tests are standalone scripts, not pytest. Two tiers:
   `_tmux_launcher_probe`), which SKIP themselves when tmux is absent.
 
 **`build_suite()` in run_all.py is the full inventory, NOT the CI list.** It
-returns 56 entries and they are not all gated. Measured 2026-09-30 by importing
-`build_suite()`, mapping each entry to its file, and grepping every file in
-`.github/workflows/` (including the indirect path through
-`tools/coverage_run.py`). Before this was reconciled, **29 of the 56 were run by
-no workflow at all**; 40 of 56 are gated now:
+returns **63** entries and they are not all gated. Re-measured 2026-10-01 (the
+2026-09-30 measurement found 56) by importing `build_suite()`, mapping each
+entry to its script, and grepping every file in `.github/workflows/`
+(including the indirect path through `tools/coverage_run.py`). Before the
+first reconciliation, **29 of the then-56 were run by no workflow at all**;
+**47 of 63** are gated now:
 
-- **23** run by name in `ci.yml` (20 in the `tests` matrix job, plus
-  `_tui_cli_probe`, `_mcp_probe` and `_sandbox_daemon_robustness` in
-  `drive-smoke`);
+- **43** run by name in `ci.yml`, across three jobs: 20 in the `tests` matrix
+  job, 3 in `drive-smoke` (`_tui_cli_probe`, `_mcp_probe`,
+  `_sandbox_daemon_robustness`), and 20 in `deterministic-rest` (`_mcp_probe`
+  also appears in the `package` job, so the union is 43, not 44);
 - **4** more (`test_char_width`, `test_cpr_reply`, `test_golden_frames`,
   `test_wait_change`) run only indirectly, through `tools/coverage_run.py`,
   which the `coverage` job invokes and which exits non-zero on failure;
-- **13** more, added as the `deterministic-rest` job, because 13 of the 29
+- **20** were added as the `deterministic-rest` job, because 13 of the 29
   ungated files were deterministic PTY-free gates, not probes: the
   `test_daemon_concurrency` lock `SECURITY.md` names, the `test_liveness_gaps`
   tail, the seven `test_a04_*` budget/close/backlog gates, and the cell-span /
   streaming-SGR / partial-write regressions. They construct `PtySession` and the
   real backend classes against **injected fake transports** — AST-checked for
-  zero `spawn`/`fork`/`Popen`/`subprocess` calls — so they spawn no child.
+  zero `spawn`/`fork`/`Popen`/`subprocess` calls — so they spawn no child. That
+  job has since grown to 20 steps, so "the 13" above is now the wrong
+  denominator for its contents: read the job.
 - **16 remain local-only by design**: the real-process probes and the real-tmux
   differential suites (`_drive_probe*`, `probe_pty_fx`, `_tmux_launcher_probe`,
-  `_diff_tmux_pyte`, `_diff_two_refs`, `_diff_fuzz_tmux`, `drive_vim`, and four
-  tui-ui module renders). They spawn live PTY sessions, and a CI matrix runs
-  jobs concurrently — exactly the dense real-process spawning the red line at
-  the top of this file forbids. Run them yourself, serially.
+  `_diff_tmux_pyte`, `_diff_two_refs`, `_diff_fuzz_tmux`, `drive_vim`, and the
+  four tui-ui module renders `ui.field` / `ui.raster` / `ui.box_junction` plus
+  `_selftest_effort_widgets.py`). They spawn live PTY sessions, and a CI matrix
+  runs jobs concurrently — exactly the dense real-process spawning the red line
+  at the top of this file forbids. Run them yourself, serially.
 
 `run_all.py` itself is invoked by **no** workflow (the only `run_all` hit under
 `.github/` is a PR-template checkbox). So a green board does not mean the whole

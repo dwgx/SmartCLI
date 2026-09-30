@@ -302,10 +302,14 @@ producers; `play` is bounded by default and always restores the terminal.
 ANSI frames (SGR color runs + newlines only; no cursor moves, no alt-screen). **17
 widgets** (badge, banner, braille_chart, card, fuzzy_filter_list, gradient_rule, kv,
 meter, panel, preview_pane, progress, radial_glow, rule, slider_track, table, tabs,
-tree) over a real **engine**:
-`field.py` (shader compositors), `raster.py` (sub-cell half/quad/braille pixels),
-`box_junction.py` (edge-algebra box joins), `color_model.py` (honest truecolor → 256 →
-16 → mono degrade). Display-cell accurate for CJK/emoji/ZWJ so columns never desync.
+tree) over an engine of two modules the render path actually calls — `field.py`
+(shader compositors) and `raster.py` (sub-cell half/quad/braille pixels) — plus two
+standalone helpers that ship but are **not wired into the renderer**:
+`box_junction.py` (edge-algebra box joins; the live border path is `BOX_STYLES` /
+`draw_border` in `core.py`, and `BoxGrid` runs only under its own self-test) and
+`color_model.py` (a truecolor → 256 → 16 → mono downgrade ladder for callers that
+want to degrade themselves — `Canvas.to_ansi()` emits truecolor `38;2` and never
+calls it). Display-cell accurate for CJK/emoji/ZWJ so columns never desync.
 
 **`drive-tui`** (`skills/drive-tui`) — drives interactive terminal programs (REPLs,
 menus, pagers, y/N prompts, wizards) through a PTY via a
@@ -362,6 +366,13 @@ SmartCLI/
 - **[`knowledge/INDEX.md`](knowledge/INDEX.md)** — the knowledge graph (140+ `.md` files).
 - **[`AGENTCLI-VALIDATION.md`](AGENTCLI-VALIDATION.md)** — agent-CLI control test matrix.
 - **[`CHANGELOG.md`](CHANGELOG.md)** — release history.
+- **Verification evidence tree — archived 2026-10-01.** The former `verification/`
+  directory (receipts, probes, historical harness revisions) is **no longer part
+  of this repository**, and is not distributed with the package. It was moved
+  byte-for-byte, so nothing was deleted. It was pulled out because it held 8
+  stale copies of `smartcli_core/screen_model.py` taken before three bug fixes,
+  so a repo-wide search returned pre-fix code. The sha256 pins inside it still
+  resolve — they name files that stayed in the repository.
 
 ## License
 

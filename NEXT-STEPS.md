@@ -352,7 +352,14 @@ non-negotiable and overrides any shortcut that looks faster.
     konsole, linuxvc all keep it too) but upstreaming it would move pyte away
     from the standard it targets and would rightly be rejected.
   - **Do NOT** file ZWJ cluster width — pyte master already picked tmux's side
-    via `grapheme_clusters`.
+    via `grapheme_clusters`. *(Corrected 2026-10-01: this was recorded elsewhere
+    as resting on "no ground truth", and that reason is wrong. `ucs-detect`
+    publishes automated measurements for 39 emulators; they DISAGREE — kitty and
+    Windows Terminal score ZWJ 100 (they cluster), tmux 81, xterm/urxvt/alacritty
+    1. Our position: the default stays per-codepoint, an opt-in `term_program`
+    knob reads the same per-terminal tables, and no arbitration rig exists yet.
+    The no-file call may still hold; verify pyte master's current state and
+    re-derive rather than inheriting either claim.)*
   - **Do NOT** re-file SGR colon sub-parameters (`ESC[4:3mU` drawing literal
     `"3mU"`) — pyte #180 ("Understand (and discard) SGR subparameters", open
     since 2024-10-08) is already `MERGEABLE` for exactly that symptom, plus
@@ -455,6 +462,24 @@ non-negotiable and overrides any shortcut that looks faster.
   segments — SKILL.md documents current behavior honestly; making the flag real is a
   small cli.py change.
 
+### ~~A0-VERIFICATION-ARCHIVE. Move the `verification/` evidence tree out of the repo~~ [DONE 2026-10-01]
+- **Result:** 346 tracked files copied (not moved) to
+  `C:\Users\dwgx1\.omp\extra-hands\RESEARCH\smartcli-verification-archive\`, verified
+  byte-for-byte by comparing a sha256 manifest of all 373 on-disk files source-vs-archive
+  before any deletion, then `git rm -r verification/`. `git ls-files verification/` is
+  empty. Reason: the tree carried **8 stale full copies of `screen_model.py`**, each taken
+  before a later bug fix, so a repo-wide symbol search answered from pre-fix code. The
+  `scope-baseline.json:366` sha256 pin still resolves — the pinned target
+  `skills/tui-ui/_shot_effort_widgets.py` is repo-relative, stays in the repo, and still
+  hashes to `da96797c…48f9d9`. Pointer left in `README.md` (Documentation) and `HANDOFF.md`
+  §10o. Nothing was deleted.
+- **Still open (one line, in a file this task was not permitted to edit):**
+  `skills/drive-tui/references/LIMITATIONS.md:278` still carries the repro pointer
+  `` `verification\runs\v3\A04\s5-highwater\fair_highwater_probe.py` ``, which no longer
+  exists in the repository. Reword it to name the archive path above. LIMITATIONS.md is the
+  living log the concurrent core lanes append to, so it was deliberately not edited from
+  under them.
+
 ---
 
 ## A. Safe to do now on Windows (no external accounts, no POSIX box, no human)
@@ -540,15 +565,17 @@ These are fully executable and verifiable on the current Windows machine.
   absent (banner→pyfiglet). In run_all + coverage subset. *(original task below)*
 - **Goal:** commit a baseline rendered-frame per widget and diff on every run, like
   pytest-textual-snapshot.
-- **Why it matters:** locks all 15 widgets against silent visual regressions; today
+- **Why it matters:** locks every widget against silent visual regressions; today
   only degenerate-input crashes and the fx frame contract are guarded, widget output
-  is not.
-- **First step:** `cd skills/tui-ui && python -m ui widgets` to enumerate the 15
-  widgets (badge, banner, braille_chart, card, gradient_rule, kv, meter, panel,
+  is not. *(The "15" written here was correct on 2026-07-15 and is stale now —
+  the live registry holds **17**; the gate in `tests/test_doc_counts.py` asserts the
+  live number.)*
+- **First step:** `cd skills/tui-ui && python -m ui widgets` to enumerate the widgets
+  (badge, banner, braille_chart, card, gradient_rule, kv, meter, panel,
   progress, radial_glow, rule, slider_track, table, tabs, tree). Render each at a
   fixed size/seed to a deterministic string; write the strings to a committed
   `tests/golden/` dir; add a test that re-renders and diffs, with an `--update` env
-  escape hatch.
+  escape hatch. *(Since extended with `fuzzy_filter_list` + `preview_pane`.)*
 - **Verify:** run the new test twice — stable pass. Mutate one widget's output by one
   char and confirm the test FAILS (proves it is not false-green). Revert. Run run_all.py.
 - **Effort:** M
