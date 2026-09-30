@@ -299,6 +299,18 @@ perceive → decide → act → wait → confirm loop, never a blind sleep. A th
 an importable pattern library of **8 recipes** (repl, menu_select, pager, search_filter,
 confirm, form, progress, wizard) that `classify()` a screen and `drive()` it.
 
+**Where the wait capabilities live.** The wait family can end when the child
+process dies rather than sitting out the remaining timeout — a program that
+crashes on your first input then costs one poll cycle instead of the whole
+ceiling. It is **opt-in and off by default**: `start --detect-child-exit` /
+`run --detect-child-exit`, or `detect_child_exit` on the MCP `start` tool. Off
+is exactly the previous behaviour. On, every wait reply carries `exited`, and
+`wait` reports `reason=EXITED`. Three other core capabilities — the
+screen-revision wait baseline, the terminal-mode registry, and the session event
+log — are **library-only**: they are importable from `smartcli_core` and are
+deliberately *not* on the CLI or MCP surface. See
+[`CHANGELOG.md`](CHANGELOG.md) (Unreleased) for the reasoning per capability.
+
 **Shared core** (`smartcli_core`) — the pluggable PTY backend + `pyte` screen model +
 semantic snapshot + readiness sync (`pty_backend / screen_model / snapshot / readiness /
 session`). The reusable, importable foundation under all three skills. Since 0.3.0 a

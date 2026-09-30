@@ -15,6 +15,7 @@ SCRIPTS = ROOT / "skills" / "drive-tui" / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
 import tui  # noqa: E402
+from smartcli_core import readiness  # noqa: E402
 
 failures = 0
 
@@ -920,6 +921,218 @@ def test_posix_registry_branch_is_untouched() -> None:
             tui.REG_DIR = old_dir
 
 
+def test_child_death_reaches_the_daemon_wire() -> None:
+    """The opt-in must actually change what a wait caller is told, and must
+    not change anything at all when it is off.
+
+    Two distinct defects are gated here, and neither is a source-text check:
+
+    * UNREACHED. The core's child-death outcome (`readiness.EXITED`) was
+      produced by the library and consumed by nobody, so through the CLI and
+      the MCP server -- the way an agent actually drives a session -- a child
+      that died still cost the full ceiling. The only change that turns this
+      red is threading `--detect-child-exit` from `start`/`run` into the
+      session and reporting the outcome in the reply.
+
+    * UNENCODABLE. `EXITED` is a deliberate singleton: falsy, identity-only
+      equality, and NOT something `json` can write. A reply that passed it
+      through would raise inside the daemon's writer, and `index >= 0` on it
+      raises too -- so a child dying during `wait-any` would have turned into
+      a daemon error, the most expensive outcome available, instead of the
+      cheap one this feature exists to provide. `json.dumps` on the real reply
+      is the assertion, because that is the call that used to raise.
+
+    A real (unstarted) PtySession is the fixture: it supplies a genuine screen
+    model, snapshot and liveness answer, and constructing one spawns no PTY
+    and no child process. Only the wait primitive is replaced.
+    """
+    EXITED = readiness.EXITED
+    sess = tui.PtySession(cols=40, rows=6)
+    snap = sess.snapshot()
+
+    def reply(action: str, **req):
+        body = {"token": "tok", "action": action, **req}
+        return tui._handle(sess, body, "tok")
+
+    # (a) OFF BY DEFAULT. Every wait reports the key, and it is false -- so a
+    #     caller that never opted in sees a strictly compatible reply.
+    for action, req, field in (
+        ("wait_regex", {"pattern": "x"}, "matched"),
+        ("wait_change", {}, "changed"),
+        ("wait_visual_change", {}, "changed"),
+        ("wait_any", {"patterns": ["x"]}, "index"),
+    ):
+        setattr(sess, {"wait_regex": "wait_for", "wait_change": "wait_change",
+                       "wait_visual_change": "wait_visual_change",
+                       "wait_any": "wait_any"}[action],
+                (lambda *a, _f=field, **k: (False, snap)))
+        try:
+            resp = reply(action, **req)
+            encoded = json.dumps(resp)          # the call that used to raise
+        finally:
+            delattr(sess, {"wait_regex": "wait_for", "wait_change": "wait_change",
+                           "wait_visual_change": "wait_visual_change",
+                           "wait_any": "wait_any"}[action])
+        check(resp.get("exited") is False and resp.get(field) is False
+              and resp.get("ok") is True,
+              f"{action} on a default session: exited is false and the reply "
+              f"encodes ({field}={resp.get(field)!r})")
+        check("exited" in encoded,
+              f"{action} reply states the exited key even when it is false")
+
+    # (b) ON, and the child is gone. The outcome is named, the primitive's own
+    #     value is coerced to whatever that field's wire already calls "no
+    #     match", and the whole reply still encodes.
+    #
+    #     The per-field spelling is the point, not a detail. `wait-any` reports
+    #     an INDEX, and `False >= 0` is True in Python, so collapsing EXITED to
+    #     False there would have reported `matched=True pattern=0` for a wait
+    #     that matched nothing -- a caller would act on a match that never
+    #     happened. It must be -1, which is what a wait-any timeout has always
+    #     reported. Caught by an end-to-end run, not by this suite: the first
+    #     version of this case asserted `index is False` and so pinned the bug.
+    cases = (
+        ("wait_regex", {"pattern": "x"}, "wait_for", "matched", False),
+        ("wait_change", {}, "wait_change", "changed", False),
+        ("wait_visual_change", {}, "wait_visual_change", "changed", False),
+        ("wait_any", {"patterns": ["x", "y"]}, "wait_any", "index", -1),
+    )
+    for action, req, method, field, no_match in cases:
+        setattr(sess, method, (lambda *a, **k: (EXITED, snap)))
+        try:
+            resp = reply(action, **req)
+            encoded = json.dumps(resp)
+        finally:
+            delattr(sess, method)
+        check(resp.get("exited") is True and resp.get(field) == no_match
+              and type(resp.get(field)) is type(no_match),
+              f"{action} on a dead child: exited is true, {field} is the "
+              f"no-match value {no_match!r} and not merely falsy "
+              f"(got {resp.get(field)!r})")
+        # The composite field a caller actually branches on. For wait-any this
+        # is the assertion that would have caught the False>=-0 bug.
+        if field == "index":
+            check(resp.get("matched") is False,
+                  f"{action} on a dead child: matched is False, not a "
+                  f"fictitious pattern 0 (got {resp.get('matched')!r})")
+        check(resp.get("ok") is True and '"exited": true' in encoded,
+              f"{action} reply encodes with exited=true and is not an error")
+
+    # wait_ready spells the outcome as a REASON string, not the singleton, so
+    # it needs its own case: an unknown member of the vocabulary must not be
+    # silently reported as a timeout.
+    sess.wait_ready = (lambda *a, **k: (readiness.EXITED_REASON, snap))
+    try:
+        resp = reply("wait_ready", marker="x")
+        encoded = json.dumps(resp)
+    finally:
+        del sess.wait_ready
+    check(resp.get("reason") == readiness.EXITED_REASON
+          and resp.get("exited") is True,
+          "wait_ready reports reason=EXITED (not TIMEOUT) with exited=true")
+    check('"exited": true' in encoded, "wait_ready reply encodes with exited=true")
+
+    # The token gate is not a formality: the new field must not be reachable
+    # by a peer that cannot authenticate, on the same request shape.
+    check(tui._handle(sess, {"action": "wait_regex", "pattern": "x"}, "tok")
+          .get("exited") is None,
+          "an unauthenticated wait still gets no reply fields at all")
+
+
+def test_detect_child_exit_is_opt_in() -> None:
+    """The flag must be off unless asked for, on every verb that has it.
+
+    A wait that used to return TIMEOUT/false returning EXITED instead is a
+    behaviour change for every existing caller, so the default is the load-
+    bearing half of this feature. Both halves are gated: the parser default,
+    and the assignment into the live session, which is checked by driving the
+    real `_run_daemon` up to its accept loop with a stub session (no PTY, no
+    child process -- `_serve_forever` is replaced by a sentinel).
+    """
+    parser = tui.build_parser()
+    for argv, verb in ((["start", "--cmd", "x"], "start"),
+                       (["run", "--cmd", "x", "--steps", "y"], "run")):
+        args = parser.parse_args(argv)
+        check(getattr(args, "detect_child_exit") is False,
+              f"{verb} does not enable child-death detection by default")
+    args = parser.parse_args(["start", "--cmd", "x", "--detect-child-exit"])
+    check(args.detect_child_exit is True, "start --detect-child-exit is accepted")
+
+    class _Stop(Exception):
+        pass
+
+    class _StubSession:
+        """The PtySession surface `_run_daemon` touches, and nothing else."""
+
+        def __init__(self, cols: int, rows: int) -> None:
+            self.detect_child_exit = False
+            self.started: object = None
+
+        def start(self, cmd) -> None:
+            self.started = cmd
+
+        def close(self) -> dict:
+            return {}
+
+    # Two lists, because the pair is the whole assertion: what the session
+    # looked like when it was CONSTRUCTED (the core's own default, and the
+    # proof that the stub is not simply reporting back what it was asked for)
+    # and what it looked like at the moment the daemon began SERVING it, which
+    # is the only moment the value can matter.
+    constructed: list[bool] = []
+    served: list[bool] = []
+    registered: list[object] = []
+    _sid: list[str] = [""]
+
+    def _factory(cols: int, rows: int) -> _StubSession:
+        s = _StubSession(cols, rows)
+        constructed.append(s.detect_child_exit)
+        return s
+
+    def _serve_stub(_srv, sess, _token, _stop_event):
+        served.append(sess.detect_child_exit)
+        # Read here rather than afterwards: the daemon deletes its own entry
+        # on the way out, so a later read would find nothing and prove nothing.
+        registered.append(json.loads(tui._reg_path(_sid[0]).read_text("utf-8")))
+        raise _Stop
+
+    old_dir = tui.REG_DIR
+    old_session = tui.PtySession
+    old_serve = tui._serve_forever
+    with tempfile.TemporaryDirectory(prefix="smartcli_exit_") as tmp:
+        try:
+            tui.REG_DIR = Path(tmp)
+            tui.PtySession = _factory        # type: ignore[assignment]
+            tui._serve_forever = _serve_stub  # type: ignore[assignment]
+            for want in (True, False):
+                constructed.clear()
+                served.clear()
+                registered.clear()
+                _sid[0] = f"exitprobe{int(want)}"
+                try:
+                    tui._run_daemon(_sid[0], "prog", 80, 24, "tok",
+                                    detect_child_exit=want)
+                except _Stop:
+                    pass
+                # Two observations, and the PAIR is the assertion: the
+                # constructor default, which proves the stub is not lying
+                # about starting off, and the value the daemon actually
+                # installed on the object it went on to serve.
+                check(constructed == [False] and served == [want],
+                      f"_run_daemon serves a session with detect_child_exit="
+                      f"{want} (constructor default={constructed}, "
+                      f"served={served})")
+                # The registry records it, so `list` can never describe a
+                # session differently from the one it is listing.
+                check(registered and registered[0].get("detect_child_exit") is want,
+                      f"the registry entry records detect_child_exit={want} "
+                      f"({registered})")
+        finally:
+            tui.REG_DIR = old_dir
+            tui.PtySession = old_session       # type: ignore[assignment]
+            tui._serve_forever = old_serve      # type: ignore[assignment]
+
+
 def main() -> int:
     test_session_ids()
     test_environment_parser()
@@ -936,6 +1149,8 @@ def main() -> int:
     test_stranded_sessions_are_named_not_killed()
     test_posix_registry_branch_is_untouched()
     test_non_dict_request_is_rejected_cleanly()
+    test_child_death_reaches_the_daemon_wire()
+    test_detect_child_exit_is_opt_in()
     print()
     if failures:
         print(f"{failures} FAILURE(S)")

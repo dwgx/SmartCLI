@@ -7,6 +7,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **A child that dies mid-wait now ends the wait, instead of costing you the whole
+  timeout. Opt in, and off by default.** `smartcli_core` grew a first-class
+  child-death outcome (`readiness.EXITED`, a falsy singleton whose equality is
+  identity-only, plus a `reason` of `EXITED` for `wait_ready`) in the previous
+  release, and it reached nobody: the daemon's five wait call sites passed
+  neither the session flag nor a per-call predicate, so a program that crashed
+  on your first input still burned the ceiling. Measured before the wiring, with
+  a dead child and a virtual clock: **30.00 s of a 30 s ceiling** in
+  `wait_ready`, `wait-regex` and `wait-any` alike. The session-level opt-in is
+  `start --detect-child-exit` (CLI), `run --detect-child-exit` (one-shot), and
+  `detect_child_exit` on the MCP `start` tool. **Off is exactly the previous
+  behaviour**, byte for byte — a wait that used to return `TIMEOUT`/`false`
+  still does — and off is the default on every verb.
+  On, every wait reply carries `exited`, and `wait` reports `reason=EXITED`.
+  `exited` is a *new* key rather than a redefinition of an existing one because
+  `EXITED` cannot be sent: it is a singleton, `json` refuses it, and `index >= 0`
+  on it raises — so a child dying during `wait-any` would have become a daemon
+  *error* rather than the cheap outcome the feature exists to provide. The
+  primitive's own return value is therefore coerced to whatever that field's
+  wire already spells as "no match" — `false` for the three boolean waits, `-1`
+  for `wait-any` — and the distinction travels in `exited` instead. The `-1` is
+  load-bearing rather than cosmetic: `False >= 0` is `True` in Python, so
+  collapsing `EXITED` to `false` in `wait-any` would have reported
+  `matched=true pattern=0` for a wait that matched nothing. The CLI reports
+  `exited=` on the same stderr line the other outcome fields already use,
+  because `--json` prints the Snapshot payload and not the reply envelope.
+  The flag is recorded in the session registry, so `list` can never describe a
+  session differently from the one it is listing.
+  Gated by `tests/test_drive_security.py` (no PTY, no spawned process): the
+  default-is-off invariant, the reply contract for all five waits, and the
+  assignment into the live session.
+- **Three of the four new core capabilities are deliberately NOT on the CLI or
+  MCP surface.** Stating that here rather than leaving it to be discovered is the
+  point; a capability on the library surface that nothing reaches is weight, and
+  this project has a documented history of shipping prose that implied otherwise.
+  - **Screen-revision wait baseline** (`PtySession.screen_revision()`, and
+    `after_revision=` on the waits) — **library-only.** Its value is capturing the
+    revision at the instant you read the screen, with no round trip in between;
+    over a socket the daemon adds two round trips between capture and use, which
+    is exactly the weakness the anchor exists to remove. The daemon's existing
+    `wait-change --baseline-hash` already provides the "did my action land?" axis
+    for remote callers, and adding a second, finer baseline would be surface
+    without a consumer.
+  - **Terminal-mode registry** (`ScreenModel.mode(name)`, `.modes()`,
+    `MODE_REGISTRY`, nine modes) — **library-only.** It needs no new verb to be
+    reachable, but nothing an agent can *do* changes with it: the one mode that
+    changes what the next action means, `alt_screen`, already travels with every
+    snapshot reply, and the one that changes key encoding, `app_cursor`, is
+    already honoured inside `KEY_MAP`. What remains is diagnostic value, which
+    is not worth nine new keys on every observation.
+  - **Session event log** (`smartcli_core.sessionlog` — opt-in JSON Lines, a
+    payload policy, retention and a query API) — **library-only.** It is by far
+    the heaviest of the four, it adds a disk-write surface carrying whatever the
+    driven program printed and whatever you typed at it, and its consumer is a
+    human reconstructing a past run — which
+    `skills/drive-tui/references/LIMITATIONS.md` already is. Not on a shipped
+    verb surface for a release being closed out.
+
 ### Security
 - **On Windows, the session registry was not private, and the code's own protection there was inert.**
   The per-session registry file holds the capability token that grants full control of a live child

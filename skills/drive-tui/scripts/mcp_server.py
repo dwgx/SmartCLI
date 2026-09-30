@@ -59,6 +59,8 @@ except ImportError:
 
 TUI_PY = str(Path(_tui.__file__).resolve())
 PY = sys.executable
+# MCP stdio holds a live reader on fd0; CPython 3.14 helpers that inherit it
+# hang in SetFilePointerEx during interpreter startup. Match tui.py daemon spawn.
 
 def _our_version() -> str:
     """This package's version, for the MCP `serverInfo` handshake.
@@ -120,6 +122,7 @@ def start(
     sid: str = "",
     cwd: str = "",
     env: dict[str, str] | None = None,
+    detect_child_exit: bool = False,
 ) -> dict:
     """Spawn a program in a new detached, persistent session and return its id.
 
@@ -135,6 +138,13 @@ def start(
     directory; terminal size is capped at 1000 cols x 500 rows (100000 cells).
     Note: `env` values pass through the process command line briefly (visible
     in `ps`) — avoid secrets.
+
+    `detect_child_exit` (default false) makes this session's waits END when the
+    child dies instead of sitting out the remaining timeout: a program that
+    crashes on your first input costs one poll cycle instead of the whole
+    ceiling. Off is exactly the previous behaviour. On, every wait tool also
+    reports `exited` (true only when the wait ended that way), and `wait_ready`
+    reports `reason: "EXITED"` alongside the usual MARKER/STABLE/TIMEOUT.
     """
     argv = [
         PY,
@@ -154,8 +164,10 @@ def start(
         argv += ["--cwd", cwd]
     for key, value in (env or {}).items():
         argv += ["--env", f"{key}={value}"]
+    if detect_child_exit:
+        argv += ["--detect-child-exit"]
     proc = subprocess.run(argv, capture_output=True, text=True,
-                          encoding="utf-8", errors="replace", timeout=30)
+                          encoding="utf-8", errors="replace", stdin=subprocess.DEVNULL, timeout=30)
     if proc.returncode != 0:
         return {"ok": False, "error": (proc.stderr or proc.stdout).strip()}
     try:
@@ -177,7 +189,7 @@ def list_sessions() -> dict:
     "cmd", "cols", "rows", "cwd" and "started".
     """
     proc = subprocess.run([PY, TUI_PY, "list", "--json"], capture_output=True, text=True,
-                          encoding="utf-8", errors="replace", timeout=15)
+                          encoding="utf-8", errors="replace", stdin=subprocess.DEVNULL, timeout=30)
     if proc.returncode != 0:
         return {"ok": False, "error": (proc.stderr or proc.stdout).strip()}
     try:
@@ -240,6 +252,7 @@ def close(sid: str) -> dict:
         text=True,
         encoding="utf-8",
         errors="replace",
+        stdin=subprocess.DEVNULL,
         timeout=30,
     )
     if proc.returncode != 0:
@@ -298,11 +311,14 @@ def send_keys(sid: str, keys: list[str]) -> dict:
 def wait_regex(sid: str, pattern: str, timeout_ms: int = 10000) -> dict:
     """Block until `pattern` (a regex) appears on screen, then snapshot.
 
-    Returns {"ok", "matched", "alive", "text", "json"}. Timeout is not an
-    error: the call returns ok=true with matched=false plus the final screen
-    snapshot. Screen lines are right-padded with spaces — end-anchored
-    patterns never match; use unanchored markers. This is the readiness sync —
-    prefer it over a blind delay after send_line/send_keys.
+    Returns {"ok", "matched", "alive", "exited", "text", "json"}. Timeout is
+    not an error: the call returns ok=true with matched=false plus the final
+    screen snapshot. `exited` is true only when the session was started with
+    `detect_child_exit` AND the child died before the pattern appeared, in
+    which case the wait returned at once instead of running to `timeout_ms`.
+    Screen lines are right-padded with spaces — end-anchored patterns never
+    match; use unanchored markers. This is the readiness sync — prefer it over
+    a blind delay after send_line/send_keys.
     """
     return _call_session(sid, {"action": "wait_regex", "pattern": pattern,
                                "timeout_ms": timeout_ms},
@@ -320,10 +336,12 @@ def wait_change(sid: str, baseline_hash: int | None = None, timeout_ms: int = 10
     The precise "did my action land?" primitive: call it right after send_line/
     send_keys to wait for ANY change from the baseline (default: the screen at
     call time; or pass a prior `hash` to change away from). Returns {"ok",
-    "changed", "hash", "alive", "text", "json"} — `hash` is the new screen hash,
-    reusable as the next baseline. Timeout is not an error: the call returns
-    ok=true with changed=false plus the final screen snapshot. Can't
-    false-positive on text that was already on screen, unlike wait_regex.
+    "changed", "hash", "alive", "exited", "text", "json"} — `hash` is the new
+    screen hash, reusable as the next baseline. Timeout is not an error: the
+    call returns ok=true with changed=false plus the final screen snapshot.
+    `exited` is true only on a `detect_child_exit` session whose child died
+    first. Can't false-positive on text that was already on screen, unlike
+    wait_regex.
     """
     req = {"action": "wait_change", "timeout_ms": timeout_ms}
     if baseline_hash is not None:
@@ -346,7 +364,8 @@ def wait_visual_change(
     Prefer this after arrow/navigation keys in full-screen TUIs. Pass a prior
     `visual_hash`, or omit it to use the current rendered state as the baseline.
     Timeout is not an error: the call returns ok=true with changed=false plus
-    the final screen snapshot.
+    the final screen snapshot, with `exited` true only on a
+    `detect_child_exit` session whose child died first.
     """
     req = {"action": "wait_visual_change", "timeout_ms": timeout_ms}
     if baseline_hash is not None:
@@ -367,9 +386,12 @@ def wait_any(sid: str, patterns: list[str], timeout_ms: int = 10000) -> dict:
     each poll, so the earliest in the list wins a same-poll tie (put the most
     specific first). Screen lines are right-padded with spaces — end-anchored
     patterns never match; use unanchored markers. Returns {"ok", "index",
-    "matched", "alive", "text", "json"} where `index` is the 0-based position
-    of the matched pattern. Timeout is not an error: the call returns ok=true
-    with index=-1 and matched=false plus the final screen snapshot.
+    "matched", "alive", "exited", "text", "json"} where `index` is the 0-based
+    position of the matched pattern. Timeout is not an error: the call returns
+    ok=true with index=-1 and matched=false plus the final screen snapshot.
+    On a `detect_child_exit` session whose child died first, `index` is -1,
+    `matched` is false and `exited` is true — the wait returned at once rather
+    than running to `timeout_ms`.
     """
     return _call_session(sid, {"action": "wait_any", "patterns": patterns,
                                "timeout_ms": timeout_ms},
@@ -387,10 +409,12 @@ def wait_ready(sid: str, marker: str = "", max_wait_ms: int = 10000,
     snapshot. Use marker="" to wait purely for stability.
 
     Returns a snapshot plus `reason`: "MARKER" (the regex appeared), "STABLE"
-    (the screen went quiet), or "TIMEOUT". Timeout is not an error: the call
-    still returns ok=true with the final screen snapshot. Screen lines are
-    right-padded with spaces — end-anchored markers never match; use
-    unanchored markers.
+    (the screen went quiet), "TIMEOUT", or — only on a session started with
+    `detect_child_exit` — "EXITED" (the child died; the wait returned at once
+    rather than running to `max_wait_ms`). `exited` reports the same fact as a
+    boolean on every wait tool. Timeout is not an error: the call still returns
+    ok=true with the final screen snapshot. Screen lines are right-padded with
+    spaces — end-anchored markers never match; use unanchored markers.
     """
     return _call_session(sid, {"action": "wait_ready", "marker": marker or None,
                                "max_wait_ms": max_wait_ms, "quiet_ms": quiet_ms},

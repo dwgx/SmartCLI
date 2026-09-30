@@ -11,6 +11,14 @@ Two modes:
 * One-shot script (``run``): execute a JSON list of steps against a freshly
   spawned program in a single process and print snapshots. No daemon needed.
 
+
+The wait family (``wait``, ``wait-regex``, ``wait-change``,
+``wait-visual-change``, ``wait-any``) can optionally END when the child process
+dies instead of sitting out the remaining timeout: ``start --detect-child-exit``
+and ``run --detect-child-exit``, both off by default, both exactly today's
+behaviour when off. On, a wait that ended on a dead child reports
+``exited: true`` (``wait`` reports ``reason=EXITED``).
+
 The daemon binds 127.0.0.1 only; it is local process control, no network surface.
 """
 
@@ -47,6 +55,7 @@ except ImportError:  # pragma: no cover - exercised by direct script probes
 smartcli_bootstrap.locate_core()
 
 from smartcli_core import PtySession  # noqa: E402
+from smartcli_core.readiness import EXITED, EXITED_REASON  # noqa: E402
 
 
 def _default_reg_dir() -> Path:
@@ -716,6 +725,48 @@ def _snapshot_response(sess: PtySession, snap, **fields) -> dict:
     }
 
 
+def _exited(value: Any) -> bool:
+    """Did this wait end because the child DIED, rather than on its own terms?
+
+    Two shapes reach here, because the core spells the outcome two ways: the
+    three boolean waits and ``wait_any`` return :data:`EXITED`, the singleton
+    whose ``__bool__`` is False and whose ``__eq__`` is identity-only so it
+    cannot be confused with a timeout, while ``wait_ready`` returns the string
+    :data:`EXITED_REASON` to sit inside its existing MARKER/STABLE/TIMEOUT
+    vocabulary. Both mean the same thing and both are worth naming on the wire.
+
+    Only ever true when the session was started with ``--detect-child-exit``;
+    the core cannot produce the outcome without an ``alive_fn``.
+    """
+    return value is EXITED or value == EXITED_REASON
+
+
+def _wire_wait_value(value: Any, no_match: Any) -> Any:
+    """The JSON-encodable form of a wait primitive's return value.
+
+    ``EXITED`` is a deliberate singleton and ``json`` cannot encode it: passing
+    it through would raise inside the reply writer, and ``index >= 0`` on it
+    raises too, so a child dying mid-``wait-any`` would have surfaced as a
+    daemon error rather than as a wait outcome.
+
+    ``no_match`` is passed by the CALL SITE rather than defaulted here, because
+    the wire already has a distinct spelling of "this wait did not match" per
+    field and guessing one for all of them is a live bug, not a style question:
+    ``wait-any`` reports an index, and ``False >= 0`` is ``True`` in Python, so
+    collapsing ``EXITED`` to ``False`` there would have told the caller pattern
+    0 matched. It is ``-1``, which is what a ``wait-any`` timeout has always
+    reported, so ``matched`` then computes to ``False`` on its own.
+
+    The distinction is not lost by the coercion: it travels in ``exited``,
+    which is strictly more information than the caller's old ``matched=false``,
+    because that value cannot say WHY the wait ended.
+
+    With child-death detection off, the default, nothing here changes a value:
+    the wait returned a real bool/int and it is written exactly as before.
+    """
+    return no_match if value is EXITED else value
+
+
 def _token_ok(req: dict, expected_token: str) -> bool:
     """Constant-time capability check. ONE implementation, two call sites.
 
@@ -764,6 +815,9 @@ def _handle(sess: PtySession, req: dict, expected_token: str,
         sess.send_keys(list(req.get("keys", [])))
         return {"ok": True}
 
+    # Every wait below reports `exited`, and it is `false` unless the session was
+    # started with --detect-child-exit, so a caller that never asked for the
+    # distinction pays one boolean it already had the information about.
     if action == "wait_ready":
         reason, snap = sess.wait_ready(
             marker=req.get("marker"),
@@ -771,34 +825,53 @@ def _handle(sess: PtySession, req: dict, expected_token: str,
             quiet_ms=int(req.get("quiet_ms", 200)),
             on_poll=on_poll,
         )
-        return _snapshot_response(sess, snap, reason=reason)
+        # `reason` is already a string, so it crosses the wire unchanged; the
+        # new vocabulary member rides alongside it rather than inside it.
+        return _snapshot_response(sess, snap, reason=reason,
+                                  exited=_exited(reason))
 
     if action == "wait_regex":
         matched, snap = sess.wait_for(
             req["pattern"], timeout_ms=int(req.get("timeout_ms", 10000)),
             on_poll=on_poll)
-        return _snapshot_response(sess, snap, matched=matched)
+        return _snapshot_response(sess, snap,
+                                  matched=_wire_wait_value(matched, False),
+                                  exited=_exited(matched))
 
     if action == "wait_change":
         changed, snap = sess.wait_change(
             baseline_hash=req.get("baseline_hash"),
             timeout_ms=int(req.get("timeout_ms", 10000)),
             on_poll=on_poll)
-        return _snapshot_response(sess, snap, changed=changed)
+        return _snapshot_response(sess, snap,
+                                  changed=_wire_wait_value(changed, False),
+                                  exited=_exited(changed))
 
     if action == "wait_visual_change":
         changed, snap = sess.wait_visual_change(
             baseline_hash=req.get("baseline_hash"),
             timeout_ms=int(req.get("timeout_ms", 10000)),
             on_poll=on_poll)
-        return _snapshot_response(sess, snap, changed=changed)
+        return _snapshot_response(sess, snap,
+                                  changed=_wire_wait_value(changed, False),
+                                  exited=_exited(changed))
 
     if action == "wait_any":
         index, snap = sess.wait_any(
             list(req.get("patterns", [])),
             timeout_ms=int(req.get("timeout_ms", 10000)),
             on_poll=on_poll)
-        return _snapshot_response(sess, snap, index=index, matched=index >= 0)
+        # `exited` is decided from the RAW value, before coercion: the singleton
+        # IS the identification, so testing the coerced False would report "did
+        # not exit" on the one reply that exists because it did. The coercion is
+        # still required and is not cosmetic -- `index >= 0` raises on the
+        # singleton, and an exception here is caught as a daemon error, turning
+        # the outcome this feature exists to make cheap into the most expensive
+        # one available.
+        exited = _exited(index)
+        index = _wire_wait_value(index, -1)
+        return _snapshot_response(sess, snap, index=index, matched=index >= 0,
+                                  exited=exited)
 
     if action == "alive":
         sess.pump()
@@ -1237,6 +1310,7 @@ def _run_daemon(
     token: str,
     cwd: str | None = None,
     child_env: dict[str, str] | None = None,
+    detect_child_exit: bool = False,
 ) -> None:
     """Serve one PtySession on a localhost socket until told to close or child dies."""
     _validate_size(cols, rows)
@@ -1259,6 +1333,14 @@ def _run_daemon(
     # daemon's own I/O turns. Both are set before start(), which is what resets the
     # per-generation counters they feed.
     sess.reply_retry_bytes = REPLY_RETRY_BYTES
+    # OPT-IN, and off unless `start --detect-child-exit` said so. The core's
+    # default is False and its waits only gain a liveness predicate when this
+    # attribute is set, so a session started the ordinary way sits out its
+    # ceiling exactly as it always has -- a wait that used to return
+    # TIMEOUT/false still does. Set on the session rather than per wait call
+    # because the flag is a property of how this session was started, and
+    # because the core already resolved the same question in exactly this shape.
+    sess.detect_child_exit = detect_child_exit
     sess.start(cmd)
     _write_reg(sid, {"sid": sid, "port": port, "pid": os.getpid(),
                      # The pid alone cannot identify a process: it is unique
@@ -1272,6 +1354,7 @@ def _run_daemon(
                      "cmd": cmd, "cols": cols, "rows": rows,
                      "cwd": cwd or os.getcwd(),
                      "env_keys": sorted((child_env or {}).keys()),
+                     "detect_child_exit": bool(detect_child_exit),
                      "token": token, "started": time.time()})
     try:
         _serve_forever(srv, sess, token, threading.Event())
@@ -1286,7 +1369,8 @@ def _run_daemon(
 
 # --- one-shot script mode: run steps against a fresh program ----------------
 
-def _run_steps(cmd, steps, cols: int, rows: int) -> int:
+def _run_steps(cmd, steps, cols: int, rows: int,
+               detect_child_exit: bool = False) -> int:
     """Execute a JSON step list against a freshly spawned program; print snapshots."""
     _validate_size(cols, rows)
     def emit(label, snap, extra=""):
@@ -1295,6 +1379,13 @@ def _run_steps(cmd, steps, cols: int, rows: int) -> int:
         print()
 
     with PtySession(cols=cols, rows=rows) as sess:
+        # Same opt-in, same default, and the same reason: `run` is a shipped
+        # verb with the same five waits, so leaving the flag off it alone would
+        # make it the one place a caller cannot ask. Its output is printed
+        # rather than JSON-encoded, so the EXITED singleton renders as the
+        # readable `reason=EXITED` / `matched=EXITED` rather than needing the
+        # coercion the daemon's wire format requires.
+        sess.detect_child_exit = detect_child_exit
         sess.start(cmd)
         for i, step in enumerate(steps):
             act = step.get("action")
@@ -1376,6 +1467,11 @@ def cmd_start(args) -> int:
     daemon = [sys.executable, os.path.abspath(__file__), "_daemon",
               "--id", sid, "--cmd", args.cmd,
               "--cols", str(args.cols), "--rows", str(args.rows)]
+    if args.detect_child_exit:
+        # On argv, like --cwd: it is configuration, not a capability, and the
+        # capability token deliberately is not (that stays in the env var, for
+        # the reason spelled out above).
+        daemon += ["--detect-child-exit"]
     if cwd:
         daemon += ["--cwd", cwd]
     daemon_env = {
@@ -1465,7 +1561,12 @@ def cmd_wait(args) -> int:
     resp = _call(args.id, {"action": "wait_ready", "marker": args.marker,
                            "max_wait_ms": args.timeout_ms},
                  timeout=args.timeout_ms / 1000.0 + 15.0)
-    print(f"# reason={resp.get('reason')} alive={resp.get('alive')}", file=sys.stderr)
+    # Outcome on stderr, screen on stdout: the convention every wait verb here
+    # already follows, and the only place `exited` is visible from the CLI --
+    # `--json` prints the Snapshot payload, not the reply envelope, so a field
+    # that lives only in the envelope would be unreachable from this surface.
+    print(f"# reason={resp.get('reason')} exited={resp.get('exited')} "
+          f"alive={resp.get('alive')}", file=sys.stderr)
     _print_snap(resp, args.json)
     return 0
 
@@ -1474,7 +1575,8 @@ def cmd_wait_regex(args) -> int:
     resp = _call(args.id, {"action": "wait_regex", "pattern": args.pattern,
                            "timeout_ms": args.timeout_ms},
                  timeout=args.timeout_ms / 1000.0 + 15.0)
-    print(f"# matched={resp.get('matched')} alive={resp.get('alive')}", file=sys.stderr)
+    print(f"# matched={resp.get('matched')} exited={resp.get('exited')} "
+          f"alive={resp.get('alive')}", file=sys.stderr)
     _print_snap(resp, args.json)
     return 0
 
@@ -1484,8 +1586,8 @@ def cmd_wait_change(args) -> int:
     if args.baseline_hash is not None:
         req["baseline_hash"] = args.baseline_hash
     resp = _call(args.id, req, timeout=args.timeout_ms / 1000.0 + 15.0)
-    print(f"# changed={resp.get('changed')} hash={resp.get('hash')} "
-          f"alive={resp.get('alive')}", file=sys.stderr)
+    print(f"# changed={resp.get('changed')} exited={resp.get('exited')} "
+          f"hash={resp.get('hash')} alive={resp.get('alive')}", file=sys.stderr)
     _print_snap(resp, args.json)
     return 0
 
@@ -1496,8 +1598,8 @@ def cmd_wait_visual_change(args) -> int:
         req["baseline_hash"] = args.baseline_hash
     resp = _call(args.id, req, timeout=args.timeout_ms / 1000.0 + 15.0)
     print(
-        f"# changed={resp.get('changed')} visual_hash={resp.get('visual_hash')} "
-        f"alive={resp.get('alive')}",
+        f"# changed={resp.get('changed')} exited={resp.get('exited')} "
+        f"visual_hash={resp.get('visual_hash')} alive={resp.get('alive')}",
         file=sys.stderr,
     )
     _print_snap(resp, args.json)
@@ -1520,7 +1622,8 @@ def cmd_wait_any(args) -> int:
     idx = resp.get("index", -1)
     hit = patterns[idx] if idx is not None and idx >= 0 else None
     print(f"# index={idx} matched={resp.get('matched')} pattern={hit!r} "
-          f"alive={resp.get('alive')}", file=sys.stderr)
+          f"exited={resp.get('exited')} alive={resp.get('alive')}",
+          file=sys.stderr)
     _print_snap(resp, args.json)
     return 0
 
@@ -1772,7 +1875,8 @@ def cmd_run(args) -> int:
         if cwd:
             os.chdir(cwd)
         os.environ.update(child_env)
-        return _run_steps(args.cmd, steps, args.cols, args.rows)
+        return _run_steps(args.cmd, steps, args.cols, args.rows,
+                          args.detect_child_exit)
     finally:
         os.chdir(old_cwd)
         for key, previous in old_env.items():
@@ -1804,7 +1908,8 @@ def cmd__daemon(args) -> int:
     # The controlled process must not inherit the capability used to control its
     # daemon. Remove it before PtySession spawns the target.
     os.environ.pop("SMARTCLI_TUI_TOKEN", None)
-    _run_daemon(args.id, args.cmd, args.cols, args.rows, token, args.cwd, child_env)
+    _run_daemon(args.id, args.cmd, args.cols, args.rows, token, args.cwd,
+                child_env, args.detect_child_exit)
     return 0
 
 
@@ -1833,6 +1938,15 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--cwd", help="working directory for the target program")
     sp.add_argument("--env", action="append", default=[], metavar="KEY=VALUE",
                     help="environment variable for the target (repeatable)")
+    sp.add_argument("--detect-child-exit", dest="detect_child_exit",
+                    action="store_true",
+                    help="make this session's waits END when the child dies, "
+                         "instead of sitting out the remaining timeout. Off by "
+                         "default, and off means unchanged: a wait that used to "
+                         "return TIMEOUT/false still does. When on, a wait that "
+                         "ended on a dead child reports exited=true (wait: "
+                         "reason=EXITED), so 'the program died' is "
+                         "distinguishable from 'the program was quiet'")
     sp.add_argument("--json", action="store_true", help="emit machine-readable JSON")
     sp.set_defaults(func=cmd_start)
 
@@ -1959,6 +2073,11 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--cwd", help="working directory for the target program")
     sp.add_argument("--env", action="append", default=[], metavar="KEY=VALUE",
                     help="environment variable for the target (repeatable)")
+    sp.add_argument("--detect-child-exit", dest="detect_child_exit",
+                    action="store_true",
+                    help="same opt-in as `start`: a step that waits ends when "
+                         "the child dies rather than burning its timeout "
+                         "(printed as reason=EXITED / matched=EXITED)")
     sp.set_defaults(func=cmd_run)
 
     sp = sub.add_parser("doctor", help="report smartcli_core location + dependency status")
@@ -1975,6 +2094,11 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--cols", type=int, default=100)
     sp.add_argument("--rows", type=int, default=30)
     sp.add_argument("--cwd", default=None)
+    # Internal re-exec argument, set only by `cmd_start` when the caller passed
+    # --detect-child-exit. SUPPRESS because this parser is already out of --help
+    # and the public spelling of the option belongs to `start`.
+    sp.add_argument("--detect-child-exit", dest="detect_child_exit",
+                    action="store_true", help=argparse.SUPPRESS)
     sp.set_defaults(func=cmd__daemon)
 
     return p

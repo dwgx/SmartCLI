@@ -99,6 +99,30 @@ surface is narrow but real:
 - **The MCP server wrapper** (`skills/drive-tui/scripts/mcp_server.py`), which
   exposes the same daemon verbs. It must never expose an unauthenticated verb —
   it reuses the token-auth client path.
+- **The wait family's child-death option** (`start --detect-child-exit`,
+  `run --detect-child-exit`, `detect_child_exit` on the MCP `start` tool). It is
+  **configuration, not a capability**, and the distinction is the whole of its
+  security story: it adds no daemon action, no new verb, no new socket, and no
+  new data — it makes the waits this daemon already serves consult
+  `PtySession.is_alive()` once per poll, and report the outcome in a field the
+  caller was already entitled to. The per-session token gate is unchanged and is
+  checked before the request reaches any of it, so turning it on cannot make an
+  unauthenticated peer learn anything it could not already ask for; a request
+  with a bad or missing token is still refused with no reply fields at all
+  (asserted in `tests/test_drive_security.py`). The flag itself travels on the
+  daemon's argv, like `--cwd` and `--cols` — it is not a secret, and the value
+  that *is* a secret (the token) still travels in an environment variable, never
+  in argv.
+- **What is deliberately NOT reachable from a session.** The screen-revision
+  wait baseline, the terminal-mode registry and the session event log are
+  library-only: importable from `smartcli_core`, and absent from the daemon and
+  the MCP surface. That is a decision, not an oversight, and it is worth stating
+  in a security document because it bounds the surface: no session request, in
+  either direction, can reach them, so there is no input to fuzz and nothing for
+  an unauthenticated peer to aim at. The event log in particular would have been
+  a disk-write surface carrying whatever the driven program printed and whatever
+  you typed at it; keeping it out of the shipped verbs is why that surface does
+  not exist.
 - **`smartcli_core`** PTY handling and the `pyte`-backed perception chain.
 
 ## Out of scope
