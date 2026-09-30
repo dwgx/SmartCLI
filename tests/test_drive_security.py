@@ -527,6 +527,130 @@ def _win_foreign_grantees(path: Path) -> set:
         ctypes.WinDLL("kernel32").LocalFree(descriptor)
 
 
+
+#: Well-known trustees this test may hand the fixture to, best first:
+#: BUILTIN\Users, then BUILTIN\Guest. "Foreign" is decided by
+#: _win_allowed_sids and not by the name: what matters is a trustee the
+#: production DACL is not allowed to name, and the running account is free to
+#: BE one of the well-known groups.
+_WIN_FOREIGN_SIDS = ("S-1-5-32-545", "S-1-5-2")
+#: FILE_ALL_ACCESS -- what a permissive host hands a stranger, and what
+#: _ensure_reg_dir must never leave behind.
+_WIN_ALL_ACCESS = 0x001F01FF
+
+
+def _win_pick_foreign_sid() -> str:
+    """A well-known SID that is provably not one this account may hand a file to."""
+    allowed = _win_allowed_sids()
+    for sid in _WIN_FOREIGN_SIDS:
+        if sid not in allowed:
+            return sid
+    raise AssertionError(f"no foreign principal to test with: every candidate is "
+                         f"this account's own ({sorted(allowed)})")
+
+
+def _win_grant_foreign(path: Path, sid_text: str,
+                       mask: int = _WIN_ALL_ACCESS) -> None:
+    """Grant ``sid_text`` ``mask`` on ``path``, on top of whatever it inherited.
+
+    The hostile precondition has to be BUILT, not hoped for. This used to be
+    read off the host: a fresh directory under the system temp directory was
+    assumed to arrive with a permissive ACL, which is true of some machines and
+    false of a Windows runner whose %TEMP% is owner-only -- the assertion then
+    measured the runner image and went red on code that was fine. So the fixture
+    grants the ACE here, through the same Win32 entry points the production code
+    uses and none of its code, and _win_foreign_grantees reads the result back
+    with its own bindings: an implementation that is wrong cannot agree with
+    this test by sharing a helper with it.
+
+    The ACE is added with NO_INHERITANCE on purpose. The claim under test is
+    about THIS directory, and a grant that flowed down to whatever the code
+    created inside it would turn one broken DACL into two red checks.
+    """
+    import ctypes
+    from ctypes import wintypes
+    handle = ctypes.c_void_p
+    advapi32 = ctypes.WinDLL("advapi32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    # argtypes AND restype on every call: a handle that comes back as a default
+    # c_int is truncated to 32 bits on a 64-bit host, and a truncated handle is
+    # a plausible wrong answer rather than a crash.
+    advapi32.GetNamedSecurityInfoW.argtypes = [ctypes.c_wchar_p, ctypes.c_int,
+                                               wintypes.DWORD, ctypes.c_void_p,
+                                               ctypes.c_void_p,
+                                               ctypes.POINTER(handle),
+                                               ctypes.c_void_p,
+                                               ctypes.POINTER(handle)]
+    advapi32.GetNamedSecurityInfoW.restype = wintypes.DWORD
+    advapi32.GetAclInformation.argtypes = [handle, ctypes.c_void_p,
+                                           wintypes.DWORD, ctypes.c_int]
+    advapi32.GetAclInformation.restype = wintypes.BOOL
+    advapi32.ConvertStringSidToSidW.argtypes = [ctypes.c_wchar_p,
+                                                ctypes.POINTER(handle)]
+    advapi32.ConvertStringSidToSidW.restype = wintypes.BOOL
+    advapi32.GetLengthSid.argtypes = [handle]
+    advapi32.GetLengthSid.restype = wintypes.DWORD
+    advapi32.InitializeAcl.argtypes = [handle, wintypes.DWORD, wintypes.DWORD]
+    advapi32.InitializeAcl.restype = wintypes.BOOL
+    advapi32.AddAccessAllowedAceEx.argtypes = [handle, wintypes.DWORD,
+                                               wintypes.DWORD, wintypes.DWORD,
+                                               handle]
+    advapi32.AddAccessAllowedAceEx.restype = wintypes.BOOL
+    advapi32.SetNamedSecurityInfoW.argtypes = [ctypes.c_wchar_p, ctypes.c_int,
+                                               wintypes.DWORD, ctypes.c_void_p,
+                                               ctypes.c_void_p, ctypes.c_void_p,
+                                               ctypes.c_void_p]
+    advapi32.SetNamedSecurityInfoW.restype = wintypes.DWORD
+    kernel32.LocalFree.argtypes = [handle]
+    kernel32.LocalFree.restype = handle
+
+    class AclSizeInformation(ctypes.Structure):
+        _fields_ = [("AceCount", wintypes.DWORD), ("AclBytesInUse", wintypes.DWORD),
+                    ("AclBytesFree", wintypes.DWORD)]
+
+    dacl, descriptor, sid = handle(), handle(), handle()
+    rc = advapi32.GetNamedSecurityInfoW(str(path), 1, 0x4, None, None,
+                                        ctypes.byref(dacl), None,
+                                        ctypes.byref(descriptor))
+    if rc != 0 or not descriptor:
+        raise AssertionError(f"cannot read the DACL of {path} to extend (rc={rc})")
+    try:
+        if not advapi32.ConvertStringSidToSidW(sid_text, ctypes.byref(sid)):
+            raise AssertionError(f"ConvertStringSidToSidW failed for {sid_text}")
+        inherited = 0
+        if dacl:  # a NULL DACL is "everyone may do anything": nothing to copy
+            info = AclSizeInformation()
+            if not advapi32.GetAclInformation(dacl, ctypes.byref(info),
+                                              ctypes.sizeof(info), 2):
+                raise AssertionError(f"cannot size the DACL of {path}")
+            inherited = info.AclBytesInUse
+        # An ACCESS_ALLOWED_ACE is an 8-byte header plus the SID inline.
+        size = inherited + 8 + advapi32.GetLengthSid(sid)
+        buf = ctypes.create_string_buffer(size)
+        acl = ctypes.cast(buf, handle)
+        if not advapi32.InitializeAcl(acl, size, 2):
+            raise AssertionError(f"InitializeAcl failed for a {size}-byte ACL")
+        if inherited:
+            ctypes.memmove(acl, dacl, inherited)
+        # The ACL header declares its own size in the third 16-bit field
+        # (revision, sbz1, size, ace count, sbz2), and AddAccessAllowedAceEx
+        # bumps the ACE count but leaves that field to the caller.
+        ctypes.memmove(ctypes.addressof(buf) + 2,
+                       (size & 0xFFFF).to_bytes(2, "little"), 2)
+        if not advapi32.AddAccessAllowedAceEx(acl, 2, 0x00, mask, sid):
+            raise AssertionError(f"AddAccessAllowedAceEx failed for {sid_text}")
+        rc = advapi32.SetNamedSecurityInfoW(str(path), 1, 0x4, None, None,
+                                            acl, None)
+        if rc != 0:
+            raise AssertionError(
+                f"SetNamedSecurityInfoW refused to grant {sid_text} on {path} "
+                f"(rc={rc}) -- this host cannot be given the hostile "
+                f"precondition this test needs, and must not be reported as one "
+                f"that was measured")
+    finally:
+        kernel32.LocalFree(sid)
+        kernel32.LocalFree(descriptor)
+
 def test_registry_location_per_platform() -> None:
     """The registry must not live in a directory whose ACL is somebody else's."""
     default = tui._default_reg_dir()
@@ -555,11 +679,18 @@ def test_registry_location_per_platform() -> None:
 def test_windows_registry_dacl_is_private() -> None:
     """MEASURE the DACL of the directory the code creates, and of a token file.
 
-    The fixture is deliberately built in the most hostile parent available -- a
-    fresh directory under the system temp directory, whose measured ACL on this
-    host grants Modify to seven foreign trustees -- so a passing run can only be
-    explained by the code replacing the inherited DACL, never by the parent
-    having been clean to begin with.
+    The hostile precondition is CONSTRUCTED here, never inherited. This used to
+    take the parent %TEMP%'s word for it -- a fresh directory under the system
+    temp directory, whose measured ACL on the author's machine granted Modify
+    to seven foreign trustees -- which is a fact about the host, not about the
+    code: on a Windows runner whose temp directory is owner-only a fresh
+    subdirectory names no foreign trustee at all, and the "before" assertion
+    below went red on a commit whose code was fine. So the fixture now grants a
+    known foreign principal full control on the registry directory AND on a
+    control sibling the code is never pointed at. A pass can then only be
+    explained by _ensure_reg_dir replacing the DACL it was handed: not by a
+    fixture that was private to begin with, and not by the code having been
+    pointed at the other directory.
     """
     if os.name != "nt":
         print("SKIP  registry DACL (Windows only; POSIX mode bits are covered "
@@ -568,42 +699,85 @@ def test_windows_registry_dacl_is_private() -> None:
     missing = [name for name in ("_win_dacl_grants", "_win_apply_dacl",
                                  "_win_secure_registry_dir")
                if not callable(getattr(tui, name, None))]
+    missing += [name for name in ("_WIN_DIR_INHERITANCE",)
+                if getattr(tui, name, None) is None]
     check(not missing,
           f"tui.py exposes the Windows DACL helpers (missing: {missing})")
     if missing:
         return
     old_dir = tui.REG_DIR
     with tempfile.TemporaryDirectory(prefix="smartcli_dacl_") as tmp:
-        registry = Path(tmp)
+        root = Path(tmp)
+        registry, control = root / "sessions", root / "control"
+        registry.mkdir()
+        control.mkdir()
+        # The hostile grant, on the directory under test and on one the code is
+        # never shown. Read back with _win_foreign_grantees, which walks the
+        # ACL with its own bindings, so "the grant landed" is a measurement and
+        # not a restatement of what this helper was asked to do.
+        foreign = _win_pick_foreign_sid()
+        _win_grant_foreign(registry, foreign)
+        _win_grant_foreign(control, foreign)
         before = _win_foreign_grantees(registry)
-        check(bool(before),
-              f"the fixture parent really is permissive, so this test can go red "
-              f"({len(before)} foreign grantees before the code runs)")
+        check(foreign in before,
+              f"the fixture is hostile by construction, so this test CAN go red: "
+              f"{foreign} may read and modify the registry directory before the "
+              f"code runs (foreign grantees={sorted(before)})")
         tui.REG_DIR = registry
         try:
-            tui._ensure_reg_dir()
+            # A refusal from the code under test is a failed claim, not a
+            # traceback: the claim is about the end state, and "it gave up" is
+            # not the same end state as "the directory is private".
+            try:
+                tui._ensure_reg_dir()
+            except SystemExit as exc:
+                check(False, f"_ensure_reg_dir refused instead of making the "
+                             f"directory private: {str(exc).strip()[:140]!r}")
             after_dir = _win_foreign_grantees(registry)
             check(not after_dir,
                   f"no foreign principal can read or modify the registry "
                   f"directory after _ensure_reg_dir (before={len(before)}, "
                   f"after={sorted(after_dir)})")
-            check(bool(_win_foreign_grantees(registry.parent)),
-                  "the permissive PARENT is still permissive, so the clean result "
-                  "above is about this directory and not about a safe fixture")
+            after_control = _win_foreign_grantees(control)
+            check(foreign in after_control,
+                  f"the control directory the code never saw is STILL hostile, so "
+                  f"the clean result above is about the DACL that was replaced "
+                  f"and not about a fixture that was private to begin with "
+                  f"(control foreign grantees={sorted(after_control)})")
 
-            tui._write_reg("daclprobe", {"sid": "daclprobe", "port": 1,
-                                         "pid": 1, "token": "t"})
+            try:
+                tui._write_reg("daclprobe", {"sid": "daclprobe", "port": 1,
+                                             "pid": 1, "token": "t"})
+            except SystemExit as exc:
+                check(False, f"the capability token write refused: "
+                             f"{str(exc).strip()[:140]!r}")
             token_file = tui._reg_path("daclprobe")
-            check(token_file.exists(), "the token file was written")
-            after_file = _win_foreign_grantees(token_file)
-            check(not after_file,
-                  f"no foreign principal can read the capability token file "
-                  f"(after={sorted(after_file)})")
+            written = token_file.exists()
+            check(written, "the token file was written")
+            if written:
+                after_file = _win_foreign_grantees(token_file)
+                check(not after_file,
+                      f"no foreign principal can read the capability token file "
+                      f"(after={sorted(after_file)})")
+            else:
+                check(False, "with no token file there is no token DACL to measure")
             check(_win_allowed_sids() <= {
                 sid for sid in tui._win_allowed_sid_strings(tui._win_acl_api())},
                 "the account running the test is one of the allowed trustees")
         finally:
             tui.REG_DIR = old_dir
+            # Nothing is left behind. Unlinking the tree does not undo a DACL,
+            # and the ACE granted to `control` is still on it, so it is taken
+            # back with the same call that makes a directory private -- even
+            # when the checks above failed, which is when an abandoned foreign
+            # grant would matter most. Not raised: a teardown error would hide
+            # the failure that got us here.
+            for leftover in (registry, control):
+                try:
+                    tui._win_apply_dacl(leftover, tui._WIN_DIR_INHERITANCE)
+                except OSError as exc:
+                    check(False, f"the access this test granted on "
+                                 f"{leftover.name} was taken back ({exc})")
 
 
 def test_windows_registry_fails_closed() -> None:
