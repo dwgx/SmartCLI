@@ -1,6 +1,6 @@
 """Readiness synchronisation for driving an interactive PTY program.
 
-Three independent signals, combined so the agent never fires input into a
+Four independent signals, combined so the agent never fires input into a
 program that isn't ready and never hangs on an animation:
 
 * **Quiescence** -- no bytes arriving (transport level).
@@ -8,7 +8,12 @@ program that isn't ready and never hangs on an animation:
   survives chunked/bursty reads). Cursor-only and attribute-only changes are
   excluded from the hash upstream in :meth:`ScreenModel.content_hash`.
 * **Marker match** -- an expected regex appears (strongest signal).
-
+* **Child death** -- the program under test is gone. Not one of the wait
+  conditions, but a first-class *outcome*: without it a crashed child makes
+  every wait below sit out its whole ceiling, and on a ``wait_ready`` with a
+  long ``max_wait_ms`` that is the difference between one second and thirty.
+  It is opt-in (``alive_fn``), because only the caller knows whether the
+  child dying is a result or an expected part of the scenario.
 Every wait has a hard ``max_wait`` ceiling so spinners/progress bars return the
 last screen instead of hanging.
 
@@ -52,6 +57,69 @@ def _ms(seconds: float) -> float:
 #: PEP 604 union, matching the rest of this package (the 3.10 floor allows it, and
 #: `from __future__ import annotations` above makes it safe in annotations).
 PollHook = Callable[[], None] | None
+
+#: Optional liveness predicate: returns ``True`` while the child is still
+#: running. Supplied to every wait primitive; when it reports ``False`` the wait
+#: returns promptly instead of running out its ceiling.
+#:
+#: WHY THIS EXISTS: "the screen stopped changing" and "the program died" are
+#: different facts, and an agent acting on the wrong one does the wrong thing.
+#: ``pexpect`` has ``searcher_re``'s ``EOF`` sentinel and Microsoft's
+#: ``tui-test`` has ``session_stopped()``; a bare deadline loop has neither, so
+#: a child that crashes on the first input costs the agent the entire timeout.
+#:
+#: Contract: called with no arguments, at most once per poll, AFTER that poll's
+#: read and content evaluation and BEFORE the deadline check. Exceptions
+#: propagate, for the same reason ``on_poll``'s do. Default ``None`` performs
+#: no call at all and keeps every existing caller byte-for-byte unchanged --
+#: the ``is not None`` test is the only thing added to the hot loop.
+#: PEP 604 union, matching :data:`PollHook` above.
+AliveFn = Callable[[], bool] | None
+
+
+class Exited:
+    """The "the child is gone" wait outcome. Falsy, comparable only to itself.
+
+    WHY A SINGLETON AND NOT ``False``: ``False``/``-1``/``"TIMEOUT"`` all mean
+    "I waited and the condition never happened". Reporting a dead child that
+    way loses the one fact the caller needs, and it is the fact that decides
+    what to do next. This is falsy, so ``if sess.wait_stable():`` still reads
+    as "the screen settled" for any caller that has not opted into the
+    distinction -- but ``result is readiness.EXITED`` is unambiguous, and
+    ``result == -1`` is ``False``, so an opted-in caller cannot confuse it
+    with a timeout.
+
+    Only ever returned when an ``alive_fn`` was supplied; the default path
+    cannot produce it.
+    """
+
+    __slots__ = ()
+
+    def __bool__(self) -> bool:
+        return False
+
+    def __repr__(self) -> str:
+        return "EXITED"
+
+    def __eq__(self, other: object) -> bool:
+        return other is self
+
+    def __hash__(self) -> int:
+        return hash(Exited)
+
+
+#: The child-death outcome, shared by every wait primitive.
+EXITED = Exited()
+
+
+#: The ``reason`` string :func:`wait_ready` returns when ``alive_fn`` reports
+#: the child gone. A string, to match that function's existing
+#: ``"MARKER"``/``"STABLE"``/``"TIMEOUT"`` vocabulary -- but a NEW member of it,
+#: because ``"TIMEOUT"`` asserts the program is still running and merely failed
+#: to get somewhere, which is the opposite advice. Callers that switch on the
+#: reason keep working unchanged: an unknown value falls through their default
+#: arm, and only a caller that passes ``alive_fn`` can ever receive this one.
+EXITED_REASON = "EXITED"
 
 
 def _io_blocks_stability(io_block: dict | None) -> bool:
@@ -106,7 +174,8 @@ def wait_until_stable(
     blank_hash: int | None = None,
     on_poll: PollHook = None,
     io_fn: Optional[Callable[[], dict]] = None,
-) -> bool:
+    alive_fn: AliveFn = None,
+) -> bool | Exited:
     """Pump reads until the screen hash is unchanged for ``quiet_ms``.
 
     The stable timer resets on *either* new bytes arriving *or* the hash
@@ -124,8 +193,17 @@ def wait_until_stable(
         min_wait_ms: minimum elapsed time before stability may be declared
             (guards the stale-screen race right after sending input).
 
+        alive_fn: optional liveness predicate. When it reports the child gone
+            the wait returns :data:`EXITED` promptly instead of running out
+            ``max_wait_ms``. See :data:`AliveFn`.
+
     Returns:
-        ``True`` if the screen settled, ``False`` on timeout.
+        ``True`` if the screen settled, ``False`` on timeout, or
+        :data:`EXITED` if ``alive_fn`` reported the child gone. ``False`` and
+        ``EXITED`` are deliberately distinct: one says the program went quiet,
+        the other says it is no longer running, and a caller that acts on the
+        wrong one either re-sends input into a dead program or waits again for
+        a prompt that can never arrive.
     """
     poll = poll_ms / 1000.0
     quiet = quiet_ms / 1000.0
@@ -182,6 +260,13 @@ def wait_until_stable(
             stable_since = None
             last_hash = h
 
+        # Child death is checked AFTER this poll's content evaluation and
+        # BEFORE the deadline, so on a poll where both the settle condition and
+        # the death are observable the settle wins (see the race note in
+        # wait_ready); the two are otherwise indistinguishable from outside.
+        if alive_fn is not None and not alive_fn():
+            return EXITED
+
         if now >= deadline:
             return False
         if on_poll is not None:
@@ -199,7 +284,8 @@ def wait_for_regex(
     min_wait_ms: int = 0,
     flags: int = 0,
     on_poll: PollHook = None,
-) -> tuple[bool, object]:
+    alive_fn: AliveFn = None,
+) -> tuple[bool | Exited, object]:
     """Pump reads until ``pattern`` matches the rendered screen, or timeout.
 
     Args:
@@ -212,10 +298,13 @@ def wait_for_regex(
         min_wait_ms: ignore matches before this much time has elapsed (guards
             against matching a stale prior prompt).
         flags: extra ``re`` flags (``re.I`` etc.).
+        alive_fn: optional liveness predicate; see :data:`AliveFn`.
 
     Returns:
-        ``(matched, snapshot)`` -- ``snapshot`` is always the current screen,
-        even on timeout, so the agent can act on the last state.
+        ``(matched, snapshot)`` -- ``matched`` is ``True`` on a match, ``False``
+        on timeout, and :data:`EXITED` when ``alive_fn`` reported the child gone
+        before a match. ``snapshot`` is always the current screen, even on
+        timeout, so the agent can act on the last state.
     """
     rx = re.compile(pattern, flags)
     poll = poll_ms / 1000.0
@@ -227,8 +316,15 @@ def wait_for_regex(
         now = time.monotonic()
         read_fn()
         elapsed = now - start
+        # Race rule, uniform across every wait: the CONTENT condition is
+        # evaluated first, so a match that becomes visible on the same poll the
+        # child dies is still a match (see wait_ready for the full argument).
+        # "Exited after the marker matched" is therefore reported as the
+        # marker; only "exited before" is EXITED.
         if elapsed >= min_wait and rx.search(get_text_fn()):
             return True, get_snapshot_fn()
+        if alive_fn is not None and not alive_fn():
+            return EXITED, get_snapshot_fn()
         if now >= deadline:
             return False, get_snapshot_fn()
         if on_poll is not None:
@@ -246,7 +342,8 @@ def wait_any(
     min_wait_ms: int = 0,
     flags: int = 0,
     on_poll: PollHook = None,
-) -> tuple[int, object]:
+    alive_fn: AliveFn = None,
+) -> tuple[int | Exited, object]:
     """Pump reads until ANY of ``patterns`` matches the screen, or timeout.
 
     The pexpect ``expect([...])`` analogue: race several possible outcomes
@@ -264,14 +361,16 @@ def wait_any(
         poll_ms: sleep between polls when idle.
         min_wait_ms: ignore matches before this much time has elapsed (guards
             against matching a stale prior prompt right after sending input).
+        alive_fn: optional liveness predicate; see :data:`AliveFn`.
         flags: extra ``re`` flags (``re.I`` etc.) applied to every pattern.
 
     Returns:
         ``(index, snapshot)`` — ``index`` is the 0-based position in ``patterns``
-        of the pattern that matched, or ``-1`` on timeout. An empty ``patterns``
-        list can never match, so it returns ``(-1, snapshot)`` immediately (one
-        pump, no spin to the deadline). The snapshot is always the current screen
-        so the caller can act on the last state either way.
+        of the pattern that matched, ``-1`` on timeout, or :data:`EXITED` when
+        ``alive_fn`` reported the child gone before any pattern matched. An empty
+        ``patterns`` list can never match, so it returns ``(-1, snapshot)``
+        immediately (one pump, no spin to the deadline). The snapshot is always
+        the current screen so the caller can act on the last state either way.
     """
     rxs = [re.compile(p, flags) for p in patterns]
     if not rxs:
@@ -293,6 +392,11 @@ def wait_any(
             for i, rx in enumerate(rxs):
                 if rx.search(text):
                     return i, get_snapshot_fn()
+        # Same race rule as wait_for_regex: the patterns are scanned FIRST, so
+        # a match that becomes visible on the poll the child dies on is still
+        # reported as that match. Only "died before anything matched" is EXITED.
+        if alive_fn is not None and not alive_fn():
+            return EXITED, get_snapshot_fn()
         if now >= deadline:
             return -1, get_snapshot_fn()
         if on_poll is not None:
@@ -315,6 +419,7 @@ def wait_ready(
     blank_hash: int | None = None,
     on_poll: PollHook = None,
     io_fn: Optional[Callable[[], dict]] = None,
+    alive_fn: AliveFn = None,
 ) -> tuple[str, object]:
     """Unified wait: satisfy on ``marker`` OR screen stability, capped by max_wait.
 
@@ -322,9 +427,30 @@ def wait_ready(
     the earliest safe moment. ``min_wait_ms`` guards the stale-screen race after
     sending input.
 
+    THE RACE BETWEEN "the marker matched" AND "the child died": both are
+    evaluated on the same poll, and the CONTENT condition is evaluated FIRST,
+    so a marker that becomes visible on the very poll the child dies on is
+    reported as ``"MARKER"``. The reasoning: the marker's whole purpose is to
+    tell the agent the program reached a known state -- most often by printing
+    it as its last act before exiting (a usage banner, a goodbye, a traceback
+    header). Reporting ``"EXITED"`` there would throw away the one piece of
+    information the agent sent the wait for. "Exited after the marker matched"
+    is therefore indistinguishable from "matched while alive", and only "exited
+    before anything matched" is ``EXITED_REASON``. That direction also cannot
+    hide a real condition, since the content check is a pure read of the screen
+    that already contains the child's final output.
+
+    Args:
+        alive_fn: optional liveness predicate; when it reports the child gone
+            the wait returns ``EXITED_REASON`` instead of sitting out
+            ``max_wait_ms``. See :data:`AliveFn`.
+
     Returns:
-        ``(reason, snapshot)`` where ``reason`` is ``"MARKER"``, ``"STABLE"`` or
-        ``"TIMEOUT"``. The snapshot is always the current screen.
+        ``(reason, snapshot)`` where ``reason`` is ``"MARKER"``, ``"STABLE"``,
+        ``"TIMEOUT"``, or ``EXITED_REASON`` (``"EXITED"``, and only when
+        ``alive_fn`` was supplied). The snapshot is always the current screen.
+        ``TIMEOUT`` means "the program is still running and never got there";
+        ``EXITED`` means "it is gone and the answer will never arrive".
     """
     rx = re.compile(marker, flags) if marker else None
     poll = poll_ms / 1000.0
@@ -382,6 +508,12 @@ def wait_ready(
         else:
             stable_since = None
             last_hash = h
+
+        # Third branch of the race, and the only one that can fire without the
+        # screen changing: the child is gone, so MARKER and STABLE will never
+        # arrive on their own. Checked after both, per the race note above.
+        if alive_fn is not None and not alive_fn():
+            return EXITED_REASON, get_snapshot_fn()
 
         if now >= deadline:
             return "TIMEOUT", get_snapshot_fn()

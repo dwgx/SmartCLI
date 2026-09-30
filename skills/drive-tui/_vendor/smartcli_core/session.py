@@ -24,7 +24,8 @@ import time
 from collections.abc import Callable, Sequence
 
 from .pty_backend import PtyBackend, ReadBudgetUnsupported, get_default_backend, supports_read_budget
-from .readiness import PollHook, wait_any, wait_for_regex, wait_ready, wait_until_stable
+from .readiness import (EXITED, AliveFn, Exited, PollHook, wait_any, wait_for_regex,
+                        wait_ready, wait_until_stable)
 from .screen_model import ScreenModel
 from .snapshot import Snapshot, build_snapshot
 
@@ -181,12 +182,35 @@ class PtySession:
         #: existing caller changes meaning. The daemon sets it from
         #: ``SMARTCLI_REPLY_RETRY_BYTES``.
         self.reply_retry_bytes: int | None = None
+        #: When true, this session's waits treat the child dying as a wait
+        #: OUTCOME instead of something to sit out until the ceiling: a program
+        #: that crashes on your first input makes a 30s ``wait_ready`` return in
+        #: one poll cycle. ``False`` (the default) keeps every existing caller
+        #: byte-for-byte unchanged -- a wait that used to return TIMEOUT/False
+        #: still does. Set it per call with ``alive_fn=`` instead when only one
+        #: wait should care; the per-call argument wins.
+        self.detect_child_exit: bool = False
 
     def _read_for_wait(self) -> bytes:
         """The read call this session's waits use (budgeted when configured)."""
         if self.io_turn_bytes is None:
             return self.pump()
         return self.pump(max_bytes=self.io_turn_bytes)
+
+    def _liveness(self, alive_fn: AliveFn) -> AliveFn:
+        """The predicate this wait should use: explicit one, else the session's.
+
+        One place decides, so every wait on this class agrees about what
+        ``detect_child_exit`` means -- and so the default really is "no
+        predicate at all", which is what leaves the pre-existing timing
+        untouched. Returns ``None`` (never a lambda) when neither is set, so the
+        core's ``alive_fn is not None`` test short-circuits without a call.
+        """
+        if alive_fn is not None:
+            return alive_fn
+        if self.detect_child_exit:
+            return self.is_alive
+        return None
 
     # -- lifecycle ---------------------------------------------------------
 
@@ -539,10 +563,15 @@ class PtySession:
         grace_ms: int = 40,
         flags: int = 0,
         on_poll: PollHook = None,
+        alive_fn: AliveFn = None,
     ) -> tuple[str, Snapshot]:
         """Wait for ``marker`` OR screen stability. See :func:`readiness.wait_ready`.
 
-        Returns ``(reason, snapshot)`` with reason in ``MARKER``/``STABLE``/``TIMEOUT``.
+        Returns ``(reason, snapshot)`` with reason in
+        ``MARKER``/``STABLE``/``TIMEOUT``, plus ``"EXITED"`` when this wait can
+        tell the child is gone (see :attr:`detect_child_exit` and ``alive_fn``).
+        ``TIMEOUT`` means it is still running and never got there; ``"EXITED"``
+        means it is gone and no further wait will change that.
         """
         reason, snap = wait_ready(
             read_fn=self._read_for_wait,
@@ -558,6 +587,7 @@ class PtySession:
             flags=flags,
             blank_hash=self._blank_hash,
             on_poll=on_poll,
+            alive_fn=self._liveness(alive_fn),
         )
         return reason, snap  # type: ignore[return-value]
 
@@ -569,8 +599,13 @@ class PtySession:
         grace_ms: int = 40,
         min_wait_ms: int = 0,
         on_poll: PollHook = None,
-    ) -> bool:
-        """Wait until the screen settles. See :func:`readiness.wait_until_stable`."""
+        alive_fn: AliveFn = None,
+    ) -> bool | Exited:
+        """Wait until the screen settles. See :func:`readiness.wait_until_stable`.
+
+        Returns ``True``, or ``False`` on timeout, or :data:`readiness.EXITED`
+        when the child died first and this wait was told to notice.
+        """
         return wait_until_stable(
             read_fn=self._read_for_wait,
             get_screen_hash_fn=self.model.content_hash,
@@ -581,6 +616,7 @@ class PtySession:
             min_wait_ms=min_wait_ms,
             blank_hash=self._blank_hash,
             on_poll=on_poll,
+            alive_fn=self._liveness(alive_fn),
         )
 
     def wait_for(
@@ -591,7 +627,8 @@ class PtySession:
         min_wait_ms: int = 0,
         flags: int = 0,
         on_poll: PollHook = None,
-    ) -> tuple[bool, Snapshot]:
+        alive_fn: AliveFn = None,
+    ) -> tuple[bool | Exited, Snapshot]:
         """Wait for ``pattern`` on the screen. See :func:`readiness.wait_for_regex`."""
         matched, snap = wait_for_regex(
             read_fn=self._read_for_wait,
@@ -602,6 +639,7 @@ class PtySession:
             poll_ms=poll_ms,
             min_wait_ms=min_wait_ms,
             flags=flags,
+            alive_fn=self._liveness(alive_fn),
             on_poll=on_poll,
         )
         return matched, snap  # type: ignore[return-value]
@@ -614,13 +652,15 @@ class PtySession:
         min_wait_ms: int = 0,
         flags: int = 0,
         on_poll: PollHook = None,
-    ) -> tuple[int, Snapshot]:
+        alive_fn: AliveFn = None,
+    ) -> tuple[int | Exited, Snapshot]:
         """Wait for ANY of ``patterns`` (pexpect ``expect([...])`` style).
 
         Returns ``(index, snapshot)`` where ``index`` is the 0-based position of
-        the pattern that matched (earliest in the list wins a same-poll tie), or
-        ``-1`` on timeout. The snapshot is always the current screen. See
-        :func:`readiness.wait_any`.
+        the pattern that matched (earliest in the list wins a same-poll tie),
+        ``-1`` on timeout, or :data:`readiness.EXITED` when the child died first
+        and this wait was told to notice. The snapshot is always the current
+        screen. See :func:`readiness.wait_any`.
         """
         index, snap = wait_any(
             read_fn=self._read_for_wait,
@@ -632,6 +672,7 @@ class PtySession:
             min_wait_ms=min_wait_ms,
             flags=flags,
             on_poll=on_poll,
+            alive_fn=self._liveness(alive_fn),
         )
         return index, snap  # type: ignore[return-value]
 
@@ -641,7 +682,8 @@ class PtySession:
         timeout_ms: int = 10000,
         poll_ms: int = 30,
         on_poll: PollHook = None,
-    ) -> tuple[bool, Snapshot]:
+        alive_fn: AliveFn = None,
+    ) -> tuple[bool | Exited, Snapshot]:
         """Wait until the screen content changes away from ``baseline_hash``.
 
         The precise "did my action land?" primitive: after sending input, block
@@ -654,7 +696,10 @@ class PtySession:
         screen that was already showing the target text.
 
         This is a thin session-level poll over the existing pump + content_hash;
-        it adds no new core state.
+        it adds no new core state. With a liveness predicate (``alive_fn`` or
+        :attr:`detect_child_exit`) it also returns :data:`readiness.EXITED` when
+        the child dies, so "my keystroke did nothing because the program crashed
+        on it" stops looking identical to "the program ignored me".
         """
         return self._wait_hash_change(
             self.model.content_hash,
@@ -662,6 +707,7 @@ class PtySession:
             timeout_ms=timeout_ms,
             poll_ms=poll_ms,
             on_poll=on_poll,
+            alive_fn=self._liveness(alive_fn),
         )
 
     def wait_visual_change(
@@ -670,7 +716,8 @@ class PtySession:
         timeout_ms: int = 10000,
         poll_ms: int = 30,
         on_poll: PollHook = None,
-    ) -> tuple[bool, Snapshot]:
+        alive_fn: AliveFn = None,
+    ) -> tuple[bool | Exited, Snapshot]:
         """Wait for text, styling, selection, or cursor state to change.
 
         Use this after navigation keys in TUIs whose selected row changes only by
@@ -684,6 +731,7 @@ class PtySession:
             timeout_ms=timeout_ms,
             poll_ms=poll_ms,
             on_poll=on_poll,
+            alive_fn=self._liveness(alive_fn),
         )
 
     def _wait_hash_change(
@@ -693,7 +741,8 @@ class PtySession:
         timeout_ms: int,
         poll_ms: int,
         on_poll: PollHook = None,
-    ) -> tuple[bool, Snapshot]:
+        alive_fn: AliveFn = None,
+    ) -> tuple[bool | Exited, Snapshot]:
         if baseline_hash is None:
             # Baseline = the screen as it stands NOW, WITHOUT draining pending
             # bytes first — otherwise the very output we're waiting for could be
@@ -705,6 +754,10 @@ class PtySession:
             self._read_for_wait()
             if hash_fn() != baseline_hash:
                 return True, self.snapshot()
+            # Same race rule as the readiness primitives: the change is observed
+            # first, so output the child produced on its way out still counts.
+            if alive_fn is not None and not alive_fn():
+                return EXITED, self.snapshot()
             if time.monotonic() >= deadline:
                 return False, self.snapshot()
             if on_poll is not None:

@@ -201,6 +201,14 @@ def build_suite():
                       [PY, str(TESTS / "test_readiness.py")], ROOT, 120,
                       optional=True))
 
+    # A dead child used to be indistinguishable from a slow one: every wait was
+    # a pure deadline loop, so a crash cost the whole ceiling AND reported
+    # TIMEOUT ("still running, try again"). Pure in-memory — a virtual clock,
+    # scripted callables and a fake backend — so it is safe under the red line.
+    suite.append(Test("test_child_death_wait (death is a wait outcome)",
+                      [PY, str(TESTS / "test_child_death_wait.py")], ROOT, 60,
+                      optional=True))
+
     # --- deterministic pure-memory gates (fast, zero-process) -------------
     suite.append(Test("test_vendor_sync (drive-tui _vendor == canonical)",
                       [PY, str(TESTS / "test_vendor_sync.py")], ROOT, 60,
