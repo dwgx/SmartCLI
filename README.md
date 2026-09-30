@@ -3,13 +3,13 @@
 <!-- dwgx-banner:BEGIN -->
 <div align="center">
 
-<img src="docs/assets/banner.svg" width="100%" alt="SmartCLI — 三个 Agent Skill 架在一个 PTY + pyte 核心上：驱动 TUI、渲染 cell 级界面" />
+<img src="docs/assets/banner.svg?t=a655e157c143" width="100%" alt="SmartCLI — 三个 Agent Skill 架在一个 PTY + pyte 核心上：驱动 TUI、渲染 cell 级界面" />
 
 <br/>
 
 Python · MIT · ★4
 
-[![docs](https://dwgx.github.io/SmartCLI/)](https://dwgx.github.io/SmartCLI/) [![PyPI](https://pypi.org/project/smartcli-toolkit/)](https://pypi.org/project/smartcli-toolkit/)
+[docs](https://dwgx.github.io/SmartCLI/) · [PyPI](https://pypi.org/project/smartcli-toolkit/)
 
 </div>
 <!-- dwgx-banner:END -->
