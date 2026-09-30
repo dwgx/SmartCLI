@@ -219,6 +219,15 @@ def build_suite():
     suite.append(Test("test_fx_contract (every fx effect x sizes)",
                       [PY, str(TESTS / "test_fx_contract.py")], ROOT, 120,
                       optional=True))
+
+    # A wait baseline that is a STATE, not a duration: `after_revision=` lets a
+    # caller who has just read the screen say "wait until something changes from
+    # what I saw", which is what a `min_wait_ms` guess cannot express. Covers the
+    # anchor x content x child-death x deadline composition. Pure in-memory —
+    # virtual clock, scripted callables, a fake backend — safe under the red line.
+    suite.append(Test("test_revision_baseline (state-based wait anchors)",
+                      [PY, str(TESTS / "test_revision_baseline.py")], ROOT, 60,
+                      optional=True))
     suite.append(Test("test_doc_counts (docs match code, anti-drift)",
                       [PY, str(TESTS / "test_doc_counts.py")], ROOT, 60,
                       optional=True))
@@ -269,6 +278,26 @@ def build_suite():
                       optional=True))
     suite.append(Test("test_terminal_fidelity (real-terminal divergence locks)",
                       [PY, str(TESTS / "test_terminal_fidelity.py")], ROOT, 60,
+                      optional=True))
+    # A terminal's mode set is queried by NAME (`Mode.DECCKM`, not a bare int),
+    # and the registry is CLOSED: an unknown name is a loud error, never a
+    # silently-ignored no-op. Pure in-memory against the pyte screen — no PTY,
+    # no child process, safe under the red line.
+    suite.append(Test("test_terminal_modes (named, closed terminal-mode registry)",
+                      [PY, str(TESTS / "test_terminal_modes.py")], ROOT, 60,
+                      optional=True))
+    # A session can emit its wait outcomes as JSON Lines, so a caller can
+    # post-mortem a run without re-driving it. Opt-in, in-memory: a fake
+    # backend and a temp file, no PTY and no child process.
+    suite.append(Test("test_session_log (opt-in JSON Lines event log)",
+                      [PY, str(TESTS / "test_session_log.py")], ROOT, 60,
+                      optional=True))
+    # An unknown escape sequence must be REJECTED, never guessed: silently
+    # swallowing one leaves a wrong screen that nothing downstream can debug.
+    # Pure in-memory against the pyte screen — no PTY, no child process, safe
+    # under the red line.
+    suite.append(Test("test_unknown_sequences (unknown sequences rejected, not guessed)",
+                      [PY, str(TESTS / "test_unknown_sequences.py")], ROOT, 60,
                       optional=True))
     suite.append(Test("test_cell_span_regression (T05 CJK cell-span labels)",
                       [PY, str(TESTS / "test_cell_span_regression.py")], ROOT, 60,

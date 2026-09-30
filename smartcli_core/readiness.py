@@ -1,7 +1,8 @@
 """Readiness synchronisation for driving an interactive PTY program.
 
-Four independent signals, combined so the agent never fires input into a
-program that isn't ready and never hangs on an animation:
+Independent signals, combined so the agent never fires input into a program that
+isn't ready, never mistakes an old screen for a new one, and never hangs on an
+animation:
 
 * **Quiescence** -- no bytes arriving (transport level).
 * **Screen stability** -- the pyte content hash stops changing (semantic level,
@@ -14,6 +15,14 @@ program that isn't ready and never hangs on an animation:
   long ``max_wait_ms`` that is the difference between one second and thirty.
   It is opt-in (``alive_fn``), because only the caller knows whether the
   child dying is a result or an expected part of the scenario.
+
+* **Revision baseline** -- "something changed since I last looked". Opt-in
+  (``changed_since``), and the STATE-based replacement for the ``min_wait_ms``
+  millisecond guess: while the caller's anchor is still closed the wait reports
+  no success at all, so a screen that was already showing the target cannot be
+  mistaken for one that has just reached it. The gate suppresses success only --
+  never the ``max_wait`` ceiling and never the child-death outcome.
+
 Every wait has a hard ``max_wait`` ceiling so spinners/progress bars return the
 last screen instead of hanging.
 
@@ -75,6 +84,35 @@ PollHook = Callable[[], None] | None
 #: the ``is not None`` test is the only thing added to the hot loop.
 #: PEP 604 union, matching :data:`PollHook` above.
 AliveFn = Callable[[], bool] | None
+
+#: Optional "has the screen changed since my anchor?" predicate: returns
+#: ``True`` once the screen has moved past the state the caller last observed.
+#:
+#: WHY THIS EXISTS: every other readiness knob is a GUESS about time -- "wait at
+#: least 50 ms in case the screen is stale", "go quiet for 200 ms". The guess
+#: cannot tell two situations apart: the program is still working, or it
+#: finished before the wait began and the answer is already on the screen.
+#: Both look identical from inside the loop, and the second one is reported as
+#: success. ``agent-tty`` (coder) solves this with ``--after-seq``: a wait
+#: BASELINE rather than a wait DURATION.
+#:
+#: HOW IT COMPOSES: the predicate gates SUCCESS only. While it reports
+#: ``False``, every success branch below is skipped, so the wait cannot report
+#: ``True``/``"STABLE"``/``"MARKER"``/a match index on the pre-anchor screen. It
+#: never gates the other two exits: the deadline still returns the ordinary
+#: timeout when the screen simply never changes, and ``alive_fn`` still wins
+#: the instant it reports the child gone -- a dead child is a fact about the
+#: world, not a screen that failed to change. That asymmetry is deliberate: the
+#: anchor exists to stop a STALE screen being called a NEW one, and there is no
+#: reading under which a dead child becomes interesting again just because
+#: nothing was drawn.
+#:
+#: Contract: called with no arguments, at most once per poll, BEFORE this
+#: poll's success branches are evaluated. Exceptions propagate, for the same
+#: reason ``on_poll``'s and ``alive_fn``'s do. Default ``None`` performs no call
+#: at all and keeps every existing caller byte-for-byte unchanged.
+#: PEP 604 union, matching :data:`PollHook` and :data:`AliveFn` above.
+ChangedSince = Callable[[], bool] | None
 
 
 class Exited:
@@ -163,6 +201,18 @@ def _io_epoch(io_block: dict | None):
     return io_block.get("fed_offset")
 
 
+def _anchor_open(changed_since: ChangedSince) -> bool:
+    """Is this wait's revision anchor satisfied (or was none asked for)?
+
+    One place decides, so all four primitives agree on what a closed anchor
+    means: the success branches are unreachable, the deadline and the
+    child-death check are not. Returns ``True`` when no anchor was supplied --
+    the default -- so an unanchored wait's hot loop costs exactly one
+    ``is not None`` test and no call, the same bargain :data:`AliveFn` makes.
+    """
+    return changed_since is None or changed_since()
+
+
 def wait_until_stable(
     read_fn: ReadFn,
     get_screen_hash_fn: HashFn,
@@ -175,6 +225,7 @@ def wait_until_stable(
     on_poll: PollHook = None,
     io_fn: Optional[Callable[[], dict]] = None,
     alive_fn: AliveFn = None,
+    changed_since: ChangedSince = None,
 ) -> bool | Exited:
     """Pump reads until the screen hash is unchanged for ``quiet_ms``.
 
@@ -196,6 +247,13 @@ def wait_until_stable(
         alive_fn: optional liveness predicate. When it reports the child gone
             the wait returns :data:`EXITED` promptly instead of running out
             ``max_wait_ms``. See :data:`AliveFn`.
+
+        changed_since: optional "has the screen changed since my anchor?"
+            predicate. While it reports ``False`` this wait cannot return
+            ``True`` -- it will not call a pre-anchor screen settled. The
+            deadline still applies, so a wait that is anchored and never sees a
+            change returns ``False`` at ``max_wait_ms``. See
+            :data:`ChangedSince`.
 
     Returns:
         ``True`` if the screen settled, ``False`` on timeout, or
@@ -239,8 +297,14 @@ def wait_until_stable(
         h = get_screen_hash_fn()
         elapsed = now - start
         blank = (not seen_any and blank_hash is not None and h == blank_hash)
+        # A closed anchor disqualifies the screen from being called SETTLED, so
+        # it takes the same branch as a change: the quiet timer restarts. That is
+        # what makes "changed since I looked" mean something -- once the anchor
+        # opens, the quiet window still has to be served by the post-change
+        # screen, not by whatever stillness preceded it.
+        anchored = _anchor_open(changed_since)
 
-        if not progressed and h == last_hash and not blocked:
+        if anchored and not progressed and h == last_hash and not blocked:
             if stable_since is None:
                 stable_since = now
             elif (now - stable_since) >= quiet and elapsed >= min_wait and not blank:
@@ -285,6 +349,7 @@ def wait_for_regex(
     flags: int = 0,
     on_poll: PollHook = None,
     alive_fn: AliveFn = None,
+    changed_since: ChangedSince = None,
 ) -> tuple[bool | Exited, object]:
     """Pump reads until ``pattern`` matches the rendered screen, or timeout.
 
@@ -299,6 +364,9 @@ def wait_for_regex(
             against matching a stale prior prompt).
         flags: extra ``re`` flags (``re.I`` etc.).
         alive_fn: optional liveness predicate; see :data:`AliveFn`.
+        changed_since: optional "has the screen changed since my anchor?"
+            predicate; see :data:`ChangedSince`. While closed, a match that was
+            already on the pre-anchor screen is not reported as one.
 
     Returns:
         ``(matched, snapshot)`` -- ``matched`` is ``True`` on a match, ``False``
@@ -321,7 +389,8 @@ def wait_for_regex(
         # child dies is still a match (see wait_ready for the full argument).
         # "Exited after the marker matched" is therefore reported as the
         # marker; only "exited before" is EXITED.
-        if elapsed >= min_wait and rx.search(get_text_fn()):
+        anchored = _anchor_open(changed_since)
+        if anchored and elapsed >= min_wait and rx.search(get_text_fn()):
             return True, get_snapshot_fn()
         if alive_fn is not None and not alive_fn():
             return EXITED, get_snapshot_fn()
@@ -343,6 +412,7 @@ def wait_any(
     flags: int = 0,
     on_poll: PollHook = None,
     alive_fn: AliveFn = None,
+    changed_since: ChangedSince = None,
 ) -> tuple[int | Exited, object]:
     """Pump reads until ANY of ``patterns`` matches the screen, or timeout.
 
@@ -363,6 +433,9 @@ def wait_any(
             against matching a stale prior prompt right after sending input).
         alive_fn: optional liveness predicate; see :data:`AliveFn`.
         flags: extra ``re`` flags (``re.I`` etc.) applied to every pattern.
+        changed_since: optional "has the screen changed since my anchor?"
+            predicate; see :data:`ChangedSince`. While closed, a pattern that
+            was already matching the pre-anchor screen is not reported.
 
     Returns:
         ``(index, snapshot)`` — ``index`` is the 0-based position in ``patterns``
@@ -387,7 +460,8 @@ def wait_any(
         now = time.monotonic()
         read_fn()
         elapsed = now - start
-        if elapsed >= min_wait:
+        anchored = _anchor_open(changed_since)
+        if anchored and elapsed >= min_wait:
             text = get_text_fn()
             for i, rx in enumerate(rxs):
                 if rx.search(text):
@@ -420,6 +494,7 @@ def wait_ready(
     on_poll: PollHook = None,
     io_fn: Optional[Callable[[], dict]] = None,
     alive_fn: AliveFn = None,
+    changed_since: ChangedSince = None,
 ) -> tuple[str, object]:
     """Unified wait: satisfy on ``marker`` OR screen stability, capped by max_wait.
 
@@ -444,6 +519,14 @@ def wait_ready(
         alive_fn: optional liveness predicate; when it reports the child gone
             the wait returns ``EXITED_REASON`` instead of sitting out
             ``max_wait_ms``. See :data:`AliveFn`.
+
+        changed_since: optional "has the screen changed since my anchor?"
+            predicate; see :data:`ChangedSince`. While it reports ``False``
+            BOTH success branches are unreachable -- neither ``"MARKER"`` nor
+            ``"STABLE"`` can be reported against the pre-anchor screen. The
+            anchor composes with the marker/death race exactly as ``alive_fn``
+            does: it is checked first, so the first poll on which the screen both
+            moves and the marker is visible still reports ``"MARKER"``.
 
     Returns:
         ``(reason, snapshot)`` where ``reason`` is ``"MARKER"``, ``"STABLE"``,
@@ -482,15 +565,19 @@ def wait_ready(
                                     and epoch != last_epoch)
         last_epoch = epoch
         elapsed = now - start
+        # A closed anchor gates BOTH success branches, for the same reason
+        # wait_until_stable restarts its quiet timer: stillness before the
+        # change the agent is waiting for is not readiness.
+        anchored = _anchor_open(changed_since)
 
         # 1) marker wins immediately (respect min_wait)
-        if rx is not None and elapsed >= min_wait and rx.search(get_text_fn()):
+        if rx is not None and anchored and elapsed >= min_wait and rx.search(get_text_fn()):
             return "MARKER", get_snapshot_fn()
 
         # 2) stability
         h = get_screen_hash_fn()
         blank = (not seen_any and blank_hash is not None and h == blank_hash)
-        if not progressed and h == last_hash and not blocked:
+        if anchored and not progressed and h == last_hash and not blocked:
             if stable_since is None:
                 stable_since = now
             elif (now - stable_since) >= quiet and elapsed >= min_wait and not blank:

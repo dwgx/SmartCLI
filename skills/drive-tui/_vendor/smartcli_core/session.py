@@ -24,8 +24,8 @@ import time
 from collections.abc import Callable, Sequence
 
 from .pty_backend import PtyBackend, ReadBudgetUnsupported, get_default_backend, supports_read_budget
-from .readiness import (EXITED, AliveFn, Exited, PollHook, wait_any, wait_for_regex,
-                        wait_ready, wait_until_stable)
+from .readiness import (EXITED, AliveFn, ChangedSince, Exited, PollHook, _anchor_open,
+                        wait_any, wait_for_regex, wait_ready, wait_until_stable)
 from .screen_model import ScreenModel
 from .snapshot import Snapshot, build_snapshot
 
@@ -191,11 +191,72 @@ class PtySession:
         #: wait should care; the per-call argument wins.
         self.detect_child_exit: bool = False
 
+        # -- screen revision -------------------------------------------------
+        # WHY HERE AND NOT IN ScreenModel: the counter answers a question about
+        # an OBSERVATION SEQUENCE ("has the screen moved since I looked"), and
+        # ScreenModel is a pure cell grid with no notion of when it was read --
+        # it cannot tell a change from a re-read of the same bytes. The session
+        # is where observation happens (pump, snapshot, every wait's poll), so
+        # the session is where "changed since" can be answered. The counter is
+        # fed from the VISUAL hash, which is a strict superset of the content
+        # hash (any text change moves it, and so does a selection/cursor move),
+        # and is the incremental one -- ~0.008 ms idle against ~5 ms for
+        # content_hash at 300x100 -- so the axis costs nothing to poll.
+        # Monotonic for the life of the session and deliberately NOT reset by
+        # start()/resize(): a pending anchor must never be satisfied by a
+        # counter going backwards.
+        self._revision: int = 0
+        self._revision_hash: int | None = None
+
     def _read_for_wait(self) -> bytes:
         """The read call this session's waits use (budgeted when configured)."""
         if self.io_turn_bytes is None:
             return self.pump()
         return self.pump(max_bytes=self.io_turn_bytes)
+
+    # -- screen revision ---------------------------------------------------
+
+    def screen_revision(self) -> int:
+        """The current screen revision, having sampled the screen to get it.
+
+        This is the value to hand to a wait's ``after_revision=`` -- take it
+        right after reading the screen, before sending the input whose effect
+        you are about to wait for. Sampling here (rather than returning a
+        cached number) is what makes the anchor honest: a caller that has just
+        looked MUST anchor at the revision of what it looked at, and a number
+        from before the last ``pump`` would under-anchor by exactly the change
+        it has not seen yet.
+
+        Monotonic for the life of the session. It counts CHANGES, not states:
+        a repaint that reproduces the same screen does not advance it, so
+        ``screen_revision()`` is stable across idle polls and only moves when
+        the visible screen actually differs from the last observation.
+        """
+        h = self.model.visual_hash()
+        if self._revision_hash is None:
+            self._revision_hash = h          # first observation is the baseline
+        elif h != self._revision_hash:
+            self._revision_hash = h
+            self._revision += 1
+        return self._revision
+
+    def _changed_since(self, after_revision: int | None) -> ChangedSince:
+        """The anchor predicate this wait should use: explicit one, or none.
+
+        The sibling of :meth:`_liveness`, and it resolves the same way -- an
+        explicit per-call ``after_revision`` wins, and with neither an argument
+        nor a session default there is NO predicate at all, so the core's
+        ``is not None`` test short-circuits and the default path costs one
+        identity comparison.
+
+        Comparing against the live :meth:`screen_revision` (rather than a value
+        frozen at wait entry) is deliberate: the anchor is a question about the
+        screen, and a change that lands mid-wait is a change. Freezing it would
+        make a wait that started after the change can never be satisfied.
+        """
+        if after_revision is None:
+            return None
+        return lambda: self.screen_revision() > after_revision
 
     def _liveness(self, alive_fn: AliveFn) -> AliveFn:
         """The predicate this wait should use: explicit one, else the session's.
@@ -564,6 +625,7 @@ class PtySession:
         flags: int = 0,
         on_poll: PollHook = None,
         alive_fn: AliveFn = None,
+        after_revision: int | None = None,
     ) -> tuple[str, Snapshot]:
         """Wait for ``marker`` OR screen stability. See :func:`readiness.wait_ready`.
 
@@ -572,6 +634,10 @@ class PtySession:
         tell the child is gone (see :attr:`detect_child_exit` and ``alive_fn``).
         ``TIMEOUT`` means it is still running and never got there; ``"EXITED"``
         means it is gone and no further wait will change that.
+
+        ``after_revision`` anchors the wait to a revision from
+        :meth:`screen_revision`: until the screen has moved past it, neither
+        ``MARKER`` nor ``STABLE`` can be reported. See :data:`readiness.ChangedSince`.
         """
         reason, snap = wait_ready(
             read_fn=self._read_for_wait,
@@ -588,6 +654,7 @@ class PtySession:
             blank_hash=self._blank_hash,
             on_poll=on_poll,
             alive_fn=self._liveness(alive_fn),
+            changed_since=self._changed_since(after_revision),
         )
         return reason, snap  # type: ignore[return-value]
 
@@ -600,11 +667,16 @@ class PtySession:
         min_wait_ms: int = 0,
         on_poll: PollHook = None,
         alive_fn: AliveFn = None,
+        after_revision: int | None = None,
     ) -> bool | Exited:
         """Wait until the screen settles. See :func:`readiness.wait_until_stable`.
 
         Returns ``True``, or ``False`` on timeout, or :data:`readiness.EXITED`
         when the child died first and this wait was told to notice.
+
+        ``after_revision`` (from :meth:`screen_revision`) withholds ``True``
+        until the screen has actually moved: stillness inherited from before
+        the caller's input is not settling. See :data:`readiness.ChangedSince`.
         """
         return wait_until_stable(
             read_fn=self._read_for_wait,
@@ -617,6 +689,7 @@ class PtySession:
             blank_hash=self._blank_hash,
             on_poll=on_poll,
             alive_fn=self._liveness(alive_fn),
+            changed_since=self._changed_since(after_revision),
         )
 
     def wait_for(
@@ -628,8 +701,14 @@ class PtySession:
         flags: int = 0,
         on_poll: PollHook = None,
         alive_fn: AliveFn = None,
+        after_revision: int | None = None,
     ) -> tuple[bool | Exited, Snapshot]:
-        """Wait for ``pattern`` on the screen. See :func:`readiness.wait_for_regex`."""
+        """Wait for ``pattern`` on the screen. See :func:`readiness.wait_for_regex`.
+
+        ``after_revision`` (from :meth:`screen_revision`) ignores a match that was
+        already on the pre-anchor screen, so "wait for the prompt" cannot return
+        the prompt that was already there.
+        """
         matched, snap = wait_for_regex(
             read_fn=self._read_for_wait,
             get_text_fn=self.model.text,
@@ -641,6 +720,7 @@ class PtySession:
             flags=flags,
             alive_fn=self._liveness(alive_fn),
             on_poll=on_poll,
+            changed_since=self._changed_since(after_revision),
         )
         return matched, snap  # type: ignore[return-value]
 
@@ -653,6 +733,7 @@ class PtySession:
         flags: int = 0,
         on_poll: PollHook = None,
         alive_fn: AliveFn = None,
+        after_revision: int | None = None,
     ) -> tuple[int | Exited, Snapshot]:
         """Wait for ANY of ``patterns`` (pexpect ``expect([...])`` style).
 
@@ -661,6 +742,9 @@ class PtySession:
         ``-1`` on timeout, or :data:`readiness.EXITED` when the child died first
         and this wait was told to notice. The snapshot is always the current
         screen. See :func:`readiness.wait_any`.
+
+        ``after_revision`` (from :meth:`screen_revision`) ignores a pattern that
+        was already matching the pre-anchor screen.
         """
         index, snap = wait_any(
             read_fn=self._read_for_wait,
@@ -673,6 +757,7 @@ class PtySession:
             flags=flags,
             on_poll=on_poll,
             alive_fn=self._liveness(alive_fn),
+            changed_since=self._changed_since(after_revision),
         )
         return index, snap  # type: ignore[return-value]
 
@@ -683,6 +768,7 @@ class PtySession:
         poll_ms: int = 30,
         on_poll: PollHook = None,
         alive_fn: AliveFn = None,
+        after_revision: int | None = None,
     ) -> tuple[bool | Exited, Snapshot]:
         """Wait until the screen content changes away from ``baseline_hash``.
 
@@ -700,6 +786,14 @@ class PtySession:
         :attr:`detect_child_exit`) it also returns :data:`readiness.EXITED` when
         the child dies, so "my keystroke did nothing because the program crashed
         on it" stops looking identical to "the program ignored me".
+
+        ``after_revision`` (from :meth:`screen_revision`) adds a second,
+        independent requirement: the screen must ALSO have moved since that
+        revision. It composes with ``baseline_hash`` rather than replacing it --
+        the hash answers "is the screen different from what I sampled", the
+        revision answers "has anything happened at all since I looked" -- so a
+        wait can require both, and the baseline default (sampled at call time)
+        cannot silently fold pending output into the answer.
         """
         return self._wait_hash_change(
             self.model.content_hash,
@@ -708,6 +802,7 @@ class PtySession:
             poll_ms=poll_ms,
             on_poll=on_poll,
             alive_fn=self._liveness(alive_fn),
+            changed_since=self._changed_since(after_revision),
         )
 
     def wait_visual_change(
@@ -717,6 +812,7 @@ class PtySession:
         poll_ms: int = 30,
         on_poll: PollHook = None,
         alive_fn: AliveFn = None,
+        after_revision: int | None = None,
     ) -> tuple[bool | Exited, Snapshot]:
         """Wait for text, styling, selection, or cursor state to change.
 
@@ -724,6 +820,14 @@ class PtySession:
         reverse video/background attributes or cursor movement. Text-only
         :meth:`wait_change` remains preferable for output streams because it
         intentionally ignores cosmetic attribute churn.
+
+        ``after_revision`` (from :meth:`screen_revision`) additionally requires
+        that the screen have moved since that revision. Here the two hashes are
+        the same domain, so the anchor is redundant with a non-default
+        ``baseline_hash``; it is offered for uniformity with :meth:`wait_change`
+        and because the revision can be captured BEFORE a round trip (read the
+        screen, send input, wait) where a baseline hash would have to be
+        threaded by hand.
         """
         return self._wait_hash_change(
             self.model.visual_hash,
@@ -732,6 +836,7 @@ class PtySession:
             poll_ms=poll_ms,
             on_poll=on_poll,
             alive_fn=self._liveness(alive_fn),
+            changed_since=self._changed_since(after_revision),
         )
 
     def _wait_hash_change(
@@ -742,6 +847,7 @@ class PtySession:
         poll_ms: int,
         on_poll: PollHook = None,
         alive_fn: AliveFn = None,
+        changed_since: ChangedSince = None,
     ) -> tuple[bool | Exited, Snapshot]:
         if baseline_hash is None:
             # Baseline = the screen as it stands NOW, WITHOUT draining pending
@@ -752,7 +858,10 @@ class PtySession:
         poll_s = max(0.0, poll_ms / 1000.0)
         while True:
             self._read_for_wait()
-            if hash_fn() != baseline_hash:
+            # The anchor gates this branch exactly as it gates the readiness
+            # primitives' success branches: a screen that has not moved since
+            # the caller looked is not a change, whatever the baseline says.
+            if _anchor_open(changed_since) and hash_fn() != baseline_hash:
                 return True, self.snapshot()
             # Same race rule as the readiness primitives: the change is observed
             # first, so output the child produced on its way out still counts.

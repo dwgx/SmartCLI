@@ -7,12 +7,18 @@ correctly. Never recreate the stream per read.
 
 Exposes plain text (``pyte.screen.display``), the cursor, a stability hash, and a
 per-cell attribute reader that copes with the sparse dict-of-dicts buffer.
+
+It also enforces the perception chain's rule for a control sequence it does not
+understand: reject it, never guess at it (see :data:`UNKNOWN_SEQUENCE_POLICY`).
 """
 
 from __future__ import annotations
 
 import unicodedata
 import zlib
+from collections.abc import Callable, Mapping
+from enum import Enum
+from types import MappingProxyType
 from typing import NamedTuple
 
 import pyte
@@ -94,8 +100,346 @@ def _sgr_rewrite_params(params: bytes) -> bytes | None:
     return b";".join(kept)
 
 
+class Mode(str, Enum):
+    """The CLOSED set of terminal modes this screen model can be asked about.
+
+    A ``str`` enum on purpose: ``Mode.ALT_SCREEN == "alt_screen"`` and
+    :meth:`ScreenModel.mode` accepts either spelling, so callers can write the
+    name literally (``model.mode("alt_screen")``) without importing anything,
+    while the type keeps the set closed — a name that is not a member raises
+    instead of quietly answering ``False``.
+
+    Membership rule: a member is a *state a caller can observe*, i.e. "is the
+    terminal in this mode right now". That is what excludes DEC private mode
+    1048 (save/restore cursor): it is a save and a restore, two operations
+    rather than a state, so there is no honest boolean for it. It stays
+    private to :class:`_Screen` (``_CURSOR_ONLY_MODE``) where it is acted on.
+
+    The names are the ones a driving agent can act on or must not misread:
+    key-transmission form (:attr:`APP_CURSOR`), buffer ownership
+    (:attr:`ALT_SCREEN`), and the modes pyte itself branches on while parsing,
+    because each one silently changes what later bytes MEAN.
+    """
+
+    ALT_SCREEN = "alt_screen"
+    APP_CURSOR = "app_cursor"
+    AUTOWRAP = "autowrap"
+    COLUMN_132 = "column_132"
+    CURSOR_VISIBLE = "cursor_visible"
+    INSERT_MODE = "insert_mode"
+    NEWLINE_MODE = "newline_mode"
+    ORIGIN = "origin"
+    REVERSE_VIDEO = "reverse_video"
+
+    def __repr__(self) -> str:
+        return f"Mode.{self.name}"
+
+
+class ModeSpec(NamedTuple):
+    """One entry of :data:`MODE_REGISTRY`: what to read, and where from.
+
+    ``numbers`` is every mode number that puts the terminal into this state, as
+    the program writes it — ``ESC[?1049h`` arrives as ``1049``. It is a tuple
+    because the alternate screen is entered by three of them (47, 1047, 1049:
+    1049 being 1047 plus the cursor save). Where pyte exports a constant the
+    number is derived from it (:func:`_dec`) rather than typed in, so the
+    registry cannot drift from the pyte it is reading.
+
+    ``private`` says whether the sequence carries the ``?`` (DEC private).
+    pyte stores private modes pre-shifted left by five so they cannot collide
+    with the ANSI ones, which is why :attr:`Mode.APP_CURSOR` resolves to the
+    otherwise-magic ``1 << 5``.
+
+    ``probe`` is set only for modes that are NOT a bit in ``Screen.mode``:
+    :attr:`Mode.ALT_SCREEN` is our own buffer state (:attr:`_Screen.alt_screen`
+    reads through to the base class when pyte implements it) and
+    :attr:`Mode.CURSOR_VISIBLE` is read from the cursor itself. Both are asked
+    "what is true now", which is the same question the bit answers for the
+    rest — the difference is only where pyte happens to keep the answer.
+    """
+
+    numbers: tuple[int, ...]
+    private: bool = True
+    probe: Callable[[pyte.Screen], bool] | None = None
+
+    @property
+    def bit(self) -> int:
+        """The value this mode occupies in ``pyte.Screen.mode``."""
+        if len(self.numbers) != 1:
+            raise ValueError(f"{self.numbers} is not a single Screen.mode bit")
+        return self.numbers[0] << 5 if self.private else self.numbers[0]
+
+    def resolve(self, screen: pyte.Screen) -> bool:
+        """Is this mode set on ``screen`` right now?"""
+        if self.probe is not None:
+            return bool(self.probe(screen))
+        return self.bit in screen.mode
+
+
+def _dec(constant: int) -> int:
+    """The DEC mode number behind one of pyte's private-mode constants.
+
+    pyte stores private modes shifted left by five (``pyte.modes`` says so, and
+    names DECOM ``192`` rather than ``6``); :attr:`ModeSpec.bit` shifts back.
+    Un-shifting pyte's own constant rather than typing the number keeps the two
+    in step: ``tests/test_terminal_modes.py`` asserts ``bit == mo.DECAWM`` for
+    every mode pyte exports, so a wrong shift there is a failure, not a silently
+    different query.
+    """
+    return constant >> 5
+
+
+#: The registry the query API reads. One entry per :class:`Mode`, so a member
+#: without a spec is impossible by construction and a spec without a member is
+#: a lookup error rather than a silently unreachable mode.
+MODE_REGISTRY: Mapping[Mode, ModeSpec] = MappingProxyType({
+    # 47/1047/1049 all switch buffers; only 1049 also saves the cursor, which
+    # _Screen._enter_alt distinguishes. Read as a probe because pyte sets the
+    # bit for 1047 and never clears it, so the bit is not the state (verified:
+    # `?1047h ?1049l` leaves 1047's bit set while the primary buffer is back).
+    # `getattr` rather than `s.alt_screen`: that attribute is OURS (or a future
+    # pyte's), so a stock pyte.Screen does not have it — the same reason
+    # _Screen.alt_screen reads its base attribute through getattr. The default
+    # is False, which is right for a screen that never entered an alternate
+    # buffer, and mypy needs the getattr to see that.
+    Mode.ALT_SCREEN: ModeSpec((47, 1047, 1049),
+                              probe=lambda s: bool(getattr(s, "alt_screen", False))),
+    Mode.APP_CURSOR: ModeSpec((1,)),                        # DECCKM (pyte exports none)
+    Mode.AUTOWRAP: ModeSpec((_dec(mo.DECAWM),)),            # DECAWM
+    Mode.COLUMN_132: ModeSpec((_dec(mo.DECCOLM),)),         # DECCOLM
+    # DECTCEM. Read from the cursor because that is what "visible" means, and
+    # because it is the attribute the existing `cursor_hidden` exposed.
+    Mode.CURSOR_VISIBLE: ModeSpec((_dec(mo.DECTCEM),),
+                                  probe=lambda s: not s.cursor.hidden),
+    Mode.INSERT_MODE: ModeSpec((mo.IRM,), private=False),   # IRM (ANSI, no `?`)
+    Mode.NEWLINE_MODE: ModeSpec((mo.LNM,), private=False),  # LNM (ANSI, no `?`)
+    Mode.ORIGIN: ModeSpec((_dec(mo.DECOM),)),               # DECOM
+    Mode.REVERSE_VIDEO: ModeSpec((_dec(mo.DECSCNM),)),      # DECSCNM
+})
+
+
+# ---------------------------------------------------------------------------
+# The mouse MODE, read where pyte records it.
+#
+# This is deliberately NOT a member of :class:`Mode`. That enum's contract is
+# "a member is a single bit in ``Screen.mode``", with exactly two documented
+# exceptions (the alternate buffer and the cursor, neither of which is a bit).
+# Mouse reporting is NINE private mode numbers with no single bit: 9/1000/1002/
+# 1003 say what is tracked, 1005/1015/1006/1016 say how the coordinates are
+# encoded. ``ModeSpec`` cannot express that — ``bit`` raises on a multi-number
+# spec rather than pick one number and report a mode that is never set as
+# permanently on — so folding it in would mean a third probe in a set whose
+# two existing probes are individually justified, for a state that is not the
+# same kind of thing. It is a separate query, over the same storage, using the
+# same shift: private modes live in ``Screen.mode`` pre-shifted left by five
+# (:attr:`ModeSpec.bit`).
+# ---------------------------------------------------------------------------
+
+#: DEC private mode numbers that mean "this program is receiving mouse events",
+#: mapped to the report ENCODING that number selects.
+#:
+#: 9 is the original X10 tracking mode and 1000/1002/1003 are the VT200 tracking
+#: modes; all four carry the X10 encoding unless one of the coordinate encodings
+#: is also set. 1005 (utf8) and 1015 (urxvt) change the encoding, not what is
+#: tracked. 1016 is the SGR encoding measured in PIXELS.
+#:
+#: 2004 (focus reporting) is deliberately ABSENT. It is enabled alongside mouse
+#: tracking often enough that counting it would report a live mouse on a program
+#: that only ever asked to be told about focus — a false "the mouse is live" is
+#: exactly the kind of guess this module refuses to make.
+MOUSE_REPORTING_MODES: Mapping[int, str] = MappingProxyType({
+    9: "x10",
+    1000: "x10",
+    1002: "x10",
+    1003: "x10",
+    1005: "urxvt",
+    1015: "urxvt",
+    1006: "sgr",
+    1016: "sgr-pixel",
+})
+
+
+#: pyte stores DEC private modes pre-shifted left by five, so that they cannot
+#: collide with the ANSI ones. Derived from the registry's own arithmetic
+#: (:attr:`ModeSpec.bit` divides back out) rather than typed as a second literal
+#: here: two copies of the shift are two copies to drift.
+_PRIVATE_MODE_SHIFT: int = (
+    MODE_REGISTRY[Mode.APP_CURSOR].bit // MODE_REGISTRY[Mode.APP_CURSOR].numbers[0]
+).bit_length() - 1
+
+
+class MouseReport(NamedTuple):
+    """What the driven program last asked for, read from the MODE and not from
+    a report.
+
+    Every field is a fact about what the program *enabled*, which is the only
+    part of a mouse interaction an agent can trust: the reports themselves are
+    consumed and discarded, because a report drawn or guessed at corrupts the
+    grid (see :data:`UNKNOWN_SEQUENCE_POLICY`).
+    """
+
+    #: Is any tracking mode set? A program that has enabled reporting expects
+    #: events, so a click may land at any moment and an agent must not assume
+    #: the screen is only ever changed by the program.
+    enabled: bool
+    #: The mode numbers currently set, e.g. ``(1006,)``. Read this against
+    #: :data:`MOUSE_REPORTING_MODES` for the encoding each one selects.
+    modes: tuple[int, ...]
+    #: ``True`` when a report's coordinates are CELL indices, ``False`` when
+    #: they are PIXELS, and ``None`` when nothing is reporting OR when the unit
+    #: is genuinely ambiguous.
+    #:
+    #: That last case is the reason this is a field and not a bool. 1006 (SGR)
+    #: and 1016 (SGR-pixels) produce BYTE-IDENTICAL reports and differ only in
+    #: what the numbers mean, and both may be set at once — in which case only
+    #: the order they were set in disambiguates them, and we do not track that.
+    #: A consumer that assumed cells on a 1016 application would act on a row
+    #: that does not exist. ``None`` means REFUSE, not "assume cells".
+    cells: bool | None
+
+
+def _mouse_report(screen: pyte.Screen) -> MouseReport:
+    """Read the mouse reporting state off ``screen``'s mode set."""
+    mode = getattr(screen, "mode", ())
+    active = tuple(n for n in MOUSE_REPORTING_MODES
+                   if n << _PRIVATE_MODE_SHIFT in mode)
+    if not active:
+        return MouseReport(enabled=False, modes=(), cells=None)
+    encodings = {MOUSE_REPORTING_MODES[n] for n in active}
+    # A tracking mode (9/1000/1002/1003) says WHAT is reported; the encoding
+    # modes say HOW, and 1006/1016 replace the encoding without contradicting
+    # the tracking mode. So `1000h 1006h` is the ordinary cell-reporting
+    # combination, not a contradiction. The only genuine ambiguity is 1006
+    # together with 1016: same bytes, opposite units, and which one won depends
+    # on the order they were set, which this does not record.
+    if "sgr" in encodings and "sgr-pixel" in encodings:
+        cells: bool | None = None        # refuse: the unit is not knowable
+    elif "sgr-pixel" in encodings:
+        cells = False
+    else:
+        cells = True            # sgr, x10 and urxvt all report CELLS
+    return MouseReport(enabled=True, modes=active, cells=cells)
+
+
+# ---------------------------------------------------------------------------
+# REJECT-DON'T-GUESS: what the perception chain does with a control sequence it
+# does not understand. One statement, one place, applied by
+# _ByteStream._disposition.
+#
+# Three times now the same failure has recurred in three unrelated families:
+# SGR colon sub-parameters (drawn as the literal text "3mU"), DCS/APC graphics
+# payloads (kitty base64 read as content), and inbound mouse reports (drawn as
+# "0;10;5M"). In every case the sequence was GUESSED AT — reinterpreted as
+# something it resembled, or handed to a pyte entry point that was not written
+# for its shape — and the grid was quietly wrong with no error signal, because
+# pyte "parsed" all of them. So:
+#
+#   A control sequence this module does not understand is CONSUMED, never
+#   interpreted. Consumed means read to its end, emitted to pyte as NOTHING,
+#   counted in ScreenModel.unknown_sequences (with the reason in
+#   ScreenModel.last_unknown), and recovery continues with the very next byte.
+#
+# It must NEVER:
+#   * draw the bytes as text. Control debris on the grid is indistinguishable
+#     from content an agent is supposed to read, and it corrupts the one thing
+#     this module exists to provide.
+#   * hand the sequence to a pyte entry point that was not written for its
+#     shape. pyte dispatches on the FINAL BYTE alone, so a report whose final
+#     byte collides with a real command is "parsed" into that command with the
+#     wrong arity, raises, and ScreenModel.feed swallows the raise — so the REST
+#     OF THAT OUTPUT BATCH IS DROPPED. Silent content loss is worse than a
+#     dropped sequence, which is why this is a hard rule and not a style note.
+#   * wedge the stream. An open sequence is bounded by
+#     UNKNOWN_SEQUENCE_POLICY.cap and recovered by the existing
+#     swallow-to-final-byte path, so a program emitting garbage cannot cost the
+#     driver its screen.
+#
+# This is NOT an unbounded swallowing machine. A sequence is rejected only when
+# we can name why it is not what it looks like; everything else is forwarded
+# untouched, and an unrecognised sequence is always recoverable.
+# ---------------------------------------------------------------------------
+
+
+class UnknownSequencePolicy(NamedTuple):
+    """The parts of "reject, don't guess" that are load-bearing.
+
+    Kept as data rather than left as prose so a test can assert the rule
+    instead of the comment that states it: a policy nobody can fail is a
+    comment, and this repository's own history is three defects that a comment
+    would not have stopped.
+    """
+
+    #: Bytes one open sequence may buffer before it is abandoned. Past the cap
+    #: the filter swallows to the next final byte and shows what a terminal
+    #: that gave up on an over-long sequence shows: nothing.
+    cap: int
+    #: Always False. A rejected sequence that reached the grid would be
+    #: indistinguishable from content.
+    draws_unknown_bytes_as_text: bool
+    #: Always False. A shape mismatch raises inside pyte and the raise is
+    #: swallowed, which loses the rest of the output batch.
+    forwards_to_unmatched_pyte_entry: bool
+    #: The observable the policy bumps instead of staying silent.
+    counter: str
+
+
+UNKNOWN_SEQUENCE_POLICY = UnknownSequencePolicy(
+    cap=1024,
+    draws_unknown_bytes_as_text=False,
+    forwards_to_unmatched_pyte_entry=False,
+    counter="unknown_sequences",
+)
+
+#: Parameter bytes pyte's own CSI parser carries through a sequence without
+#: ending it early: digits, the ';' separator, the DEC private '?' marker, and
+#: the '>' and space it explicitly skips (secondary DA). pyte's loop treats ANY
+#: other byte as a final byte — it dispatches on it and returns to GROUND — so
+#: everything after it is drawn as text. Two live families live in that gap: the
+#: SGR 1006 mouse report (``ESC[<b;x;yM``, the '<' ends the sequence) and the
+#: kitty keyboard protocol (``ESC[=1u``, the '=' does the same). Naming neither
+#: here is the point: they are two instances of one rule.
+_PYTE_CSI_PARAM_BYTES = frozenset(b"0123456789;? >")
+
+#: How many parameters each pyte CSI entry point was written for, as
+#: ``(non-private, private)``, keyed by the single-byte final byte. -1 is the
+#: ``*args`` handler, which takes any number.
+#:
+#: Two numbers, not one, because pyte calls the private form differently
+#: (streams.py: ``csi_dispatch[char](*params, private=True)``), so a keyword
+#: named ``private`` eats one of the positional slots for that form only.
+#: ``erase_in_line(how=0, private=False)`` is the single case in pyte where
+#: that matters, and getting it wrong would be an arity rejection of a
+#: two-parameter ``ESC[1;2K``.
+#:
+#: Read off the installed pyte's own signatures;
+#: ``tests/test_unknown_sequences.py`` asserts this table against
+#: ``pyte.Stream.csi`` and those signatures, so a pyte upgrade that changes an
+#: arity fails instead of silently mis-joining.
+_CSI_MAX_PARAMS: Mapping[bytes, tuple[int, int]] = MappingProxyType({
+    b"'": (1, 1), b"@": (1, 1), b"A": (1, 1), b"B": (1, 1), b"C": (1, 1),
+    b"D": (1, 1), b"E": (1, 1), b"F": (1, 1), b"G": (1, 1), b"H": (2, 2),
+    b"J": (-1, -1), b"K": (2, 1), b"L": (1, 1), b"M": (1, 1), b"P": (1, 1),
+    b"X": (1, 1), b"a": (1, 1), b"c": (1, 1), b"d": (1, 1), b"e": (1, 1),
+    b"f": (2, 2), b"g": (1, 1), b"h": (-1, -1), b"l": (-1, -1), b"m": (-1, -1),
+    b"n": (1, 1), b"r": (2, 2),
+})
+
+#: Finals whose pyte handler accepts the private form (``ESC[?...h``) — either
+#: because it takes a ``private`` keyword or because it takes ``**kwargs``. For
+#: every other final, pyte's parser calls ``handler(*params, private=True)`` and
+#: the call raises, which is the same swallowed-raise path as an arity
+#: mismatch: ``ESC[?6n`` (DECXCPR, a real query a real program sends) loses
+#: every byte after it in that batch.
+_CSI_PRIVATE_OK = frozenset((b"J", b"K", b"c", b"h", b"l"))
+
+
 class _ByteStream(pyte.ByteStream):
-    """``pyte.ByteStream`` with NEL dispatch and streaming SGR sub-parameter tolerance."""
+    """``pyte.ByteStream`` with NEL dispatch and the REJECT-DON'T-GUESS policy.
+
+    Every control sequence is classified by :meth:`_disposition` — the one
+    place :data:`UNKNOWN_SEQUENCE_POLICY` is applied — before a single byte of
+    it reaches pyte. Nothing here guesses.
+    """
 
     escape = {**pyte.Stream.escape, "E": "next_line"}
 
@@ -141,8 +485,13 @@ class _ByteStream(pyte.ByteStream):
     #     shows for a string it cannot interpret.
     #   * a trailing ESC is held for one more byte: it may still start a string
     #     or a CSI. Nothing else is ever buffered.
-    _GROUND, _ESC_SEEN, _CSI, _STRING, _STRING_ESC, _DISCARD = range(6)
-    _CSI_CAP = 1024
+    #   * MOUSE_RAW swallows the three raw bytes of an X10 report. That payload
+    #     has no terminator to search for and can contain an ESC, so the fixed
+    #     length is what ends it — and it is bounded by construction.
+    _GROUND, _ESC_SEEN, _CSI, _STRING, _STRING_ESC, _DISCARD, _MOUSE_RAW = range(7)
+    # Alias, not a second number: the cap IS the policy's cap, and a literal
+    # here would let the two drift into disagreeing about what "bounded" means.
+    _CSI_CAP = UNKNOWN_SEQUENCE_POLICY.cap
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -152,6 +501,13 @@ class _ByteStream(pyte.ByteStream):
         # OSC terminator, and OSC is the one string family pyte understands.
         self._string_bel = False     # BEL ends this string, or only ST does
         self._string_emit = False    # forward this string's bytes to pyte, or not
+        # Bytes still owed by an open X10 mouse report (never more than three).
+        self._mouse_left = 0
+        # The policy's observable. Counted, not swallowed, for the same reason
+        # feed_errors exists: a screen that is quietly losing content must be
+        # diagnosable from outside the process.
+        self.unknown_sequences = 0
+        self.last_unknown: str | None = None   # why, for the first one at least
 
     # The bytes-vs-str override is pyte's own Liskov violation, not ours:
     # Stream.feed takes str, ByteStream.feed narrows it to bytes and carries the
@@ -208,6 +564,11 @@ class _ByteStream(pyte.ByteStream):
                     j += 1
                 if len(self._csi) + (j - i) > self._CSI_CAP:
                     self._csi.clear()           # abandon it; swallow to its final byte
+                    # Counted like any other consumed sequence: an over-long
+                    # parameter run is one we do not understand, and leaving it
+                    # out would make the counter a worse description of what
+                    # the screen is missing.
+                    self._reject(f"CSI parameter run over the {self._CSI_CAP}-byte cap")
                     i = j
                     state = self._DISCARD
                     continue
@@ -219,12 +580,27 @@ class _ByteStream(pyte.ByteStream):
                 i += 1
                 params = bytes(self._csi)
                 self._csi.clear()
-                if final == 0x6D and b":" in params:            # 'm' with sub-parameters
-                    rewritten = _sgr_rewrite_params(params)
-                    if rewritten is not None:
-                        out += b"\x1b[" + rewritten + b"m"
-                else:
-                    out += b"\x1b[" + params + bytes((final,))
+                if final == 0x4D and not params:              # 'M' with no count
+                    # ESC[M is BOTH "X10 mouse report, three raw bytes follow"
+                    # and "delete one line" (DL with its default count). The
+                    # bytes cannot tell them apart, so the MODE decides, and
+                    # the mode bytes may still be sitting in `out` rather than
+                    # in pyte — flush first, or a report arriving in the same
+                    # read as its own enable would be dispatched as a DL. Never
+                    # guessed from the report itself: that is the whole point
+                    # of tracking the mode.
+                    if out:
+                        self._state = state  # stay consistent if pyte raises
+                        super().feed(bytes(out))
+                        out.clear()
+                    if self._mouse_reporting():
+                        self._reject("X10 mouse report: ESC[M + 3 raw bytes")
+                        self._mouse_left = 3
+                        state = self._MOUSE_RAW
+                        continue
+                forwarded = self._disposition(params, final)
+                if forwarded is not None:
+                    out += forwarded
                 state = self._GROUND
                 continue
 
@@ -267,6 +643,19 @@ class _ByteStream(pyte.ByteStream):
                     state = self._STRING
                 continue
 
+            if state == self._MOUSE_RAW:
+                # The X10 event payload: exactly three raw bytes, consumed
+                # whatever they are. There is no terminator to search for and an
+                # ESC inside them is a coordinate value, not a new sequence, so
+                # the fixed length is what ends it — bounded by construction,
+                # and the held remainder is at most three bytes.
+                take = min(self._mouse_left, n - i)
+                i += take
+                self._mouse_left -= take
+                if not self._mouse_left:
+                    state = self._GROUND
+                continue
+
             # state == self._DISCARD: drop bytes until the abandoned sequence ends
             j = i
             while j < n and not 0x40 <= data[j] <= 0x7E:
@@ -280,6 +669,96 @@ class _ByteStream(pyte.ByteStream):
         self._state = state
         if out:
             super().feed(bytes(out))
+
+    def _reject(self, why: str) -> None:
+        """Apply :data:`UNKNOWN_SEQUENCE_POLICY`: consume, count, say why.
+
+        The only place the policy's observable is written, so "it swallows
+        quietly" cannot come back for one family only. ``last_unknown`` keeps
+        the FIRST reason rather than the latest: the first one is the one that
+        explains a screen that started going wrong, and a stream of reports
+        would otherwise overwrite it with the least interesting of them.
+        """
+        self.unknown_sequences += 1
+        if self.last_unknown is None:
+            self.last_unknown = why
+
+    def _mouse_reporting(self) -> bool:
+        """Is a mouse tracking mode set on the screen we are feeding?
+
+        Read from ``Screen.mode`` through the same shift the mode registry uses
+        (:data:`_PRIVATE_MODE_SHIFT`), because "the mouse is live" must not be
+        a second, independent notion of that fact. This is the disambiguator
+        for X10, whose introducer is byte-identical to delete-one-line.
+        """
+        mode = getattr(self.listener, "mode", ())
+        return any(number << _PRIVATE_MODE_SHIFT in mode
+                   for number in MOUSE_REPORTING_MODES)
+
+    def _disposition(self, params: bytes, final: int) -> bytes | None:
+        """The single place :data:`UNKNOWN_SEQUENCE_POLICY` is applied.
+
+        ``params`` is the collected parameter byte run of one closed CSI
+        (``ESC[`` already consumed) and ``final`` its final byte. Returns the
+        bytes to forward to pyte, or ``None`` to consume the sequence whole —
+        read to its end, drawn as nothing, counted, recovery continuing with
+        the next byte.
+
+        The cases, in the order they are decided:
+
+        1. SGR with sub-parameters — rewritten when every group is something
+           pyte can represent, dropped whole when none is (emitting ``ESC[m``
+           instead would reset every attribute, which is worse than losing
+           one). See :func:`_sgr_rewrite_params`.
+        2. A parameter byte pyte cannot carry. pyte's parser ends the sequence
+           AT such a byte and draws the remainder as text, so the sequence is
+           not "a CSI with odd parameters", it is debris. This is the SGR 1006
+           mouse report (``ESC[<b;x;yM``), the kitty keyboard protocol
+           (``ESC[=1u``), and every other sequence built on a parameter byte
+           pyte does not know.
+        3. A final byte whose pyte handler was not written for this many
+           parameters. pyte dispatches on the final byte alone, so this is the
+           urxvt 1015 mouse report (``ESC[32;10;5M`` becomes three arguments to
+           ``delete_lines`` and raises — and the raise is swallowed, losing
+           every byte after it in that batch).
+        4. The private form of a handler that does not accept one, same
+           swallowed-raise path (``ESC[?6n``, DECXCPR).
+
+        Anything else is forwarded untouched — including a final byte pyte has
+        no entry for, which reaches ``Screen.debug``: a documented no-op, so it
+        draws nothing, which is exactly what the policy asks for, and it keeps
+        the sequence whole for a pyte that learns it later.
+        """
+        if final == 0x6D and b":" in params:                # 'm', sub-parameters
+            rewritten = _sgr_rewrite_params(params)
+            if rewritten is None:
+                self._reject(f"SGR sub-parameters, all unknown: {params!r}")
+                return None
+            return b"\x1b[" + rewritten + b"m"
+
+        if not _PYTE_CSI_PARAM_BYTES.issuperset(params):
+            odd = bytes(b for b in params if b not in _PYTE_CSI_PARAM_BYTES)
+            self._reject(f"CSI parameter byte {odd!r} pyte cannot carry: "
+                         f"{params!r} + {bytes((final,))!r}")
+            return None
+
+        key = bytes((final,))
+        # pyte turns the final byte into a parameter too, so an empty run is
+        # still one argument: `ESC[H` is cursor_position(0), not ().
+        count = params.count(b";") + 1
+        private = b"?" in params
+        arity = _CSI_MAX_PARAMS.get(key)
+        if arity is not None:
+            limit = arity[1] if private else arity[0]
+            if limit >= 0 and count > limit:
+                self._reject(f"{count} parameters into a {limit}-parameter "
+                             f"pyte entry: {params!r} + {key!r}")
+                return None
+            if private and key not in _CSI_PRIVATE_OK:
+                self._reject(f"private form of a handler without a private "
+                             f"argument: {params!r} + {key!r}")
+                return None
+        return b"\x1b[" + params + key
 
 
 class _Screen(pyte.Screen):
@@ -984,6 +1463,39 @@ class ScreenModel:
         self._reply_buf.clear()
         return out
 
+    # -- the reject-don't-guess observable ----------------------------------
+    @property
+    def unknown_sequences(self) -> int:
+        """How many control sequences :data:`UNKNOWN_SEQUENCE_POLICY` consumed.
+
+        Distinct from :attr:`feed_errors`, and the distinction is the point.
+        ``feed_errors`` counts batches pyte could not parse at all; this counts
+        CSI sequences and X10 mouse reports we understood well enough to know
+        we do NOT understand, and deliberately drew nothing for. It was 0
+        through every one of the three defects this policy was written for,
+        because pyte "parsed" all of them — so a screen that had gained debris
+        and lost content looked healthy from the outside. Non-zero is a
+        statement that the grid is missing something the program drew, not that
+        this module is broken.
+
+        The control-STRING families (DCS/SOS/PM/APC) are not counted here: they
+        are consumed by their own pre-existing rule, which was decided with the
+        graphics payloads, and folding them in here would change that
+        behaviour on the strength of a counter nobody reads yet.
+        """
+        return getattr(self.stream, UNKNOWN_SEQUENCE_POLICY.counter, 0)
+
+    @property
+    def last_unknown(self) -> str | None:
+        """Why the first sequence was consumed, or ``None`` if none was.
+
+        The counterpart to the counter: a bare number says that something was
+        dropped, this says what. One string, bounded by
+        :data:`UNKNOWN_SEQUENCE_POLICY` because a rejected parameter run is at
+        most the cap long.
+        """
+        return getattr(self.stream, "last_unknown", None)
+
     # -- feeding -----------------------------------------------------------
 
     def feed(self, data: bytes) -> None:
@@ -1026,6 +1538,37 @@ class ScreenModel:
     def rows(self) -> int:
         return self.screen.lines
 
+    # -- terminal modes -----------------------------------------------------
+
+    def mode(self, name: Mode | str) -> bool:
+        """Is terminal mode ``name`` set right now?
+
+        ``name`` is a :class:`Mode` member or its string value, so a caller can
+        ask without importing anything: ``model.mode("alt_screen")``. An
+        unknown name raises ``ValueError`` — the set is closed, and a typo must
+        not read as "that mode is off", which is the failure this replaces.
+        Those used to be reachable only by hand: ``app_cursor`` and
+        ``alt_screen`` were the two properties that existed, each with its own
+        private decoding of where pyte keeps the answer, and there was no way to
+        ask about DECAWM, DECOM, DECSCNM, IRM or LNM at all even though pyte
+        branches on every one of them while parsing.
+
+        Strict on purpose: an unreadable screen propagates rather than
+        answering ``False``. The two callers on the driving hot path keep their
+        own guards (:attr:`app_cursor`), so this does not change what they see.
+        """
+        return MODE_REGISTRY[Mode(name)].resolve(self.screen)
+
+    def modes(self) -> frozenset[Mode]:
+        """Every mode currently set, as a frozenset of :class:`Mode` members.
+
+        The complement of :meth:`mode` for callers that want the whole state at
+        once (an agent deciding how to interpret the screen, or a snapshot
+        carrying it). Never raises for an unknown name — the set is closed by
+        construction, so there is nothing to miss.
+        """
+        return frozenset(m for m in MODE_REGISTRY if MODE_REGISTRY[m].resolve(self.screen))
+
     @property
     def app_cursor(self) -> bool:
         """True when the program has enabled DECCKM (application cursor keys).
@@ -1035,14 +1578,36 @@ class ScreenModel:
         ``screen.mode`` (the value ``32``). In that state the app expects SS3
         cursor sequences (``ESC O A``) — sending CSI (``ESC [ A``) moves nothing.
         :meth:`session.PtySession.send_keys` reads this to pick the right form.
+
+        Now :meth:`mode(Mode.APP_CURSOR)`. The shift pyte applies to private
+        modes lives in :data:`MODE_REGISTRY` instead of inline here, and the
+        ``try`` stays: this is read on every key send, where an unreadable
+        screen must degrade to "send CSI" rather than raise into the driver.
         """
-        # pyte stores private modes as (mode << 5); DECCKM is private mode 1,
-        # so it lands as 1<<5 = 32 in screen.mode (no named constant is exported).
-        _DECCKM = 1 << 5
         try:
-            return _DECCKM in self.screen.mode
+            return self.mode(Mode.APP_CURSOR)
         except Exception:
             return False
+
+    @property
+    def mouse_report(self) -> MouseReport:
+        """What the program has asked for about the mouse, from the MODE.
+
+        Not a :class:`Mode` member on purpose — see the note above
+        :data:`MOUSE_REPORTING_MODES` — but the same storage and the same
+        private-mode shift, so it is not a second notion of "the mouse is on".
+
+        It exists because the reports themselves are consumed and discarded
+        (:data:`UNKNOWN_SEQUENCE_POLICY`). A click is therefore invisible on
+        the grid, and an agent that assumed every pixel of the screen came from
+        the program would be wrong the moment a human or a script clicked.
+        ``enabled`` is the honest answer to "can that happen right now".
+
+        ``cells`` is the half that must not be guessed: under 1016 the very
+        same bytes mean PIXELS, so reading them as cell indices points at a row
+        that does not exist. ``None`` means refuse.
+        """
+        return _mouse_report(self.screen)
 
     # -- plain text --------------------------------------------------------
 
@@ -1083,7 +1648,7 @@ class ScreenModel:
 
     @property
     def cursor_hidden(self) -> bool:
-        return bool(self.screen.cursor.hidden)
+        return not self.mode(Mode.CURSOR_VISIBLE)
 
     @property
     def alt_screen(self) -> bool:
@@ -1094,8 +1659,12 @@ class ScreenModel:
         than at a shell prompt — whether ``q`` quits or types a letter, whether
         arrow keys navigate or edit. It was previously reachable only as
         ``model.screen.alt_screen``, i.e. by reaching through to the pyte object.
+
+        The buffer state is asked through :meth:`mode` now, but still resolves
+        to :attr:`_Screen.alt_screen` — pyte sets a bit for 1047 and never clears
+        it, so the bit set cannot answer "which buffer is live" on its own.
         """
-        return bool(self.screen.alt_screen)
+        return self.mode(Mode.ALT_SCREEN)
 
     @property
     def title(self) -> str:
@@ -1104,7 +1673,7 @@ class ScreenModel:
     @property
     def base_reverse(self) -> bool:
         """Screen-wide reverse baseline (DECSCNM). Highlight is measured vs this."""
-        return bool(self.screen.default_char.reverse)
+        return self.mode(Mode.REVERSE_VIDEO)
 
     # -- attributes --------------------------------------------------------
 
