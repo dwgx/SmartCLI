@@ -259,6 +259,9 @@ def build_suite():
     suite.append(Test("test_sgr_stream_regression (T04 streaming SGR sub-parameters)",
                       [PY, str(TESTS / "test_sgr_stream_regression.py")], ROOT, 60,
                       optional=True))
+    suite.append(Test("test_graphics_payload (DCS/APC graphics payloads never drawn)",
+                      [PY, str(TESTS / "test_graphics_payload.py")], ROOT, 60,
+                      optional=True))
     suite.append(Test("test_partial_write_regression (T03 partial PTY write receipts)",
                       [PY, str(TESTS / "test_partial_write_regression.py")], ROOT, 60,
                       optional=True))

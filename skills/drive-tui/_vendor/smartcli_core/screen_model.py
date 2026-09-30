@@ -125,8 +125,20 @@ class _ByteStream(pyte.ByteStream):
     #     bounded (a terminal that gave up on an over-long sequence shows the
     #     same thing: nothing).
     #   * STRING tracks OSC (`ESC]`, BEL or ST terminated) and DCS/SOS/PM/APC
-    #     (`ESC P/X/^/_`, ST only) so their payloads are never rewritten. The
-    #     payload is streamed, never buffered.
+    #     (`ESC P/X/^/_`, ST only) so their payloads are never rewritten, and so
+    #     a lookalike inside one is never mistaken for a fresh sequence. No
+    #     payload is ever buffered, whichever way it is disposed of below.
+    #     The two families differ in what they are FORWARDED as. OSC carries
+    #     meaning pyte consumes today (window title, hyperlink), so it goes
+    #     through untouched. DCS/SOS/PM/APC are graphics and control strings
+    #     pyte has NO branch for -- its parser falls through to draw(), so
+    #     `ESC _Gf=100;a=T;QUFBQQ== ESC \` (kitty PNG) landed on the grid as the
+    #     literal text `AGf=100;a=T;QUFBQQ==B`, and a sixel image as
+    #     `Aq#0;2;100;0;0#1~~~B`. An agent driving yazi/chafa/viu read base64 as
+    #     content, and `feed_errors` stayed 0 for both, so there was no
+    #     diagnostic that could have noticed. They are therefore consumed HERE
+    #     and emit nothing: the same "swallow it, draw nothing" a real terminal
+    #     shows for a string it cannot interpret.
     #   * a trailing ESC is held for one more byte: it may still start a string
     #     or a CSI. Nothing else is ever buffered.
     _GROUND, _ESC_SEEN, _CSI, _STRING, _STRING_ESC, _DISCARD = range(6)
@@ -136,7 +148,10 @@ class _ByteStream(pyte.ByteStream):
         super().__init__(*args, **kwargs)
         self._state = self._GROUND
         self._csi = bytearray()      # bytes after "ESC[" while a sequence is open
-        self._string_bel = False     # BEL terminates this string (OSC) or not
+        # _string_bel is only ever True together with _string_emit: BEL is an
+        # OSC terminator, and OSC is the one string family pyte understands.
+        self._string_bel = False     # BEL ends this string, or only ST does
+        self._string_emit = False    # forward this string's bytes to pyte, or not
 
     # The bytes-vs-str override is pyte's own Liskov violation, not ours:
     # Stream.feed takes str, ByteStream.feed narrows it to bytes and carries the
@@ -173,9 +188,14 @@ class _ByteStream(pyte.ByteStream):
                 if b == 0x5B:                   # '['
                     self._csi.clear()
                     state = self._CSI
-                elif b in (0x5D, 0x50, 0x58, 0x5E, 0x5F):      # ] P X ^ _
-                    out += b"\x1b" + bytes((b,))
-                    self._string_bel = (b == 0x5D)
+                elif b == 0x5D:                            # ']' OSC
+                    out += b"\x1b]"                       # pyte consumes OSC: forward
+                    self._string_bel = True                # BEL or ST terminates it
+                    self._string_emit = True
+                    state = self._STRING
+                elif b in (0x50, 0x58, 0x5E, 0x5F):      # 'P' DCS 'X' SOS '^' PM '_' APC
+                    self._string_bel = False               # ST only (ECMA-48)
+                    self._string_emit = False              # swallowed here, never drawn
                     state = self._STRING
                 else:                           # two-byte escape / charset designator
                     out += b"\x1b" + bytes((b,))
@@ -218,9 +238,11 @@ class _ByteStream(pyte.ByteStream):
                         state = self._GROUND
                         continue
                 if j == -1:
-                    out += data[i:]             # stream the payload, never buffer it
+                    if self._string_emit:
+                        out += data[i:]         # stream the payload, never buffer it
                     break
-                out += data[i:j]
+                if self._string_emit:
+                    out += data[i:j]
                 i = j + 1
                 state = self._STRING_ESC
                 continue
@@ -230,11 +252,18 @@ class _ByteStream(pyte.ByteStream):
                     break                       # hold ESC: it may be an ST
                 b = data[i]
                 i += 1
+                # ST is the ONLY terminator for these strings; the ESC of the
+                # pair is held above across a read boundary. A bare 0x5C inside
+                # a payload is NOT one -- it is a legal sixel data char
+                # (0x3F + mask) and arbitrary binary in kitty RGB-direct, so
+                # ending the string there would re-spill the rest as text.
                 if b == 0x5C:                   # '\' -> ST
-                    out += b"\x1b\\"
+                    if self._string_emit:
+                        out += b"\x1b\\"
                     state = self._GROUND
                 else:                           # ESC inside the payload: stay in it
-                    out += b"\x1b" + bytes((b,))
+                    if self._string_emit:
+                        out += b"\x1b" + bytes((b,))
                     state = self._STRING
                 continue
 
