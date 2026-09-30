@@ -227,14 +227,26 @@ pass/fail. Tests are standalone scripts, not pytest. Two tiers:
   `_tmux_launcher_probe`), which SKIP themselves when tmux is absent.
 
 **`build_suite()` in run_all.py is the full inventory, NOT the CI list.** It
-returns **62** entries and they are not all gated. Re-measured 2026-10-01 (the
-2026-09-30 measurement found 56, and the 63 measured earlier that same day
-included the `box_junction` self-test removed with that module) by importing
-`build_suite()`, mapping each
-entry to its script, and grepping every file in `.github/workflows/`
-(including the indirect path through `tools/coverage_run.py`). Before the
-first reconciliation, **29 of the then-56 were run by no workflow at all**;
-**46 of 62** are gated now:
+returns **62** entries and they are not all gated. Re-derived 2026-10-01 from
+scratch — importing `build_suite()` (62 entries, 62 distinct targets),
+mapping each entry to its script or `-m` module, then `yaml.safe_load`-parsing
+every file in `.github/workflows/` and regexing the **parsed** `run:` strings
+(parsing, not grepping: ci.yml discusses test names inside comments, and a grep
+cannot tell a comment from a step) — plus the indirect route through
+`tools/coverage_run.py`'s `DETERMINISTIC_TESTS`, read by AST:
+
+```
+build_suite entries : 62      (57 tests/*.py + 2 tui-ui scripts + 2 `-m ui.*` + 1 examples/)
+named in a workflow : 43
+indirect (coverage_run DETERMINISTIC_TESTS, matched by AST) : 4
+GATED               : 47
+UNGATED             : 15
+```
+
+**47 of 62** are gated. Do not decrement this number: an earlier version of
+this line said 46, obtained by subtracting 1 from 47 when the `box_junction`
+self-test left the suite. That entry was itself UNGATED, so the cut could only
+move the denominator (63 → 62) and leave the numerator at 47. Re-derive it.
 
 - **43** run by name in `ci.yml`, across three jobs: 20 in the `tests` matrix
   job, 3 in `drive-smoke` (`_tui_cli_probe`, `_mcp_probe`,
@@ -252,13 +264,13 @@ first reconciliation, **29 of the then-56 were run by no workflow at all**;
   zero `spawn`/`fork`/`Popen`/`subprocess` calls — so they spawn no child. That
   job has since grown to 20 steps, so "the 13" above is now the wrong
   denominator for its contents: read the job.
-- **16 remain local-only by design**: the real-process probes and the real-tmux
-  differential suites (`_drive_probe*`, `probe_pty_fx`, `_tmux_launcher_probe`,
-  `_diff_tmux_pyte`, `_diff_two_refs`, `_diff_fuzz_tmux`, `drive_vim`, and the
-  three tui-ui module renders `ui.field` / `ui.raster` plus
-  `_selftest_effort_widgets.py`). They spawn live PTY sessions, and a CI matrix
-  runs jobs concurrently — exactly the dense real-process spawning the red line
-  at the top of this file forbids. Run them yourself, serially.
+- **15 remain local-only by design**, and that is the enumerated list, counted:
+  `probe_pty_fx`, `_drive_probe1`…`_drive_probe6`, `_tmux_launcher_probe`,
+  `_diff_tmux_pyte`, `_diff_two_refs`, `_diff_fuzz_tmux`, `drive_vim`, the two
+  tui-ui module renders `ui.field` / `ui.raster`, and
+  `_selftest_effort_widgets.py` — 15. They spawn live PTY sessions, and a CI
+  matrix runs jobs concurrently — exactly the dense real-process spawning the
+  red line at the top of this file forbids. Run them yourself, serially.
 
 `run_all.py` itself is invoked by **no** workflow (the only `run_all` hit under
 `.github/` is a PR-template checkbox). So a green board does not mean the whole

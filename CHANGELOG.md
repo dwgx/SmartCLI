@@ -179,10 +179,22 @@ the defects below were found by review, not by users.
   *directory* was applied and then verified both ways; the *file* holding the
   token only had it applied. The capability got the weaker of the two
   treatments. Both are verified now, and both refuse.
-- **Three documents told readers to run a command that exits 1.** Three
-  documents instructed `python skills/tui-ui/ui/box_junction.py`, which fails
-  with `ImportError: attempted relative import with no known parent package`;
-  the module needs `-m`.
+- **Two documents told readers to run a command that exits 1.** `HANDOFF.md`
+  (twice — §2's regression block at line 177 and the record at line 1944) and
+  `docs/MACOS-VERIFY.md:65` instructed `python skills/tui-ui/ui/box_junction.py`,
+  which fails with `ImportError: attempted relative import with no known parent
+  package`; the module needs `-m`. All three occurrences are removed.
+  > **Erratum (2026-10-01):** this entry shipped as "**Three** documents told
+  > readers to run a command that exits 1". The count was wrong: **two**
+  > documents carried **three** runnable occurrences — `HANDOFF.md:177`,
+  > `HANDOFF.md:1944` and `docs/MACOS-VERIFY.md:65`. Measured at the
+  > pre-release base with
+  > `git grep -n "ui.box_junction.py" b0b660c -- '*.md'`, which returns four
+  > lines: those three plus `skills/tui-ui/SKILL.md:316`, which only *names*
+  > the file and told nobody to run it. The defect itself was real and all
+  > three occurrences were fixed in this release; only the number was wrong.
+  > Left visible rather than silently rewritten, so a reader of the published
+  > 0.3.3 sees both the claim and the correction.
 - **A dev-box path gate banned one literal, so a doc could name the
   developer's home directory and pass** — which a new archive pointer did. It now
   bans the class, and is derived from the checkout so it cannot go stale.
@@ -210,11 +222,31 @@ the defects below were found by review, not by users.
   repository.
 
 ### Documentation
-- Colour-degrade and `box_junction` claims across nineteen and ten documents
+- Colour-degrade and `box_junction` claims across **ten and eleven** documents
   respectively were rewritten to state what the renderer actually does, and then
   the code was cut to match. The modules were briefly documented as
   "standalone, not wired" before that resolution — the intermediate state was
   accurate but described something that then stopped existing.
+  > **Erratum (2026-10-01):** this entry shipped as "across **nineteen** and
+  > ten documents respectively". The **ten** was right; the **nineteen** was not
+  > derivable from anything and has been replaced by the number the delta can
+  > actually support. Measured 2026-10-01 over `git diff b0b660c 13985b5`
+  > (the release delta), counting documents in which a line matching the
+  > degrade family (`degrade|downgrad|truecolor|mono|256`) or the
+  > `box_junction` family was added or removed:
+  >
+  > ```
+  > had a degrade-family line touched : 10
+  > had a box_junction line touched   : 11
+  > union                             : 11
+  > ```
+  >
+  > A sweep of seven patterns × four scopes over the current tree does not
+  > yield 19 either (9 docs mention `color_model`, 22 mention "degrade", 26 the
+  > union, 17 both "degrade" and "256"), so the original figure was a guess
+  > wearing a numeral's clothes. An approximate number in a changelog reads as
+  > a precise one, which is why it is corrected in place and dated rather than
+  > quietly deleted.
 - `CHANGELOG.md` instructed `pip install "smartcli-toolkit[mcp]"`. There is no
   `mcp` extra — `mcp>=1.0,<2` has been a required dependency since 0.2.0 — so
   that command warned and installed nothing extra. The historical entry is kept

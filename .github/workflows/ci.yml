@@ -278,32 +278,131 @@ jobs:
   #     build. INDIRECT is still gated — but it is gated on ubuntu-latest only,
   #     and it disappears if that job's step is ever marked advisory.
   #
-  # Re-derive (this is how 20+4=24 was obtained; reproduce it rather than
-  # re-counting by hand):
-  #   1. List build_suite()'s targets: every `TESTS / "*.py"` (and `TESTS / f`
-  #     target) in tests/run_all.py -> 52 files.
+  # Re-derive. Run this verbatim from the repo root; it is the command that
+  # produced every number below, and it is the ONLY way these numbers should be
+  # obtained — re-counting by hand is how they went stale. Requires PyYAML
+  # (in requirements.txt via the docs/lint extras); no PTY is spawned, it is
+  # all AST and YAML parsing:
+  #
+  #   python - <<'PY'
+  #   import ast, importlib.util, sys, yaml
+  #   from pathlib import Path
+  #   ROOT = Path.cwd(); sys.path.insert(0, str(ROOT / "tests"))
+  #   spec = importlib.util.spec_from_file_location("ra", ROOT/"tests"/"run_all.py")
+  #   ra = importlib.util.module_from_spec(spec); spec.loader.exec_module(ra)
+  #
+  #   # 1. every tests/*.py target build_suite() names
+  #   tg = set()
+  #   for t in ra.build_suite():
+  #       if "-m" in t.argv: continue
+  #       for x in t.argv:
+  #           if x.endswith(".py"):
+  #               p = Path(x) if Path(x).is_absolute() else Path(t.cwd)/x
+  #               p = p.resolve()
+  #               if p.parent == (ROOT/"tests").resolve(): tg.add(p.relative_to(ROOT).as_posix())
+  #               break
+  #   tg = sorted(tg)
+  #
+  #   # 2. AST spawn scan
+  #   BAD = {"subprocess","pty","multiprocessing","winpty","pexpect"}
+  #   CALL = {("os",x) for x in ("fork","forkpty","posix_spawn","posix_spawnp","spawnl","spawnv","spawnve","execv","execve")} \
+  #        | {("subprocess",x) for x in ("run","Popen","call","check_call","check_output")}
+  #   def spawns(p):
+  #       r = set()
+  #       for n in ast.walk(ast.parse(p.read_text(encoding="utf-8", errors="replace"))):
+  #           if isinstance(n, ast.Import):
+  #               for a in n.names:
+  #                   if a.name.split(".")[0] in BAD: r.add(a.name)
+  #           elif isinstance(n, ast.ImportFrom) and n.module and n.module.split(".")[0] in BAD: r.add(n.module)
+  #           elif isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and isinstance(n.func.value, ast.Name) \
+  #                   and (n.func.value.id, n.func.attr) in CALL: r.add(n.func.attr)
+  #       return r
+  #   clean = [p for p in tg if not spawns(ROOT/p)]
+  #   real  = [p for p in tg if spawns(ROOT/p)]
+  #
+  #   # 3. PARSED `run:` strings -- a grep cannot tell a comment from a step
+  #   runs = []
+  #   for wf in sorted((ROOT/".github"/"workflows").glob("*.yml")):
+  #       for job, jb in (yaml.safe_load(wf.read_text(encoding="utf-8")).get("jobs") or {}).items():
+  #           for st in (jb.get("steps") or []):
+  #               if "run" in st: runs.append((job, st["run"]))
+  #   def jobs(p): return sorted({j for j, r in runs if p in r})
+  #   named = [p for p in clean if jobs(p)]
+  #   here  = [p for p in named if "deterministic-rest" in jobs(p)]
+  #
+  #   # 4. route 2 -- DETERMINISTIC_TESTS, read by AST
+  #   det = set()
+  #   for n in ast.parse((ROOT/"tools"/"coverage_run.py").read_text(encoding="utf-8")).body:
+  #       if isinstance(n, ast.Assign) and getattr(n.targets[0], "id", "") == "DETERMINISTIC_TESTS":
+  #           det = {ast.literal_eval(e) for e in n.value.elts}
+  #   r2      = [p for p in clean if p not in named and Path(p).name in det]
+  #   neither = [p for p in clean if p not in named and Path(p).name not in det]
+  #
+  #   print(f"1  build_suite tests/*.py targets : {len(tg)}")
+  #   print(f"2  AST-clean / real-process       : {len(clean)} / {len(real)}")
+  #   print(f"3  AST-clean named somewhere in CI: {len(named)}  (this job {len(here)}, tests job {sum(1 for p in named if 'tests' in jobs(p))})")
+  #   print(f"4  route-2 (DETERMINISTIC_TESTS)  : {len(r2)}  {[Path(p).stem for p in r2]}")
+  #   print(f"5  {len(here)} (here) + {len(r2)} (route 2) = {len(here)+len(r2)}")
+  #   print(f"-  AST-clean on NEITHER route     : {len(neither)}  {[Path(p).name for p in neither]}")
+  #   print(f"   real-process                   : {[Path(p).name for p in real]}")
+  #   PY
+  #   PY
+  #
+  # Its output, 2026-10-01:
+  #
+  #   1  build_suite tests/*.py targets : 57
+  #   2  AST-clean / real-process       : 49 / 8
+  #   3  AST-clean named somewhere in CI: 38  (this job 20, tests job 18)
+  #   4  route-2 (DETERMINISTIC_TESTS)  : 4  [test_char_width, test_cpr_reply,
+  #                                            test_golden_frames, test_wait_change]
+  #   5  20 (here) + 4 (route 2) = 24
+  #   -  AST-clean on NEITHER route     : 7  [_drive_probe1..6, probe_pty_fx]
+  #      real-process                   : 8  [_diff_fuzz_tmux, _diff_tmux_pyte,
+  #                                            _diff_two_refs, _mcp_probe,
+  #                                            _sandbox_daemon_robustness,
+  #                                            _tmux_launcher_probe,
+  #                                            _tui_cli_probe, verify_fx]
+  #
+  # Step by step, so each number can be checked against the step that makes it:
+  #   1. Import build_suite() and keep the `TESTS / "*.py"` targets (the
+  #      `TESTS / f"_drive_probe{i}"` loop included; `-m ui.*` module runs and
+  #      the tui-ui/examples targets are not tests/ files) -> **57 files**.
   #   2. AST-scan each for spawn/fork/forkpty/Popen/subprocess.run (imports of
-  #     subprocess/pty/multiprocessing/winpty/pexpect plus the os.* and
-  #     subprocess.* call forms) -> 44 AST-clean, 8 real-process. Only the 44
-  #     are candidates for this job; the 8 are the PTY/tmux/differential probes
-  #     the `tests` and `drive-smoke` jobs run.
-  #   3. Of those 44, parse every .github/workflows/*.yml with yaml.safe_load
-  #     and regex the PARSED `run:` strings for `tests/<file>.py` — parsing, not
-  #     grepping, because ci.yml discusses test names inside comments and a
-  #     grep cannot tell a comment from a step. -> 32 named somewhere in CI;
-  #     20 of them in this job, the other 12 in the `tests` job.
+  #      subprocess/pty/multiprocessing/winpty/pexpect plus the os.* and
+  #      subprocess.* call forms) -> **49 AST-clean, 8 real-process**. Only the
+  #      49 are candidates for this job; the 8 are the PTY/tmux/differential
+  #      probes the `tests` and `drive-smoke` jobs run.
+  #   3. Of those 49, parse every .github/workflows/*.yml with yaml.safe_load
+  #      and regex the PARSED `run:` strings for `tests/<file>.py` — parsing,
+  #      not grepping, because ci.yml discusses test names inside comments and
+  #      a grep cannot tell a comment from a step -> **38 named somewhere in
+  #      CI**; **20** of them in this job, the other **18** in the `tests` job.
   #   4. Intersect the remaining with DETERMINISTIC_TESTS in
-  #     tools/coverage_run.py (read by AST, not by grep) -> the route-2 four.
+  #      tools/coverage_run.py (read by AST, not by grep) -> the route-2 four.
   #   5. 20 (here) + 4 (route 2) = **24**.
   # Grepping the workflows alone undercounts by the route-2 four.
   #
+  # CORRECTION (2026-10-01). This recipe previously claimed 52 targets, 44
+  # AST-clean, 32 named, and 12 in the `tests` job. None reproduced: the real
+  # values are 57 / 49 / 38 / 18, above. It landed on 24 anyway only because
+  # two of its errors cancelled (52-8=44 should have been 57-8=49, and the
+  # "12 in the tests job" understated what step 3 actually finds), which is the
+  # worst kind of right: a recipe that cannot be followed still produces the
+  # published number. A recipe whose stated purpose is "reproduce it rather than
+  # re-counting by hand" has to survive being run.
+  #
   # A green board that skips these is a board claiming coverage it does not
   # have — the single strongest security claim in SECURITY.md had no gate at
-  # all. Of the 44 AST-clean files, TWO sit on neither route: `probe_pty_fx`
-  # and `_drive_probe6`, which construct a real `PtySession` (so a spawn, just
-  # not an AST-visible one) and belong with the probes below. Recording them
-  # here so the next re-derivation does not read "24" as "every AST-clean
-  # build_suite gate is covered".
+  # all. Of the 49 AST-clean files, **SEVEN** sit on neither route, not the TWO
+  # this comment used to name: `_drive_probe1` through `_drive_probe6` and
+  # `probe_pty_fx`. All seven construct a real `PtySession` — so a real spawn,
+  # just not an AST-visible one, because the spawn happens inside
+  # `smartcli_core` rather than in the test file — and they belong with the
+  # probes, not here. Recording the real number so the next re-derivation does
+  # not read "24" as "every AST-clean build_suite gate is covered": 24 + 7 = 31,
+  # and 31 + 8 real-process + 8 non-tests targets (2 tui-ui scripts, 2 `-m
+  # ui.*`, `examples/drive_vim.py`, and `_sandbox_posix_backend.py`, which CI
+  # runs but build_suite omits) accounts for the inventory.
   #
   # These 24 are in-process only: AST-checked for zero spawn/fork/Popen/
   # subprocess calls, and each constructs PtySession/WinptyBackend against an

@@ -215,9 +215,50 @@ WIDGET_SPLIT_DOCS = [
 # record what was true then and are explicitly frozen.
 PORTABLE_DOC_GLOBS = [
     "README.md", "README-USAGE.md", "INSTALL.md", "CLAUDE.md", "CONTRIBUTING.md",
-    "SECURITY.md", "docs/i18n/*.md", "skills/*/SKILL.md", "skills/*/references/*.md",
-    "knowledge/*/*.md", "knowledge/INDEX.md",
+    "SECURITY.md", "docs/*.md", "docs/i18n/*.md", "skills/*/SKILL.md",
+    "skills/*/references/*.md", "knowledge/*/*.md", "knowledge/INDEX.md",
+    # The two PROJECT RECORDS, scanned from 2026-10-01. They were left out of
+    # the list above while the rule read as class-wide coverage, and that is
+    # exactly where a new archive pointer landed: injecting a dev-box path into
+    # HANDOFF.md, NEXT-STEPS.md or docs/DISTRIBUTION-CHANNELS.md left this gate
+    # GREEN. A rule that reads as covering a class while missing the two files
+    # it was written for is worse than no rule, because it is believed. The
+    # third of those three was uncovered for the same reason: `docs/i18n/*.md`
+    # is a SUBDIRECTORY glob and never matched its `docs/` siblings, which is
+    # why `docs/*.md` is now listed above.
+    "HANDOFF.md", "NEXT-STEPS.md",
 ]
+
+#: Per-line exemptions for the two project records, and ONLY those. These files
+#: are a box-local log by design: HANDOFF.md:244 carries the disclaimer
+#: convention this table exists to preserve — "belongs to that box only; a fresh
+#: session should read its own, not go looking for that one" — so blanket-
+#: including them would force that convention out of existence. The compromise
+#: is that the path is still written down, but only in a line that SAYS it is
+#: box-local, so a reader is never handed a dead pointer as if it were portable.
+#:
+#: Each entry is (exact path substring, disclaimer regex that must match the
+#: same line). Both halves are enforced: removing the path, or removing the
+#: disclaimer, turns the gate red. An exemption whose path no longer appears in
+#: its document is DEAD CONFIG and also fails — a pin that matches nothing is a
+#: pin that stopped being checked without anyone noticing.
+#:
+#: To add a box-local path: write the line WITH its disclaimer, then add the
+#: (path, disclaimer) pair here. Never add the pair without the prose — that is
+#: the whole point of the mechanism.
+BOX_LOCAL_EXEMPT = {
+    "HANDOFF.md": [
+        (r"C:/Users/dwgx1/.claude/projects/D--Project-SmartCLI/memory/",
+         r"belongs to that box only"),
+        ("C:\\Users\\dwgx1\\.omp\\extra-hands\\RESEARCH\\smartcli-verification-archive\\",
+         r"box-local"),
+    ],
+    "NEXT-STEPS.md": [
+        ("C:\\Users\\dwgx1\\.omp\\extra-hands\\RESEARCH\\smartcli-verification-archive\\",
+         r"box-local"),
+        ("D:\\Project\\SmartCLI-v3-runs\\", r"box-local"),
+    ],
+}
 #: A portable doc must not carry a machine-specific absolute path. Banned by
 #: CLASS, not by the one path someone remembered to add: the repo root is
 #: derived from this file (so it cannot go stale when the checkout moves), and
@@ -511,23 +552,71 @@ def _scan_widget_split(text):
     return bad
 
 
-def _scan_banned_paths(text):
+def _scan_banned_paths(text, exempt=()):
     """Reject machine-specific absolute paths, by class rather than by example.
 
     Two independent checks, because they fail differently: an exact repo-root
     match catches a doc that names this checkout, and the user-profile regex
     catches one that names any developer's home directory. Either alone leaves
     a hole -- that is the lesson from the archive pointer this replaced.
+
+    `exempt` is the BOX_LOCAL_EXEMPT pins for this document: (path, disclaimer)
+    pairs. A line carrying a pinned path passes ONLY if it also matches the
+    paired disclaimer, so the exemption buys "you may write this path" and not
+    "you may write this path silently". Every other hit still fails.
     """
-    bad = []
-    for i, line in enumerate(text.splitlines(), 1):
+    lines = text.splitlines()
+    findings = []          # (line_no, matched_text, description)
+    for i, line in enumerate(lines, 1):
         low = line.lower()
         for banned in BANNED_PATHS:
             if banned.lower() in low:
-                bad.append(f"line {i}: hard-coded repo path '{banned}'")
-        m = USER_PROFILE_RE.search(line)
-        if m:
-            bad.append(f"line {i}: hard-coded user-profile path '{m.group(0)}'")
+                findings.append((i, banned.lower(),
+                                 f"hard-coded repo path '{banned}'"))
+        # finditer, not search: search returns only the FIRST match on a line,
+        # so a second path appended to an already-flagged line was invisible.
+        # Found by mutation — adding `C:\Users\other\b\` beside a pinned path
+        # left this gate GREEN, which is precisely the "the exemption launders
+        # whatever else is on the line" hole the per-finding check below is
+        # written to prevent. A gate that can only see the first problem on a
+        # line is not scanning the line.
+        for m in USER_PROFILE_RE.finditer(line):
+            findings.append((i, m.group(0).lower(),
+                             f"hard-coded user-profile path '{m.group(0)}'"))
+
+    bad = []
+    matched_pins = set()
+    for i, matched, desc in findings:
+        # A finding is exempt only if some pin names THIS path AND the pin's
+        # disclaimer appears NEARBY. Matching on the matched text (not the line
+        # number) is what keeps a second, unpinned path on an exempted line from
+        # riding through.
+        #
+        # "Nearby", not "the same line": markdown wraps, so a disclaimer
+        # routinely lands on the line before or after the path it qualifies. A
+        # three-line window is the honest reading of the convention -- the
+        # reader sees the disclaimer in the same sentence -- while still being
+        # far too tight to let a disclaimer attached to some OTHER path vouch
+        # for this one. Demand the same line and the mechanism fails on
+        # correctly-written prose, which is how a gate gets abandoned.
+        window = "\n".join(lines[max(0, i - 3):i + 2])
+        pin = next(
+            (p for p, d in exempt
+             if p.lower().startswith(matched)
+             and re.search(d, window)),
+            None)
+        if pin is not None:
+            matched_pins.add(pin)
+        else:
+            bad.append(f"line {i}: {desc}")
+
+    for path, _disclaimer in exempt:
+        if path not in matched_pins:
+            bad.append(
+                f"BOX_LOCAL_EXEMPT pin is dead config: '{path}' is either gone "
+                f"from this document, or the line carrying it no longer matches "
+                f"its disclaimer. Remove the pin, or restore the line -- a pin "
+                f"that matches nothing is a pin nobody is checking any more.")
     return bad
 
 
@@ -651,10 +740,21 @@ for pattern in PORTABLE_DOC_GLOBS:
     portable.extend(sorted(ROOT.glob(pattern)))
 for doc in portable:
     text = doc.read_text(encoding="utf-8", errors="replace")
-    rel = doc.relative_to(ROOT)
-    bad = _scan_banned_paths(text)
+    rel = doc.relative_to(ROOT).as_posix()
+    # Pins are keyed by repo-relative posix path; a doc with no pins passes an
+    # empty tuple and is scanned exactly as strictly as before.
+    bad = _scan_banned_paths(text, BOX_LOCAL_EXEMPT.get(rel, ()))
     check(not bad, f"{rel}: no hard-coded dev-box paths"
           + ("" if not bad else " -> " + "; ".join(bad)))
+
+# A pin is only meaningful if the document it names is actually scanned, so
+# assert coverage rather than trusting the glob list to stay in step. Checked
+# once, after the loop: inside it, this printed once per scanned doc.
+_scanned_rel = {p.relative_to(ROOT).as_posix() for p in portable}
+for pinned in sorted(BOX_LOCAL_EXEMPT):
+    check(pinned in _scanned_rel,
+          f"{pinned}: BOX_LOCAL_EXEMPT names it, and PORTABLE_DOC_GLOBS "
+          f"actually scans it (a pin in an unscanned doc is a silent hole)")
 
 if FAILURES:
     print(f"\ntest_doc_counts FAIL -- {len(FAILURES)} doc(s) drifted from code:")

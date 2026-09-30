@@ -93,7 +93,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Refuse any ref that is not a version tag
+      - name: Refuse any ref that is not a version TAG
         # Runs on BOTH paths, and on a push it can only ever pass: the trigger
         # filter is already `tags: v*`. On workflow_dispatch it is the whole
         # gate. `on: workflow_dispatch` hands the workflow whatever ref the
@@ -103,23 +103,52 @@ jobs:
         # executing step was an echo, the job went green, and `publish` — which
         # carries `environment: pypi`, `id-token: write` and `skip-existing:
         # true` — still reached production PyPI through the same OIDC Trusted
-        # Publisher. Requiring a `v*` ref closes that: the dispatch path is not
+        # Publisher. Requiring a tag ref closes that: the dispatch path is not
         # a reduced-verification path, it is the SAME path, because a tag ref
         # carries everything the gates need.
+        #
+        # TWO independent conditions, because a NAME that looks like a tag is
+        # not a tag:
+        #   1. `github.ref_type` == 'tag'. A BRANCH named `v0.3.3` yields the
+        #      identical `github.ref_name`, so a name-shape test alone cannot
+        #      tell them apart — verified under bash: `case v0.3.3 in v[0-9]*)`
+        #      matches a branch ref exactly as it matches the tag. Only
+        #      ref_type separates them, and it is the field that answers the
+        #      question being asked.
+        #   2. The name starts `v<major>.<minor>.<patch>`, then anything. The
+        #      old `v[0-9]*` accepted `v0` and `v9` (verified under bash: any
+        #      string whose second character is a digit). The suffix is left
+        #      deliberately loose — `v0.1.3rc1` and `v0.4.0-alpha` are both
+        #      legal here, and the version-agreement gate below already rejects
+        #      any name that is not byte-equal to the package version, so a
+        #      stricter suffix grammar would refuse tags for reasons that gate
+        #      catches anyway.
+        #
+        # A PRERELEASE tag is not refused: it is a legitimate tag, and a
+        # rehearsal push must not turn this workflow red. It is acknowledged
+        # here, by name, so the reason the `build` job skips it lives in the
+        # step that decides it instead of being implied by the build guard's
+        # substring test. Both gates then say the same thing about the same
+        # ref for the same reason.
         env:
           REF_NAME: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
           EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
-          case "$REF_NAME" in
-            v[0-9]*)
-              echo "::notice::${EVENT_NAME} on ${REF_NAME}: a version tag, so both release gates below run exactly as they do for a push"
-              ;;
-            *)
-              echo "::error::refusing to release from '${REF_NAME}'. A manual dispatch must name the VERSION TAG being released (e.g. --ref v0.2.3), not a branch: ancestry and tag/version agreement are checked against a tag, and without one this workflow has no release to verify. Re-run the failed tag push with 'Re-run failed jobs' instead, or dispatch this workflow with ref=${REF_NAME#v}" >&2
-              exit 1
-              ;;
-          esac
+          if [ "$REF_TYPE" != "tag" ]; then
+            echo "::error::refusing to release from a ${REF_TYPE} named '${REF_NAME}'. A release ref must be a TAG, not a branch that happens to be called like one — the ancestry and version-agreement gates below resolve refs/tags/${REF_NAME}, and a branch ref cannot satisfy them. Re-run the failed tag push with 'Re-run failed jobs' instead, or dispatch this workflow with ref=vX.Y.Z naming the tag." >&2
+            exit 1
+          fi
+          if ! printf '%s' "$REF_NAME" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z.-]+)?$'; then
+            echo "::error::refusing to release from tag '${REF_NAME}'. A release tag must read v<major>.<minor>.<patch> (an optional prerelease/build suffix is allowed). 'v0' and 'v9' are not version tags, and a malformed tag would be compared verbatim against pyproject.toml's version by the gate below. Re-run the failed tag push with 'Re-run failed jobs' instead, or dispatch this workflow with ref=vX.Y.Z naming the tag." >&2
+            exit 1
+          fi
+          if printf '%s' "$REF_NAME" | grep -Eqi -- '[-._]?(rc|alpha|beta|a|b|dev|pre)[0-9a-z.-]*'; then
+            echo "::notice::${EVENT_NAME} on tag ${REF_NAME}: a PRERELEASE tag (matched by the same rc/a/b family the build job's guard tests). It is a real tag, so both release gates below run, but the build guard will skip production PyPI for it — that is the intended outcome, and rehearsal releases go through publish-testpypi.yml. Stated here so the skip has a reason attached to the step that classifies the ref."
+          else
+            echo "::notice::${EVENT_NAME} on tag ${REF_NAME}: a release tag, so both release gates below run exactly as they do for a push, and the build guard will publish to production PyPI."
+          fi
 
       - name: Verify the tagged commit is already on origin/main
         env:

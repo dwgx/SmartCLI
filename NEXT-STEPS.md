@@ -463,8 +463,10 @@ non-negotiable and overrides any shortcut that looks faster.
   small cli.py change.
 
 ### ~~A0-VERIFICATION-ARCHIVE. Move the `verification/` evidence tree out of the repo~~ [DONE 2026-10-01]
-- **Result:** 346 tracked files copied (not moved) to
-  `C:\Users\dwgx1\.omp\extra-hands\RESEARCH\smartcli-verification-archive\`, verified
+- **Result:** 346 tracked files copied (not moved) to the archive below, which is
+  **box-local**:
+  `C:\Users\dwgx1\.omp\extra-hands\RESEARCH\smartcli-verification-archive\` — that path
+  belongs to that box only, a fresh session has no copy. Verified
   byte-for-byte by comparing a sha256 manifest of all 373 on-disk files source-vs-archive
   before any deletion, then `git rm -r verification/`. `git ls-files verification/` is
   empty. Reason: the tree carried **8 stale full copies of `screen_model.py`**, each taken
@@ -857,7 +859,8 @@ Every task above is done under these rules. They override any faster-looking sho
 
 ## 2026-09-16 — the A04 production round (0.3.0)
 
-Shipped and verified (receipts in `D:\Project\SmartCLI-v3-runs\`): budgeted reads with an honest
+Shipped and verified (receipts on the **box-local** run archive `D:\Project\SmartCLI-v3-runs\`
+— that path belongs to that box only, a fresh session has no copy): budgeted reads with an honest
 `io` block (S1), `STABLE` gated on `drained` (S2), mid-sequence visibility (S2p), daemon service turns
 plus the io surface over CLI/MCP (S3), a confirmed-or-admitted close protocol (S4), a bounded Windows
 payload (S5), the write-path scheduling edges N2 found (trickle deadline, `select` failures, reply
@@ -896,10 +899,24 @@ entries, measured by importing it, not by counting text.
 **[DONE]** `raster.py` and `field.py` deliberately **kept** — live importers at
 `ui/cli.py:147,173`, `ui/widgets_ext/braille_chart.py:15`, `examples/effort_selector.py`.
 
-**[OPEN — doc lane, not the cutter]** `CLAUDE.md:229` "returns **63** entries" and
-`:234` "47 of 63" (now 62 / 46; the 47-of-63 figure is CI-mapping arithmetic, re-measure
-it); `CLAUDE.md:255` "four tui-ui module renders" including `ui.box_junction` (now three);
-`docs/MACOS-VERIFY.md:65` still runs `python -m ui.box_junction` in its exit-0 block and
-**will fail**; `README.md:308-311`, `skills/tui-ui/SKILL.md:316-317` and the four
-`docs/i18n/README.*.md` describe both modules as shipping. `CHANGELOG.md` mentions are
-history and stay as written.
+**[DONE — doc lane, closed by `e41db73` itself]** All five items in this block were
+finished by the very commit that wrote them, so re-reading this file as a queue
+would have had a fresh session redo shipped work. Verified against the tree
+2026-10-01, each with the line that closes it:
+
+- `CLAUDE.md:229` "returns **63** entries" → reads **62**. (Further corrected
+  2026-10-01: the "47 of 63" figure had become "46 of 62" by subtraction, which
+  was wrong in the numerator — the removed `box_junction` entry was itself
+  ungated. Re-derived from `build_suite()` + the parsed workflow `run:` strings
+  + `coverage_run.DETERMINISTIC_TESTS`: **47 gated, 15 ungated.** See `CLAUDE.md`
+  :229-249 for the derivation.)
+- `CLAUDE.md` "four tui-ui module renders" → the enumeration is now the three
+  that exist (`ui.field`, `ui.raster`, `_selftest_effort_widgets.py`), and the
+  local-only list is counted at **15** to match the items it names.
+- `docs/MACOS-VERIFY.md:65` no longer runs `python -m ui.box_junction` — its
+  exit-0 block is `test_fx_contract`, `_readme_literal`, `self_test.py`,
+  `-m ui widgets`, `-m fx list`, all of which exist.
+- `README.md:308-311` and all four `docs/i18n/README.*.md` now say the two
+  modules shipped through **0.3.2** and were **removed in 0.3.3**, with the
+  reason.
+- `CHANGELOG.md` mentions stay as written — they are release history.
