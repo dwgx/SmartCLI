@@ -2092,3 +2092,19 @@ install was verified from site-packages, not the working tree.
 Next action: none outstanding. Local = origin = `79503be`, tag `v0.3.3`,
 working tree has 0 tracked changes, suite is 62 entries. Re-verification
 commands are in the block above; `CLAUDE.md:229` holds the current inventory.
+
+**Release surfaces, confirmed after the fact (2026-10-01).** PyPI
+`smartcli-toolkit` `latest` = 0.3.3 with both `py3-none-any.whl` and `.tar.gz`;
+GitHub Release `v0.3.3` published (not a draft) as *"v0.3.3 — the review wave
+lands, and the unwired modules go"*; MCP Registry
+`io.github.dwgx/smartcli` answers **HTTP 200 with version 0.3.3** on its
+version-specific endpoint (its search endpoint lists older versions first, which
+is not evidence of absence).
+
+**The annotated tag's claim "full 62-entry suite" was untrue when written** — the
+63/63 run predated the cut that removed the `box_junction` self-test. The tag
+cannot be re-pointed without a force push, so the evidence was made true instead
+of the sentence being edited: `python tests/run_all.py` on the released tree →
+**62/62 passed, exit 0, 3m34s**, real PTYs, with the Owner's standing consent.
+Five skips, all external-binary (tmux, POSIX pty, hypothesis) and each reporting
+why; the POSIX paths were separately proven on HMC against Debian 13.
