@@ -6,6 +6,7 @@ import contextlib
 import io
 import json
 import os
+import re
 import sys
 import tempfile
 from pathlib import Path
@@ -41,6 +42,26 @@ def raises_oserror(fn) -> bool:
     except OSError:
         return True
     return False
+
+
+def can_search_for_a_creation_time() -> bool:
+    """Can this host look for a live process carrying a recorded creation time?
+
+    The premise under the two "nothing alive carries it" checks, and it is worth
+    naming rather than assuming: that conclusion is only reachable on a host
+    that can walk the process table at all. Windows walks it with Toolhelp,
+    Linux with ``/proc``, and macOS can do neither -- and reports no creation
+    time for another process to begin with, so ``close`` there keeps such an
+    entry and says the host could not be asked, which is the correct answer and
+    not a cleanup leak.
+
+    Stated as a host fact rather than as a question about the code, because the
+    difference matters: a platform that cannot search differs from a search that
+    failed on a platform that can, and only the first is permanent. (A harness
+    that wants to exercise the second platform's assertions replaces this one
+    function; the checks below branch on nothing else.)
+    """
+    return os.name == "nt" or os.path.isdir("/proc")
 
 
 def test_session_ids() -> None:
@@ -354,14 +375,24 @@ def test_close_is_identity_aware() -> None:
             # The gate itself: the pid in this entry is gone, but the creation
             # time it records is carried by a process that is still running (this
             # one). The pid alone cannot say the daemon is dead, and deleting
-            # here is what orphans a live child -- so the entry is kept and the
-            # refusal names the pid that IS alive.
+            # here is what orphans a live child -- so the entry is kept, and the
+            # refusal names the pid that IS alive. Naming it requires a host that
+            # can walk the process table at all: macOS has no /proc and no
+            # creation-time API, so there the same code refuses with "this host
+            # could not be asked" and no witness. That is still the verdict
+            # under test, so both refusals are accepted and neither pid value is
+            # pinned -- asking macOS to name a pid it cannot enumerate is asking
+            # for an implementation detail, not for the gate.
             twin = entry("twin", pid=999999, pid_born="ident-A")
             rc, err = close("twin")
-            check(rc != 0 and twin.exists() and f"pid {me} is running" in err,
+            named = {int(n) for n in re.findall(r"pid (\d+) is running", err)}
+            check(rc != 0 and twin.exists()
+                  and (named - {999999} or "could not be asked" in err),
                   f"a gone pid whose recorded creation time is still carried by a "
-                  f"live process is KEPT, and the refusal names that live pid "
-                  f"(rc={rc}, kept={twin.exists()}, err={err.strip()[:150]!r})")
+                  f"live process is KEPT, and the refusal either names that live "
+                  f"pid or says this host could not be asked "
+                  f"(rc={rc}, kept={twin.exists()}, names={sorted(named)}, "
+                  f"err={err.strip()[:150]!r})")
 
             # ...and the reverse: a search that reads NO creation times at all
             # has not established that the daemon is gone either.
@@ -409,11 +440,33 @@ def test_close_is_identity_aware() -> None:
             # A pid that is positively gone, with a recorded creation time that
             # nothing alive carries, is the ONE case that must still be
             # cleanable: neither the slot nor the daemon is there any more.
+            #
+            # The premise of that sentence is "nothing alive carries it", and a
+            # premise has to be ESTABLISHED before it can be asserted. Where the
+            # host can search the process table, this leg demands the cleanup and
+            # is what keeps the gate from decaying into a blanket refusal. Where
+            # it cannot -- macOS, where no search is possible for any entry --
+            # the same entry is KEPT and the refusal says why, and that is not a
+            # weakened gate but the honest answer: the only evidence available
+            # there is the entry's own pid, which is precisely the field an
+            # altered entry gets wrong, so deleting on it is the failure this
+            # whole check exists to prevent. Asserting the cleanup on such a host
+            # would be asserting that it deletes a record it cannot check.
             reaped = entry("reaped", pid=999999, pid_born="ident-GONE")
             rc, err = close("reaped")
-            check(rc == 0 and not reaped.exists(),
-                  f"a vanished pid is still cleanable when nothing alive carries "
-                  f"the recorded identity (rc={rc}, entry gone={not reaped.exists()})")
+            if can_search_for_a_creation_time():
+                check(rc == 0 and not reaped.exists(),
+                      f"a vanished pid is still cleanable when nothing alive "
+                      f"carries the recorded identity, so the gate is a witness "
+                      f"and not a blanket refusal (rc={rc}, "
+                      f"entry gone={not reaped.exists()})")
+            else:
+                check(rc != 0 and reaped.exists()
+                      and "could not be asked" in err,
+                      f"a host that cannot search for a recorded creation time "
+                      f"KEEPS the entry and says so, instead of deleting a record "
+                      f"it was never able to check (rc={rc}, "
+                      f"kept={reaped.exists()}, err={err.strip()[:150]!r})")
         finally:
             if patched:
                 tui._proc_identity = original
@@ -433,10 +486,13 @@ def test_a_dead_pid_cannot_outvote_a_live_creation_time() -> None:
     deleted the file, the token and the pid of a process that was still running,
     with empty stderr and rc=0.
 
-    So the entry must be KEPT, and the refusal must name a pid the OS still
-    answers for. The second leg is the control that keeps the first honest: the
-    same dead pid with a creation time nothing alive carries is still cleaned up,
-    silently -- otherwise "always refuse" would pass this too.
+    So the entry must be KEPT, and the refusal must point at a pid other than the
+    falsified one -- the witness the kernel's own scan found carrying the
+    recorded creation time. It deliberately does NOT require that witness to be
+    this process (see the note at the check). The second leg is the control that
+    keeps the first honest: the same dead pid with a creation time nothing alive
+    carries is still cleaned up, silently -- otherwise "always refuse" would pass
+    this too.
     """
     me = os.getpid()
     identity = tui._proc_identity(me)
@@ -477,10 +533,29 @@ def test_a_dead_pid_cannot_outvote_a_live_creation_time() -> None:
                                     "pid_born": identity, "token": "t"})
             twin = tui._reg_path("twin")
             rc, err = close("twin")
-            check(rc != 0 and twin.exists() and f"pid {me} is running" in err,
+            # The invariant, not one refusal's wording: a `pid` field that has
+            # been falsified must not delete the only record of a process that
+            # is still running. WHICH pid the refusal names is deliberately not
+            # pinned, because the recorded creation time is only as unique as
+            # the clock can make it -- on Linux `proc:<ticks>` is ticks since
+            # boot, so two processes born inside the same tick carry the same
+            # value and the process-table walk reaches whichever of them comes
+            # first, which need not be this one. Pinning `pid {me}` asserted the
+            # host's tick clock, not the gate. What must hold on every platform:
+            # the close is refused, the entry is KEPT, and the refusal names a
+            # pid that is not the falsified one, i.e. a witness found outside
+            # the entry's own pid. A host whose process table could not be
+            # enumerated has no witness to name and is entitled to say so; that
+            # is the same fail-closed verdict in different words, so it is
+            # accepted here rather than turned into a platform-shaped failure.
+            named = {int(n) for n in re.findall(r"pid (\d+) is running", err)}
+            check(rc != 0 and twin.exists()
+                  and (named - {dead} or "could not be asked" in err),
                   f"overwriting only `pid` does NOT orphan the live process: the "
-                  f"entry is kept and the refusal names the pid still alive "
-                  f"(rc={rc}, kept={twin.exists()}, err={err.strip()[:160]!r})")
+                  f"entry is kept, and the refusal names a live pid (any pid but "
+                  f"the falsified {dead}) or says this host could not be asked "
+                  f"(rc={rc}, kept={twin.exists()}, names={sorted(named)}, "
+                  f"err={err.strip()[:160]!r})")
 
             forced = tui.cmd_close(Args("twin", True))
             check(forced == 0 and not twin.exists(),
@@ -491,10 +566,18 @@ def test_a_dead_pid_cannot_outvote_a_live_creation_time() -> None:
                                     "pid_born": absent, "token": "t"})
             gone = tui._reg_path("gone")
             rc, err = close("gone")
-            check(rc == 0 and not gone.exists() and err == "",
-                  f"a dead pid whose creation time nothing alive carries IS "
-                  f"cleaned up, silently -- so the gate is a witness, not a "
-                  f"blanket refusal (rc={rc}, gone={not gone.exists()}, err={err!r})")
+            if can_search_for_a_creation_time():
+                check(rc == 0 and not gone.exists() and err == "",
+                      f"a dead pid whose creation time nothing alive carries IS "
+                      f"cleaned up, silently -- so the gate is a witness, not a "
+                      f"blanket refusal (rc={rc}, gone={not gone.exists()}, "
+                      f"err={err!r})")
+            else:
+                check(rc != 0 and gone.exists() and err != "",
+                      f"a host that cannot search for a recorded creation time "
+                      f"KEEPS the entry instead of deleting a record it was "
+                      f"never able to check, and says why "
+                      f"(rc={rc}, kept={gone.exists()}, err={err.strip()[:120]!r})")
         finally:
             tui.REG_DIR = old_dir
 

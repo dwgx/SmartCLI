@@ -1823,9 +1823,17 @@ def _proc_identity(pid: int) -> str | None:
     opens -- same bindings, same kind of handle, so the liveness probe and the
     identity probe are answered by the kernel about the very same object rather
     than by two independent races.
-    On Linux it is field 22 of ``/proc/<pid>/stat``. macOS exposes no cheap
-    creation time for another process, so it reports None and ``close`` falls
-    back to the pid-only test (see ``_daemon_liveness``).
+    On Linux it is field 22 of ``/proc/<pid>/stat``, which counts CLOCK TICKS
+    since boot and is therefore only tick-granular: two processes born inside
+    the same tick return the same value, and the process-table search in
+    ``_live_pid_with_identity`` can reach either of them first. Such a collision
+    can only ever cost a false REFUSAL -- the search may name the colliding
+    sibling instead of the recorded daemon, and ``close`` then keeps an entry it
+    could have cleaned -- and never a false "gone", because the recorded
+    daemon's own value is present for exactly as long as the daemon lives.
+    macOS exposes no cheap creation time for another process at all, so it
+    reports None, ``start`` records ``pid_born: null`` and every ``close`` on
+    that platform takes the legacy pid-only test (see ``_daemon_liveness``).
     """
     if pid <= 0:
         return None
@@ -1989,6 +1997,16 @@ def _daemon_liveness(info: dict) -> tuple[bool, str, bool]:
     file can write a ``pid_born`` naming nothing that is alive, or omit it, and
     can simply delete the file outright — so this closes a consistency hole, not
     an authorization one. See SECURITY.md, which says so in the same words.
+    Two limits belong to the platform rather than to the host, and both end in
+    the same kind of answer. macOS cannot report a creation time for another
+    process, so ``start`` records ``pid_born: null`` there and an entry that
+    carries one cannot have been written on that host; it also cannot be
+    checked there, so it is kept and refused until ``--force`` — permanently,
+    not until the host recovers. Entries the program wrote itself take the
+    legacy pid-only branch instead, and are still cleaned up when the pid is
+    gone. The other is the granularity ``_proc_identity`` documents: Linux
+    measures the value in clock ticks, so it can be shared with a process born
+    in the same tick, which costs a refusal and never a wrong "gone".
 
     ``legacy`` marks the one case that cannot be decided by identity at all —
     an entry written by a tui.py older than the identity field. Those fall back
@@ -2307,10 +2325,14 @@ def build_parser() -> argparse.ArgumentParser:
                          "pid slot that has been recycled, an identity the OS "
                          "will not report, a host that could not be enumerated "
                          "for a process carrying the recorded creation time, or "
-                         "a legacy entry with no creation time recorded. The "
-                         "creation time is a consistency check on the entry, "
-                         "not proof of who wrote it: anything able to write the "
-                         "registry file can write a self-consistent pair, or "
+                         "a legacy entry with no creation time recorded. Nor "
+                         "is the token unique on Linux: it counts clock ticks "
+                         "since boot, so a process born in the same tick "
+                         "carries the same value and can be taken for the "
+                         "daemon. The creation time is a consistency check on "
+                         "the entry, not proof of who wrote it: anything able "
+                         "to write the registry file can write a "
+                         "self-consistent pair, or "
                          "delete the file outright. --force loses the token and "
                          "the pid, so the child becomes unreachable; kill the "
                          "pid yourself first")

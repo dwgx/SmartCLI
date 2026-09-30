@@ -117,7 +117,33 @@ surface is narrow but real:
   gated against a real process table in `tests/test_drive_security.py`. An OS
   that refuses to report a creation time is also treated as
   alive, and so is a host that could not be enumerated for a process carrying
-  the recorded time. **What the creation time is NOT: proof of who wrote the
+  the recorded time.
+  That name is only as sharp as the platform's clock allows. On Windows it is a
+  FILETIME (100 ns since 1601), but on Linux `starttime` counts **clock ticks
+  since boot** (typically 100/s), so two processes born inside the same tick
+  carry the *same* value: the identity is tick-granular, not unique, and the
+  process-table walk can reach either of them first — so the refusal may name a
+  colliding sibling rather than the recorded daemon. That is the safe direction,
+  and it is worth stating rather than leaving implied: a collision can only ever
+  cost a false **refusal** (an entry whose daemon has in fact exited stays on
+  disk until `--force`, and the kill hint may name the wrong pid), never a false
+  "gone", because the recorded daemon's own value is present for exactly as long
+  as the daemon lives.
+  On macOS there is no cheap creation time for another process at all, so
+  `pid_born` is `null` on every entry this program writes and every close there
+  takes the weaker pid-only branch below — which still cleans up a dead daemon,
+  so macOS users accumulate nothing. An entry on macOS that *does* carry a
+  recorded creation time therefore cannot have been written there: it arrived
+  from another platform (`SMARTCLI_TUI_DIR` aimed at a shared or restored
+  registry) or was written by hand, it can never be checked on that host, and
+  `close` will keep it and refuse until `--force`. That is the intended answer
+  rather than a leak in the cleanup path — the only evidence such a host has is
+  the entry's own pid, which is exactly the field an altered entry gets wrong —
+  but it is a real, permanent need for `--force` in that case, so it is stated
+  here instead of being left to be discovered.
+  The two tick-collision and macOS cases are what the platform-split legs of
+  `test_close_is_identity_aware` assert in each form.
+  **What the creation time is NOT: proof of who wrote the
   entry.** Anything able to write the registry file can write a self-consistent
   `pid`+`pid_born` pair, or omit `pid_born`, or delete the file outright — which
   is the stronger version of the same attack, and no check inside the file can
