@@ -49,11 +49,6 @@ def diff() -> tuple[set[str], set[str], set[str]]:
     return only_can, only_ven, differ
 
 
-def is_synced() -> bool:
-    only_can, only_ven, differ = diff()
-    return not (only_can or only_ven or differ)
-
-
 def refresh() -> None:
     if VENDORED.exists():
         shutil.rmtree(VENDORED)

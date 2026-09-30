@@ -250,18 +250,25 @@ jobs:
           fail_ci_if_error: false
         continue-on-error: true
 
-  # The DETERMINISTIC gates from build_suite() that no workflow names BY NAME.
-  # Re-derived 2026-10-01: **18 of them**, and the number has two routes, not
-  # one. Counting only the `python -B tests/...` lines below gives 14 and is
-  # the reason an earlier version of this comment said "13" — it counted this
-  # job and forgot the second route. A gate is gated if ANY workflow runs it:
+  # The DETERMINISTIC gates from build_suite() that this job runs, plus the
+  # ones no workflow names but still runs. Re-derived 2026-10-01: **24**, and
+  # the number has two routes, not one. Counting only the `python -B tests/...`
+  # lines below gives 20; grepping the workflows alone gives the same 20 and
+  # still misses the route-2 four — which is why an earlier version of this
+  # comment said "13" and a later one "18". A gate is gated if ANY workflow
+  # runs it:
   #
-  #   route 1 — named in the steps below (14): the daemon head-of-line/
+  #   route 1 — named in the steps below (20): the daemon head-of-line/
   #     concurrency lock SECURITY.md cites, the S6/A05/A06 liveness tail, the
   #     seven A04 transport-budget/close/backlog gates, the cell-span /
-  #     streaming-SGR / partial-write regressions, and the two prose-only
-  #     claims in test_enforced_claims (the 4 MiB pre-auth request bound and
-  #     the mcp-name <-> server.json <-> runtime serverInfo invariant).
+  #     streaming-SGR / partial-write regressions, the two prose-only claims
+  #     in test_enforced_claims (the 4 MiB pre-auth request bound and the
+  #     mcp-name <-> server.json <-> runtime serverInfo invariant), and the six
+  #     that shipped registered-but-unwired (unknown sequences, the closed
+  #     mode registry, revision-baseline waits, child-death-as-an-outcome,
+  #     graphics payloads never drawn, the JSON Lines session log). That last
+  #     six is the case this job exists for: adding a gate to build_suite()
+  #     gates nothing, because no workflow runs that aggregator.
   #   route 2 — named by NO workflow, but run anyway (4): test_golden_frames,
   #     test_cpr_reply, test_char_width, test_wait_change. They are in
   #     tools/coverage_run.py's own DETERMINISTIC_TESTS list, which the
@@ -271,34 +278,53 @@ jobs:
   #     build. INDIRECT is still gated — but it is gated on ubuntu-latest only,
   #     and it disappears if that job's step is ever marked advisory.
   #
-  # Re-derive with: list build_suite()'s files, AST-scan each for
-  # spawn/fork/Popen/subprocess, then grep `.github/workflows/*.yml` for
-  # `tests/<file>.py` AND read `DETERMINISTIC_TESTS` in tools/coverage_run.py.
+  # Re-derive (this is how 20+4=24 was obtained; reproduce it rather than
+  # re-counting by hand):
+  #   1. List build_suite()'s targets: every `TESTS / "*.py"` (and `TESTS / f`
+  #     target) in tests/run_all.py -> 52 files.
+  #   2. AST-scan each for spawn/fork/forkpty/Popen/subprocess.run (imports of
+  #     subprocess/pty/multiprocessing/winpty/pexpect plus the os.* and
+  #     subprocess.* call forms) -> 44 AST-clean, 8 real-process. Only the 44
+  #     are candidates for this job; the 8 are the PTY/tmux/differential probes
+  #     the `tests` and `drive-smoke` jobs run.
+  #   3. Of those 44, parse every .github/workflows/*.yml with yaml.safe_load
+  #     and regex the PARSED `run:` strings for `tests/<file>.py` — parsing, not
+  #     grepping, because ci.yml discusses test names inside comments and a
+  #     grep cannot tell a comment from a step. -> 32 named somewhere in CI;
+  #     20 of them in this job, the other 12 in the `tests` job.
+  #   4. Intersect the remaining with DETERMINISTIC_TESTS in
+  #     tools/coverage_run.py (read by AST, not by grep) -> the route-2 four.
+  #   5. 20 (here) + 4 (route 2) = **24**.
   # Grepping the workflows alone undercounts by the route-2 four.
   #
   # A green board that skips these is a board claiming coverage it does not
   # have — the single strongest security claim in SECURITY.md had no gate at
-  # all. Three build_suite files sit on neither route. Two of them —
-  # `probe_pty_fx` and `_drive_probe6` — construct a real `PtySession` (so a
-  # spawn, just not an AST-visible one) and belong with the probes below.
-  # The third, `test_graphics_payload`, is a genuine gap: a pure-memory
-  # ScreenModel suite no workflow names. Recorded so the next re-derivation
-  # does not read "18" as "every deterministic gate is covered".
+  # all. Of the 44 AST-clean files, TWO sit on neither route: `probe_pty_fx`
+  # and `_drive_probe6`, which construct a real `PtySession` (so a spawn, just
+  # not an AST-visible one) and belong with the probes below. Recording them
+  # here so the next re-derivation does not read "24" as "every AST-clean
+  # build_suite gate is covered".
   #
-  # These 18 are in-process only: AST-checked for zero spawn/fork/Popen/
+  # These 24 are in-process only: AST-checked for zero spawn/fork/Popen/
   # subprocess calls, and each constructs PtySession/WinptyBackend against an
   # INJECTED fake transport rather than a real child (or, for the daemon
   # control-plane gates, drives the real accept loop against a fake session).
   # They are not the PTY probes. That is why this job can be
   # unbounded-by-matrix and still cheap — but the bound is set anyway (the
   # 360-min default is unacceptable), and the steps stay serial within the
-  # runner.
+  # runner. 15 minutes still covers the added six: they measure 0.12-1.19 s
+  # each (~3 s total) against a job that already installs a full dependency
+  # set, so the binding cost is the install, not the gates.
   #
-  # Deliberately NOT `python tests/run_all.py`: that aggregator also runs the
+  # Deliberately NOT `python tests/run_all.py`, and the corollary is the whole
+  # point of the six steps added above: that aggregator also runs the
   # real-process probes and the real-tmux differential suites, which spawn live
   # PTY sessions and must stay one-at-a-time — the red line at the top of
   # CLAUDE.md. Running it here would trade the repo's concurrency rule for a
-  # wider gate, and it is invoked by no workflow on purpose.
+  # wider gate. It is invoked by no workflow on purpose, which means
+  # membership in build_suite() is DOCUMENTATION, NOT A GATE: six pure-memory
+  # gates were registered there and stayed unwired until this job named them.
+  # A new gate is ungated until a `run:` step or DETERMINISTIC_TESTS says so.
   #
   # One OS, not the matrix: these gates are pure in-memory/fake-transport logic,
   # so a second OS buys no new signal and 6x the runner minutes. The matrix
@@ -342,3 +368,19 @@ jobs:
           python -B tests/test_sgr_stream_regression.py
           python -B tests/test_partial_write_regression.py
           python -B tests/test_partial_write_edges.py
+      # Six pure-memory gates that shipped registered-but-unwired: they were in
+      # build_suite(), and NO workflow named them. Registering a gate in
+      # run_all.py buys nothing — no workflow runs that aggregator — so each
+      # one needs its own step here to be a gate at all.
+      - name: "Terminal parsing: unknown sequences rejected, closed mode registry"
+        run: |
+          python -B tests/test_unknown_sequences.py
+          python -B tests/test_terminal_modes.py
+      - name: "Wait outcomes: revision anchors + child death"
+        run: |
+          python -B tests/test_revision_baseline.py
+          python -B tests/test_child_death_wait.py
+      - name: "Graphics payloads never drawn + JSON Lines session log"
+        run: |
+          python -B tests/test_graphics_payload.py
+          python -B tests/test_session_log.py

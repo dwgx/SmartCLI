@@ -10,7 +10,6 @@ Pure stdlib (``colorsys`` only). Colors are ``(r, g, b)`` int triples in 0..255.
 from __future__ import annotations
 
 import colorsys
-import random
 from dataclasses import dataclass, field
 
 RGB = tuple[int, int, int]
@@ -150,7 +149,3 @@ def get_theme(name: str | None) -> Theme:
 
 def theme_names() -> list[str]:
     return list(THEMES.keys())
-
-
-def random_theme() -> Theme:
-    return random.choice(list(THEMES.values()))

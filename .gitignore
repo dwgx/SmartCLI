@@ -11,6 +11,11 @@ tools/screenshot/out/
 *.tmp
 _*_tmp.py
 
+# Harness-edit backups dropped next to shipped sources (mcp_server.py.bak-harness-<ts>).
+# Deliberately narrower than *.bak: only this generated class is unwanted, so a
+# real .bak someone means to commit stays visible to `git status`.
+*.bak-harness-*
+
 # Coverage run artifacts (config .coveragerc + tools/coverage_run.py + the
 # sitecustomize.py hook ARE tracked; only the generated data/reports are not).
 .coverage
