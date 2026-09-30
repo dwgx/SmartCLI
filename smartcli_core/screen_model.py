@@ -431,6 +431,22 @@ _CSI_MAX_PARAMS: Mapping[bytes, tuple[int, int]] = MappingProxyType({
 #: mismatch: ``ESC[?6n`` (DECXCPR, a real query a real program sends) loses
 #: every byte after it in that batch.
 _CSI_PRIVATE_OK = frozenset((b"J", b"K", b"c", b"h", b"l"))
+#: ECMA-48 control strings, keyed by the byte that follows ESC. pyte has no
+#: branch for any of them -- its parser falls through to draw(), which is why
+#: _ByteStream consumes their payloads instead of forwarding them.
+#:
+#: The NAME is all the counter can honestly report. Nothing buffers a payload
+#: (that is the rule), so at the moment of the consume the filter has seen the
+#: introducer and nothing else: claiming "sixel" or "kitty graphics" would be
+#: reading ahead into bytes it deliberately does not hold. The family is the
+#: honest unit, and it already separates the case that matters — a graphics
+#: payload from yazi/chafa/viu/timg lands as DCS or APC.
+_CONTROL_STRING_INTRODUCERS: Mapping[int, str] = MappingProxyType({
+    0x50: "DCS",   # 'P' — sixel, DECRQSS
+    0x58: "SOS",   # 'X'
+    0x5E: "PM",    # '^' — xterm
+    0x5F: "APC",   # '_' — kitty graphics, tmux passthrough
+})
 
 
 class _ByteStream(pyte.ByteStream):
@@ -482,7 +498,10 @@ class _ByteStream(pyte.ByteStream):
     #     content, and `feed_errors` stayed 0 for both, so there was no
     #     diagnostic that could have noticed. They are therefore consumed HERE
     #     and emit nothing: the same "swallow it, draw nothing" a real terminal
-    #     shows for a string it cannot interpret.
+    #     shows for a string it cannot interpret — and, like every other
+    #     consume under the policy, COUNTED (once per string), so an image that
+    #     the grid does not show is visible as an observation rather than as
+    #     nothing at all.
     #   * a trailing ESC is held for one more byte: it may still start a string
     #     or a CSI. Nothing else is ever buffered.
     #   * MOUSE_RAW swallows the three raw bytes of an X10 report. That payload
@@ -549,7 +568,24 @@ class _ByteStream(pyte.ByteStream):
                     self._string_bel = True                # BEL or ST terminates it
                     self._string_emit = True
                     state = self._STRING
-                elif b in (0x50, 0x58, 0x5E, 0x5F):      # 'P' DCS 'X' SOS '^' PM '_' APC
+                elif b in _CONTROL_STRING_INTRODUCERS:  # 'P' DCS 'X' SOS '^' PM '_' APC
+                    # Counted HERE, at the introducer, because that is the
+                    # only point at which the filter knows what it is
+                    # consuming: the payload is never buffered (that is the
+                    # rule), so a reason read from the introducer is the only
+                    # one that cannot be a guess. It is still the fact an
+                    # operator needs — a child emitted a graphics/control
+                    # string, this module drew nothing, and the grid is
+                    # missing an image. Silence here is the same defect the
+                    # policy was written for: the reason this consume exists
+                    # is that an agent must not silently lose content, and an
+                    # image IS content to yazi/chafa/viu even when this
+                    # module cannot render it. Once per STRING, not per byte
+                    # and not per terminator, so one image is one observation
+                    # however the PTY happened to chunk it.
+                    self._reject(f"{_CONTROL_STRING_INTRODUCERS[b]} "
+                                 f"graphics/control string payload consumed, "
+                                 f"not drawn: {bytes((0x1B, b))!r} ... ST")
                     self._string_bel = False               # ST only (ECMA-48)
                     self._string_emit = False              # swallowed here, never drawn
                     state = self._STRING
@@ -1470,18 +1506,21 @@ class ScreenModel:
 
         Distinct from :attr:`feed_errors`, and the distinction is the point.
         ``feed_errors`` counts batches pyte could not parse at all; this counts
-        CSI sequences and X10 mouse reports we understood well enough to know
-        we do NOT understand, and deliberately drew nothing for. It was 0
-        through every one of the three defects this policy was written for,
-        because pyte "parsed" all of them — so a screen that had gained debris
-        and lost content looked healthy from the outside. Non-zero is a
-        statement that the grid is missing something the program drew, not that
-        this module is broken.
+        sequences we understood well enough to know we do NOT understand, and
+        deliberately drew nothing for: rejected CSI sequences, consumed X10
+        mouse reports, and consumed DCS/SOS/PM/APC strings. All three were 0
+        through every one of the defects this policy was written for, because
+        pyte "parsed" all of them — so a screen that had gained debris and lost
+        content looked healthy from the outside. Non-zero is a statement that
+        the grid is missing something the program drew, not that this module
+        is broken.
 
-        The control-STRING families (DCS/SOS/PM/APC) are not counted here: they
-        are consumed by their own pre-existing rule, which was decided with the
-        graphics payloads, and folding them in here would change that
-        behaviour on the strength of a counter nobody reads yet.
+        A DCS or APC payload is counted here because this IS the consume the
+        policy describes — read to its end, emitted to pyte as nothing — and
+        leaving it out made the counter a worse description of the grid for
+        exactly the family an image-drawing program uses. It is not a claim
+        that this module failed: it is the statement that the child drew an
+        image (yazi, chafa, viu, timg) that is not in the snapshot.
         """
         return getattr(self.stream, UNKNOWN_SEQUENCE_POLICY.counter, 0)
 

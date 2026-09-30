@@ -282,7 +282,11 @@ class WindowTitleLookalikeIsNotAReport(unittest.TestCase):
     def test_x10_lookalike_inside_a_dcs_payload(self):
         m = fed(b"\x1b_Gf=100;a=T;\x1b[M\x20\x2b\x25" + ST + b"AFTER")
         self.assertEqual(row0(m), "AFTER")
-        self.assertEqual(m.unknown_sequences, 0)
+        # 1, not 2: the APC string is one consumed sequence and IS counted,
+        # while the ESC[M + 3 bytes inside its payload are the string's
+        # content, not a report of their own. Zero would be the shape bug
+        # this policy exists to stop — a consumed payload with no signal.
+        self.assertEqual(m.unknown_sequences, 1)
 
 
 class ThePolicyItself(unittest.TestCase):
@@ -406,6 +410,138 @@ class ThePolicyItself(unittest.TestCase):
         self.assertEqual(set(MOUSE_REPORTING_MODES), {9, 1000, 1002, 1003,
                                                       1005, 1006, 1015, 1016})
         self.assertNotIn(2004, MOUSE_REPORTING_MODES)
+
+
+class ConsumedGraphicsStringsAreObservable(unittest.TestCase):
+    """A payload that vanishes from the grid must leave a signal behind.
+
+    DCS/SOS/PM/APC are consumed for exactly the reason the rest of the policy
+    consumes: pyte has no branch for them, so forwarding one drew base64 as
+    text. Consuming them is right and draws nothing — but for years the
+    consume itself was silent, which made the counter a *worse* description of
+    the grid than no counter: an agent driving ``yazi``/``chafa``/``viu``
+    got a clean snapshot and no evidence the stream had carried an image.
+    ``UNKNOWN_SEQUENCE_POLICY`` says a consume is "counted, with the reason in
+    last_unknown" for every family it claims to cover, so the family that
+    motivated it cannot be the exception.
+
+    The grid assertions are the ones that must not move: this adds an
+    observable, it does not add or remove consumption.
+    """
+
+    #: Sixel (VT330/340): raster attrs, a colour register, a band of sixel
+    #: data — the shape `chafa` emits at sixel-capable terminals.
+    SIXEL = b"\x1bPq#0;2;100;0;0#1~~~" + ST
+    #: kitty graphics: direct PNG data, base64 ("QUFBQQ==" is "AAA").
+    KITTY = b"\x1b_Gf=100;a=T;QUFBQQ==" + ST
+
+    def assert_consumed_and_named(self, payload: bytes, family: str) -> None:
+        m = fed(b"A" + payload + b"B")
+        # Unchanged behaviour: the payload is consumed, never drawn, and the
+        # text on both sides survives it.
+        self.assertEqual(row0(m), "AB",
+                         f"{family} payload reached the grid: {row0(m)!r}")
+        self.assertEqual(m.feed_errors, 0)
+        self.assertEqual(m.cursor, (0, 2),
+                         f"the {family} string moved the cursor")
+        # The new observable, and the whole point: one string, one count.
+        self.assertEqual(m.unknown_sequences, 1,
+                         f"a consumed {family} string must be observable")
+        self.assertIsNotNone(m.last_unknown)
+        self.assertIn(family, m.last_unknown,
+                      "last_unknown must name which control string was eaten")
+        self.assertIn("not drawn", m.last_unknown,
+                      "last_unknown must say the payload was dropped, not "
+                      "that the string was merely not understood")
+
+    def test_sixel_dcs_is_counted_and_named(self):
+        self.assert_consumed_and_named(self.SIXEL, "DCS")
+
+    def test_kitty_apc_is_counted_and_named(self):
+        self.assert_consumed_and_named(self.KITTY, "APC")
+
+    def test_sos_and_pm_are_counted_and_named_too(self):
+        # Not only the two graphics families: the contract is per-family, and
+        # a half-applied fix is the defect all over again.
+        for introducer, family in ((b"X", "SOS"), (b"^", "PM")):
+            with self.subTest(family=family):
+                self.assert_consumed_and_named(
+                    b"\x1b" + introducer + b"payload\x07\xff" + ST,
+                    family)
+
+    def test_the_payload_never_reaches_the_grid_in_any_form(self):
+        m = fed(b"A" + self.SIXEL, b"A" + self.KITTY, b"tail")
+        joined = "\n".join(m.display)
+        for debris in ("#1~~~", "QUFBQQ", "a=T", "q#0;2"):
+            self.assertNotIn(debris, joined,
+                             f"graphics debris {debris!r} reached the grid")
+        self.assertEqual(m.unknown_sequences, 2, "two images, two observations")
+
+    def test_the_count_is_one_per_string_not_one_per_byte(self):
+        # A real sixel image is kilobytes; counting per byte would make the
+        # counter a measure of payload size rather than of missing sequences.
+        m = fed(b"\x1bPq" + b"~" * 4096 + ST)
+        self.assertEqual(m.unknown_sequences, 1)
+        m2 = fed(self.SIXEL, self.KITTY, self.SIXEL)
+        self.assertEqual(m2.unknown_sequences, 3)
+
+    def test_chunking_does_not_change_the_observation(self):
+        # Counted at the introducer, so a read boundary landing mid-payload
+        # cannot turn one image into two observations or into none.
+        for payload, family in ((self.SIXEL, "DCS"), (self.KITTY, "APC")):
+            expected = state(fed(payload))
+            for cut in range(1, len(payload)):
+                with self.subTest(family=family, cut=cut):
+                    self.assertEqual(state(fed(payload[:cut], payload[cut:])),
+                                     expected)
+            with self.subTest(family=family, chunking="bytewise"):
+                self.assertEqual(
+                    state(fed(*[payload[i:i + 1] for i in range(len(payload))])),
+                    expected)
+
+    def test_an_unterminated_string_is_still_an_observation(self):
+        # The introducer has been consumed and the payload is being dropped;
+        # waiting for an ST that may never arrive would be the silence this
+        # policy exists to remove.
+        m = fed(b"A\x1b_Gf=100;a=T;QUFBQQ==")
+        self.assertEqual(row0(m), "A")
+        self.assertTrue(m.stream_incomplete())
+        self.assertEqual(m.unknown_sequences, 1)
+        m.feed(ST + b"B")
+        self.assertEqual(row0(m), "AB")
+        self.assertEqual(m.unknown_sequences, 1,
+                         "the terminator is not a second observation")
+
+    def test_the_grid_does_not_lose_text_across_many_images(self):
+        # The claim an agent actually makes of this: keep driving yazi and the
+        # text is still there, and the counter says how many images were not.
+        m = fed(b"head")
+        for _ in range(20):
+            m.feed(self.SIXEL + b"x")
+        m.feed(b"tail")
+        self.assertEqual(row0(m), "head" + "x" * 20 + "tail")
+        self.assertEqual(m.unknown_sequences, 20)
+        self.assertEqual(m.feed_errors, 0)
+
+    def test_the_first_reason_is_kept_when_several_families_are_eaten(self):
+        # Ordering: last_unknown is the FIRST reason by design (see
+        # _ByteStream._reject) — the one that explains a screen that started
+        # going wrong, not the latest of a stream. Stated here so the counter's
+        # companion cannot drift into "most recent" without a failure.
+        m = fed(self.KITTY, self.SIXEL, b"A\x1b[<0;10;5MB")
+        self.assertEqual(m.unknown_sequences, 3)
+        self.assertIn("APC", m.last_unknown)
+        m2 = fed(b"A\x1b[<0;10;5MB", self.KITTY)
+        self.assertEqual(m2.unknown_sequences, 2)
+        self.assertIn("cannot carry", m2.last_unknown)
+
+    def test_the_stream_recovers_after_a_consumed_string(self):
+        # Consuming a string must not leave the filter mid-sequence.
+        m = fed(b"A" + self.KITTY, b"\x1b[4:3mZ")
+        self.assertEqual(row0(m), "AZ")
+        self.assertTrue(m.screen.buffer[0][1].underscore,
+                        "the filter lost sync after a consumed string")
+        self.assertEqual(m.unknown_sequences, 1)
 
 
 class UnknownSequencesStayRecoverable(unittest.TestCase):
