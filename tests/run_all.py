@@ -232,6 +232,15 @@ def build_suite():
     suite.append(Test("test_drive_security (control-plane boundaries)",
                       [PY, str(TESTS / "test_drive_security.py")], ROOT, 60,
                       optional=True))
+    # Two claims that were prose only: the 4 MiB pre-auth request bound
+    # (SECURITY.md) and the mcp-name <-> server.json <-> runtime serverInfo
+    # invariant (README.md). In-memory: a fake socket, a real loopback accept
+    # loop against a three-method fake session, and one module import. No PTY,
+    # no child process — safe under the red line. 90s to match the other
+    # control-plane gate that drives the accept loop.
+    suite.append(Test("test_enforced_claims (bounded request + registry name)",
+                      [PY, str(TESTS / "test_enforced_claims.py")], ROOT, 90,
+                      optional=True))
     # Drives the REAL accept loop against a fake session — no PTY, no child process,
     # so it is safe under the red line. 90s because one assertion deliberately
     # waits out a bound to prove a serial loop would have blocked.

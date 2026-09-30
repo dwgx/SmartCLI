@@ -250,20 +250,49 @@ jobs:
           fail_ci_if_error: false
         continue-on-error: true
 
-  # The remaining DETERMINISTIC gates from build_suite() that no workflow named.
-  # 13 of them, measured 2026-09-30 (see CLAUDE.md "Tests"): the daemon
-  # head-of-line/concurrency lock SECURITY.md cites, the S6/A05/A06 liveness
-  # tail, the seven A04 transport-budget/close/backlog gates, and the cell-span
-  # / streaming-SGR / partial-write regressions. A green board that skips these
-  # is a board claiming coverage it does not have — the single strongest
-  # security claim in SECURITY.md had no gate at all.
+  # The DETERMINISTIC gates from build_suite() that no workflow names BY NAME.
+  # Re-derived 2026-10-01: **18 of them**, and the number has two routes, not
+  # one. Counting only the `python -B tests/...` lines below gives 14 and is
+  # the reason an earlier version of this comment said "13" — it counted this
+  # job and forgot the second route. A gate is gated if ANY workflow runs it:
   #
-  # These 13 are in-process only: AST-checked for zero spawn/fork/Popen/
+  #   route 1 — named in the steps below (14): the daemon head-of-line/
+  #     concurrency lock SECURITY.md cites, the S6/A05/A06 liveness tail, the
+  #     seven A04 transport-budget/close/backlog gates, the cell-span /
+  #     streaming-SGR / partial-write regressions, and the two prose-only
+  #     claims in test_enforced_claims (the 4 MiB pre-auth request bound and
+  #     the mcp-name <-> server.json <-> runtime serverInfo invariant).
+  #   route 2 — named by NO workflow, but run anyway (4): test_golden_frames,
+  #     test_cpr_reply, test_char_width, test_wait_change. They are in
+  #     tools/coverage_run.py's own DETERMINISTIC_TESTS list, which the
+  #     `coverage` job invokes; coverage_run returns a non-zero suite_rc for
+  #     any of them that fails (tools/coverage_run.py:124-128, :152-155), and
+  #     the coverage step has no `continue-on-error`, so a red one fails the
+  #     build. INDIRECT is still gated — but it is gated on ubuntu-latest only,
+  #     and it disappears if that job's step is ever marked advisory.
+  #
+  # Re-derive with: list build_suite()'s files, AST-scan each for
+  # spawn/fork/Popen/subprocess, then grep `.github/workflows/*.yml` for
+  # `tests/<file>.py` AND read `DETERMINISTIC_TESTS` in tools/coverage_run.py.
+  # Grepping the workflows alone undercounts by the route-2 four.
+  #
+  # A green board that skips these is a board claiming coverage it does not
+  # have — the single strongest security claim in SECURITY.md had no gate at
+  # all. Three build_suite files sit on neither route. Two of them —
+  # `probe_pty_fx` and `_drive_probe6` — construct a real `PtySession` (so a
+  # spawn, just not an AST-visible one) and belong with the probes below.
+  # The third, `test_graphics_payload`, is a genuine gap: a pure-memory
+  # ScreenModel suite no workflow names. Recorded so the next re-derivation
+  # does not read "18" as "every deterministic gate is covered".
+  #
+  # These 18 are in-process only: AST-checked for zero spawn/fork/Popen/
   # subprocess calls, and each constructs PtySession/WinptyBackend against an
-  # INJECTED fake transport rather than a real child. They are not the PTY
-  # probes. That is why this job can be unbounded-by-matrix and still cheap —
-  # but the bound is set anyway (the 360-min default is unacceptable), and the
-  # steps stay serial within the runner.
+  # INJECTED fake transport rather than a real child (or, for the daemon
+  # control-plane gates, drives the real accept loop against a fake session).
+  # They are not the PTY probes. That is why this job can be
+  # unbounded-by-matrix and still cheap — but the bound is set anyway (the
+  # 360-min default is unacceptable), and the steps stay serial within the
+  # runner.
   #
   # Deliberately NOT `python tests/run_all.py`: that aggregator also runs the
   # real-process probes and the real-tmux differential suites, which spawn live
@@ -296,6 +325,8 @@ jobs:
         run: |
           python -B tests/test_daemon_concurrency.py
           python -B tests/test_liveness_gaps.py
+      - name: Prose-only claims are now gates (request bound, registry name)
+        run: python -B tests/test_enforced_claims.py
       - name: A04 transport budget / close / backlog
         run: |
           python -B tests/test_a04_read_budget.py

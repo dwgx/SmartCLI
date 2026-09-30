@@ -6,11 +6,12 @@
 # them only to unlock the extra surface noted per line.
 #
 # Install everything here:   python -m pip install -r requirements-optional.txt
-# Or install a single extra via pyproject:
-#     python -m pip install "smartcli[art]"     # -> pyfiglet
-#     python -m pip install "smartcli[image]"   # -> Pillow
-#     python -m pip install "smartcli[width]"   # -> wcwidth
-#     python -m pip install "smartcli[all]"     # -> all of the above
+# Or install a single extra. The DISTRIBUTION is `smartcli-toolkit`
+# (pyproject `project.name`); the extras are art/image/width/all/dev:
+#     python -m pip install "smartcli-toolkit[art]"     # -> pyfiglet
+#     python -m pip install "smartcli-toolkit[image]"   # -> Pillow
+#     python -m pip install "smartcli-toolkit[width]"   # -> wcwidth
+#     python -m pip install "smartcli-toolkit[all]"     # -> all of the above
 #
 # Floors are `>=` known-good baselines. Versions VERIFIED on the development box
 # (Windows 11, CPython 3.14.6): pyfiglet 1.0.4, Pillow 12.2.0, wcwidth 0.8.1.

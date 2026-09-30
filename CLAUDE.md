@@ -148,11 +148,24 @@ end-anchored markers like `r">>> $"` never match — use unanchored markers.
   byte-identical vendored copy of the core (enforced by `test_vendor_sync`);
   `smartcli_bootstrap.locate_core()` resolves the real core first
   (`$SMARTCLI_ROOT` → parent walk → `_vendor/` → pip install). The control plane is
-  security-relevant: per-session token, session-id validation, a per-user `0700`
-  registry, a deny-list on `--env` (compared uppercased, since Windows upcases env
-  keys), and `close` refuses to remove the entry of a daemon whose pid is still alive.
-  Its serial accept loop means one unauthenticated connection can stall the others —
-  bounded, not fixed; see `SECURITY.md` and A0-DAEMON-CONCURRENCY.
+  security-relevant: per-session token, session-id validation, and a per-user
+  registry whose protection is per-platform — POSIX: a `0700` directory holding
+  `0600` `O_EXCL` files, refused if the directory is a symlink or owned by
+  another user; Windows: mode bits are inert, so an explicit DACL naming this
+  account, `NT AUTHORITY\SYSTEM` and `BUILTIN\Administrators` is applied to the
+  directory and to each file, then READ BACK — and if it cannot be proven, no
+  token is written. Also a deny-list on `--env` (compared uppercased, since
+  Windows upcases env keys), and `close` refuses to remove the entry of a daemon
+  whose pid is still alive. The head-of-line denial of service that a serial
+  accept loop used to allow is FIXED (v0.2.3, 2026-08-09; A0-DAEMON-CONCURRENCY
+  in NEXT-STEPS is [DONE]): the accept thread only accepts, a per-connection
+  reader does the unauthenticated work so a silent peer burns only its own 2s,
+  and a single worker is the only thread that touches the session — locked by
+  `tests/test_daemon_concurrency.py`. What remains is the accept loop itself:
+  it is still ONE thread, so admission is serialized on it — the reader-thread
+  spawn, the `MAX_READERS` bookkeeping and the over-cap refusal reply are all
+  inline there, and that reply can cost up to `REFUSAL_DEADLINE` (0.5s) to a
+  peer that stopped reading. See `SECURITY.md`.
 - `skills/cmd-art/` — the `fx` effect engine: `Effect` ABC + `@register` +
   pkgutil auto-discovery. Effects are **pure frame producers** (return one full
   frame; never print/sleep/touch ANSI modes — the play loop owns the terminal).
