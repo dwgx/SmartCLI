@@ -2075,3 +2075,20 @@ Verified green after the cut: `python -B tests/test_doc_counts.py`, `test_enforc
 `test_harbor_agent.py`, `ruff check --select E9,F63,F7,F82 .`, `mypy --platform linux`,
 plus `python -c "import ui, ui.cli, ui.widgets, ui.core"`, `python self_test.py` and
 `python -m ui widgets` (17) from `skills/tui-ui`.
+
+---
+
+**Board (2026-10-01, final) — 0.3.3 is RELEASED and the tree is clean.** Just
+happened: the CI failure on all four matrix legs turned out to be three checks
+asserting conclusions their platform cannot supply (Linux `proc:<ticks>` is
+tick-granular so a sibling can be named; macOS has no `/proc` so the
+could-not-be-asked branch is the only answer) — the fail-closed *behaviour* was
+right everywhere. Nothing was skipped; a premise seam now states the host fact
+once and each leg asserts the rule that holds on all platforms, red-proven in
+both directions. Then `v0.3.3` was tagged: `Verify release ref` → `Build` →
+`Publish to PyPI` → `Publish to MCP Registry` all green, and a clean-room venv
+install was verified from site-packages, not the working tree.
+
+Next action: none outstanding. Local = origin = `79503be`, tag `v0.3.3`,
+working tree has 0 tracked changes, suite is 62 entries. Re-verification
+commands are in the block above; `CLAUDE.md:229` holds the current inventory.
