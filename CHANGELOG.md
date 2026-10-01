@@ -5,6 +5,75 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.5] - 2026-10-01
+
+The review of 0.3.4 — the code that review itself produced, and had therefore
+never been attacked by anyone who did not write it. Two of these four are gates
+that could not fail.
+
+### Security
+- **A close-path exception message reached the log verbatim.** `sessionlog`'s
+  `payload_attrs` docstring certifies that every text-bearing attribute routes
+  through one funnel. `last_progress` did not: `_describe_close` wrote
+  `str(result.get("last_progress"))[:200]` under *every* policy. Measured under
+  the documented scrub-everything mode, a `session.close` event carried
+  `close_state raised OSError: failed to spawn: ssh root@host --password
+  hunter2`, and the secret was in `to_ndjson()`. `session.py:333` builds that
+  string as `f"close_state raised {type(exc).__name__}: {exc}"` and
+  `pty_backend.py:385` as the `terminate` equivalent — an exception message,
+  exactly the class `error_attrs` exists to scrub. Now routed through
+  `payload_attrs`, keeping the 200-character bound. A sweep for every other
+  verbatim-written attribute in the module now returns **zero**.
+- **The `record_snapshots` consent gate had been made vacuous by the change
+  that closed the previous leak.** It asserted the literal key `screen_text`
+  is absent — but routing the text through `payload_attrs` means the raw key
+  can never appear under the default policy, whatever `record_snapshots` says.
+  Deleting the consent gate entirely left the suite green, and with
+  `record_snapshots=False` (the default) every wait event grew a 132-character
+  screen digest and a fingerprint: `to_text()` paid with no consent, exactly
+  what the module docstring denies. The check is now a **prefix** check — no
+  attribute whose name begins with `screen_text`, whatever the policy would
+  have spelled it.
+
+### Fixed
+- **The path-component boundary was the inverse of what its own comment
+  claimed.** Added in 0.3.4 to stop a *sibling* directory (`SmartCLI-v3-runs`)
+  being flagged as this checkout, it flagged only when the tail was a separator
+  or nothing and skipped everything else — so the most natural prose forms of
+  naming the path escaped the ban entirely: `D:\Project\SmartCLI before
+  pushing`, `` `D:\Project\SmartCLI` ``, `(D:\Project\SmartCLI)`,
+  `D:\Project\SmartCLI, which is`. The sibling false positive had been removed by
+  making the rule **narrower than the rule it documented**, which is the same
+  class of hole as the one 0.3.4 was fixing. A tail that is alphanumeric or one
+  of `-_.~` now means "a longer directory name" and is skipped; everything else
+  is flagged. Eight probes pin it, and the wider rule produced **zero** new
+  findings across the real 172-document corpus.
+- **The derived `INVALID_HANDLE_VALUE` sentinel had no gate at all.** Three
+  mutations of it left the suite green. It is now pinned to
+  `c_void_p(-1).value`, proved **not** to be `-1` (the old form, which could
+  never fire because ctypes hands back the unsigned pointer value
+  `18446744073709551615`), and bound to the `c_void_p` restype it exists to
+  interpret.
+
+### Notes
+- Each fix carries a red-proof. For the boundary: reverting the rule to its
+  0.3.4 form turns four probes red while the two sibling probes stay green. For
+  the consent gate: deleting `and log.record_snapshots` turns it red with
+  `leaked=['screen_text_chars', 'screen_text_sha256_16']`.
+- Verified with 12 deterministic gates, `ruff check --select E9,F63,F7,F82 .`,
+  `mypy --platform linux`, and the four-leg CI matrix — all green. The full
+  `tests/run_all.py` is not re-run for this release; the changes are in the
+  session log, three gates and the version sites, and the last full run was
+  62/62 on the 0.3.3 tree under the Owner's standing consent.
+- The pattern across 0.3.3 → 0.3.5 is worth stating plainly: **each release's
+  review found defects in the release just made.** Three of the nine across
+  the three passes were gates reporting a false pass, and two more were a gate
+  whose rule was the inverse of its own comment and a gate made vacuous by the
+  very change that closed the bug it watched. The standing standard — *a green
+  check is only evidence if it can turn red* — is what keeps finding them, and
+  it is not yet demonstrably exhausted.
+
+
 ## [0.3.4] - 2026-10-01
 
 The close-out review of 0.3.3, run after 0.3.3 was already tagged and published.
