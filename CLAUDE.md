@@ -202,6 +202,11 @@ and `server.json` (two fields: top-level + `packages[0].version`). After
 bumping: `python tools/sync_vendor.py`, then `python tests/test_vendor_sync.py`
 and `python tests/test_version_sync.py` (anti-drift gate over all ten sites).
 
+**Current state (2026-10-11 晚):** all ten sites read **0.3.5**; the latest tagged
+and published release is **v0.3.5** (tag `v0.3.5` @ `ccf3472`, GitHub release
+published 2026-10-11T14:52:50Z; the earlier same-day snapshot said "not yet
+tagged" — see `HANDOFF.md` §0). Read the release state off git, not off this line.
+
 ### Tests
 
 `tests/run_all.py` aggregates every self-test as a subprocess and reports one

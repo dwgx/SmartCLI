@@ -6,12 +6,22 @@
 
 ## 0. Release & current state — READ THIS FIRST
 
-> **2026-10-01 — v0.3.3 IS RELEASED. This is the current release** (v0.3.2
-> shipped 2026-09-16; its notes follow below). Tagged from `main`; all
-> `publish.yml` jobs green including `publish-mcp`. **What it shipped:** the
-> removal of two unwired tui-ui modules (`ui/color_model.py`,
-> `ui/box_junction.py`), the `verification/` evidence tree moved byte-for-byte out
-> of the repo, and the two control-plane / capability-token fixes in §10n-§10o.
+> **2026-10-11（晚）— `v0.3.5` 已发布**：tag `v0.3.5` @ `ccf3472`，GitHub release
+> published 2026-10-11T14:52:50Z（非 draft）；tag push 触发 `publish.yml`（PyPI + MCP Registry）。
+> 以下一段是当日更早的「尚未打 tag」快照，保留为历史——
+> **2026-10-11 — HEAD is `0.3.5`** (commit `ccf3472`, *"Release 0.3.5: the review
+> of 0.3.4"*), committed and CI-green but **NOT yet tagged or published**; the
+> latest RELEASED version is **v0.3.4** (`git describe --tags` = `v0.3.4-2-gccf3472`).
+> To finish 0.3.5 (needs the owner's go-ahead): `git tag v0.3.5 ccf3472 && git push
+> origin v0.3.5` — a tag push triggers `publish.yml` (PyPI + MCP Registry); today its
+> GitHub release exists only as an untagged release-drafter **Draft**. *(The banner
+> this replaced, written 2026-10-01, said v0.3.3 was the current release — true then,
+> one release and one commit ago.)*
+> The v0.3.3 release was tagged from `main` with all `publish.yml` jobs green
+> including `publish-mcp`. **What v0.3.3 shipped:** the removal of two unwired
+> tui-ui modules (`ui/color_model.py`, `ui/box_junction.py`), the `verification/`
+> evidence tree moved byte-for-byte out of the repo, and the two control-plane /
+> capability-token fixes in §10n-§10o.
 > The banner this section carried for 2026-08-09 to 2026-10-01 named v0.2.3,
 > which was already four versions stale; the file's own rule below ("read the
 > release state off git") is the one that stays correct.
@@ -63,17 +73,17 @@
 > *(The banner that used to sit here — "18 commits unreleased, cutting v0.2.2 is the
 > owner's call" — was resolved on 2026-08-09 by releasing them. §10l.)*
 
-SmartCLI is **published and public**; latest RELEASED version **v0.3.3** (2026-10-01 — the two unwired tui-ui modules cut, the `verification/` evidence tree moved out of the repo, and the DACL/token fixes; §10o and §1). Before it: **v0.3.2** (2026-09-16, the S6/A05/A06 liveness round), **v0.3.1**, **v0.3.0** (2026-09-16, the A04 production round), **v0.2.3** (2026-08-09, the daemon concurrency fix — §10n), **v0.2.2** (2026-08-09 — §10l), **v0.2.1** (2026-08-06) and **v0.2.0** (2026-07-27). **This section is the authoritative current-state record; anything older in this doc that contradicts it is stale** — and it has itself been stale before, so the release state is read off git (`git describe --tags`), never off this sentence. *The 0.2.0 arc, kept verbatim:* v0.2.0 shipped from branch `codex/cross-platform-mcp-hardening`, merged to `main` and tagged; `publish.yml` published to PyPI and re-published `server.json` to the MCP Registry via OIDC — all three jobs green, verified by installing `smartcli-toolkit==0.2.0` from PyPI in a clean venv. See §10 for that whole arc: drive-tui control-plane security hardening, `visual_hash` + `wait_visual_change` (closes old known-#3), the wheel now shipping `smartcli_drive` + three console scripts, `mcp` as a required dependency, Python floor 3.10, CI drive-smoke/package jobs, and **twelve screen-emulation bugs** found by differential testing against real terminals — including the alternate screen buffer, which pyte does not implement at all, so every full-screen TUI was previously unreadable. **BREAKING in 0.2.0:** Python 3.9 dropped; the MCP SDK is a required dependency. v0.1.8 added `wait_any`, **Sixel graphics output**, and a **Terminal-Bench agent adapter** (§9h). v0.1.7 shipped `spectrum_bars` + `cbonsai` (catalog 30) and the **MCP Registry** listing (`io.github.dwgx/smartcli`, active — §9g).
+SmartCLI is **published and public**; latest RELEASED version **v0.3.4** (2026-10-01 07:49 JST, tag `44dd781`, the close-out review of 0.3.3); HEAD `0.3.5` (`ccf3472`) is committed and CI-green but **not yet tagged or published**. Before v0.3.4: **v0.3.3** (2026-10-01 05:42 JST — the two unwired tui-ui modules cut, the `verification/` evidence tree moved out of the repo, and the DACL/token fixes; §10o and §1). Before it: **v0.3.2** (2026-09-16, the S6/A05/A06 liveness round), **v0.3.1**, **v0.3.0** (2026-09-16, the A04 production round), **v0.2.3** (2026-08-09, the daemon concurrency fix — §10n), **v0.2.2** (2026-08-09 — §10l), **v0.2.1** (2026-08-06) and **v0.2.0** (2026-07-27). **This section is the authoritative current-state record; anything older in this doc that contradicts it is stale** — and it has itself been stale before, so the release state is read off git (`git describe --tags`), never off this sentence. *The 0.2.0 arc, kept verbatim:* v0.2.0 shipped from branch `codex/cross-platform-mcp-hardening`, merged to `main` and tagged; `publish.yml` published to PyPI and re-published `server.json` to the MCP Registry via OIDC — all three jobs green, verified by installing `smartcli-toolkit==0.2.0` from PyPI in a clean venv. See §10 for that whole arc: drive-tui control-plane security hardening, `visual_hash` + `wait_visual_change` (closes old known-#3), the wheel now shipping `smartcli_drive` + three console scripts, `mcp` as a required dependency, Python floor 3.10, CI drive-smoke/package jobs, and **twelve screen-emulation bugs** found by differential testing against real terminals — including the alternate screen buffer, which pyte does not implement at all, so every full-screen TUI was previously unreadable. **BREAKING in 0.2.0:** Python 3.9 dropped; the MCP SDK is a required dependency. v0.1.8 added `wait_any`, **Sixel graphics output**, and a **Terminal-Bench agent adapter** (§9h). v0.1.7 shipped `spectrum_bars` + `cbonsai` (catalog 30) and the **MCP Registry** listing (`io.github.dwgx/smartcli`, active — §9g).
 
 **Where it lives:**
-- **PyPI:** `pip install smartcli-toolkit` → https://pypi.org/project/smartcli-toolkit/ . The dist name is **`smartcli-toolkit`**; the **import package stays `smartcli_core`** (`from smartcli_core import PtySession`). Latest on PyPI = **0.3.3** (the index can lag after a release — the `Publish to PyPI` workflow going green is the source of truth; measured on the 0.2.1 and 0.2.2 releases, and the tag for 0.3.3 is pushed with all three `publish.yml` jobs green). **A trap measured on 0.2.2:** `pip install` failed for ~4 minutes with "no matching distribution" while pypi.org's own simple index already listed the files. The cause was not PyPI — this machine's pip is configured for the Tsinghua mirror, which had not synced yet. Verify a release with `--index-url https://pypi.org/simple`, or you will read a mirror's lag as a broken publish.
+- **PyPI:** `pip install smartcli-toolkit` → https://pypi.org/project/smartcli-toolkit/ . The dist name is **`smartcli-toolkit`**; the **import package stays `smartcli_core`** (`from smartcli_core import PtySession`). Latest on PyPI = **0.3.4** (read off the PyPI JSON index 2026-10-11; `v0.3.4`'s tag push ran `Publish to PyPI` green. **0.3.5 is NOT on PyPI** — it is untagged; §0). The index can lag after a release — the `Publish to PyPI` workflow going green is the source of truth; measured on the 0.2.1 and 0.2.2 releases. **A trap measured on 0.2.2:** `pip install` failed for ~4 minutes with "no matching distribution" while pypi.org's own simple index already listed the files. The cause was not PyPI — this machine's pip is configured for the Tsinghua mirror, which had not synced yet. Verify a release with `--index-url https://pypi.org/simple`, or you will read a mirror's lag as a broken publish.
 - **MCP Registry:** **LIVE** — `io.github.dwgx/smartcli` on `registry.modelcontextprotocol.io` (published 2026-07-15 via `mcp-publisher`; ownership verified by the `mcp-name` marker in the PyPI README). MCP clients (Claude/Cursor/VS Code) + aggregators (Smithery/Glama/MCP.so) auto-discover it.
-- **GitHub:** public repo **github.com/dwgx/SmartCLI**, branch `main`, tags **v0.1.0 … v0.3.3** each with a matching GitHub Release. Note `release-drafter.yml` also auto-creates a DRAFT release for the upcoming tag; after publishing, delete the leftover same-named draft or the releases page shows the version twice (it did on 0.2.2).
+- **GitHub:** public repo **github.com/dwgx/SmartCLI**, branch `main`, tags **v0.1.0 … v0.3.4** each with a matching GitHub Release (`v0.3.5` is not tagged yet — it exists only as a release-drafter **Draft** for the upcoming tag). Note `release-drafter.yml` also auto-creates a DRAFT release for the upcoming tag; after publishing, delete the leftover same-named draft or the releases page shows the version twice (it did on 0.2.2).
 - **Claude plugin marketplace:** `.claude-plugin/marketplace.json` is present → users run **`/plugin marketplace add dwgx/SmartCLI`**.
 - **skillhu.bz:** all 3 skills published — skillhu.bz/skill/cmd-art, skillhu.bz/skill/drive-tui, skillhu.bz/skill/tui-ui.
 - **Codecov:** live (badge in README, ~50% on the deterministic subset). **Read the Docs:** live at https://smartcli.readthedocs.io/ (mkdocs, separate from the hand-written showcase site on GitHub Pages).
 
-**Version consistency (VERSION = 0.3.3, RELEASED 2026-10-01) — TEN sites must move together on a bump:** `pyproject.toml`, `smartcli_core/__init__.py` `__version__`, `skills/cmd-art/fx/__init__.py` `__version__`, all 3 `skills/*/SKILL.md` `version:` fields, `.claude-plugin/marketplace.json` plugin version, **`.claude-plugin/plugin.json`** (the site that historically drifted — it sat at 0.1.2 until v0.2.0 re-aligned it), **`skills/drive-tui/_vendor/smartcli_core/__init__.py`** (the vendored copy — `test_vendor_sync` requires it byte-identical), and **`server.json`** (TWO version fields there: top-level + `packages[0].version`, both must equal the package version or the MCP-registry publish fails). After bumping, run `python tools/sync_vendor.py`, then `python tests/test_vendor_sync.py` and `python tests/test_version_sync.py` (the anti-drift gate over all ten sites, added 2026-07-27). *(This header read "VERSION = 0.2.1, RELEASED 2026-08-06" until 2026-10-01 — the version it names is the one current when the section was last written, which is precisely why `test_version_sync`, and not this sentence, is the authority.)*
+**Version consistency (VERSION = 0.3.5 in the tree — all ten sites; latest tagged release v0.3.4; the last RELEASED-and-verified bump was v0.3.3 on 2026-10-01) — TEN sites must move together on a bump:** `pyproject.toml`, `smartcli_core/__init__.py` `__version__`, `skills/cmd-art/fx/__init__.py` `__version__`, all 3 `skills/*/SKILL.md` `version:` fields, `.claude-plugin/marketplace.json` plugin version, **`.claude-plugin/plugin.json`** (the site that historically drifted — it sat at 0.1.2 until v0.2.0 re-aligned it), **`skills/drive-tui/_vendor/smartcli_core/__init__.py`** (the vendored copy — `test_vendor_sync` requires it byte-identical), and **`server.json`** (TWO version fields there: top-level + `packages[0].version`, both must equal the package version or the MCP-registry publish fails). After bumping, run `python tools/sync_vendor.py`, then `python tests/test_vendor_sync.py` and `python tests/test_version_sync.py` (the anti-drift gate over all ten sites, added 2026-07-27). *(This header read "VERSION = 0.2.1, RELEASED 2026-08-06" until 2026-10-01 — the version it names is the one current when the section was last written, which is precisely why `test_version_sync`, and not this sentence, is the authority.)*
 
 **CI / publishing (9 workflows — updated 2026-07-27):**
 - `.github/workflows/ci.yml` — **3-OS matrix** (windows-latest + ubuntu-latest + macos-latest × **py3.10/3.14**, the support boundaries since v0.2.0), deterministic gates on every push/PR: `verify_fx`, `test_fx_contract`, `test_readiness`, `test_degenerate_inputs`, `_sandbox_fuzz_core`, `test_vendor_sync`, **`test_doc_counts` (anti-drift)**, **`test_version_sync` (ten version sites)**, `test_visual_change`, `test_drive_security`, `_readme_literal`, tui-ui `self_test`, `fx list`, `ui widgets`, plus POSIX-only `_sandbox_posix_backend.py` on the non-Windows legs. v0.2.0 added two more jobs: **`drive-smoke`** (3 OS, 15-min timeout — the real-PTY probes `_tui_cli_probe`/`_mcp_probe`/`_sandbox_daemon_robustness` run in CI for the first time, serially, one child at a time) and **`package`** (20-min timeout — wheel build + twine check + `server.json` schema validation + version-site assertions + clean-venv install exercising `smartcli-tui doctor`, the installed MCP entry, and a uvx launch).
@@ -2100,8 +2110,12 @@ both directions. Then `v0.3.3` was tagged: `Verify release ref` → `Build` →
 `Publish to PyPI` → `Publish to MCP Registry` all green, and a clean-room venv
 install was verified from site-packages, not the working tree.
 
-Next action: none outstanding. Local = origin = `79503be`, tag `v0.3.3`,
-working tree has 0 tracked changes, suite is 62 entries. Re-verification
+Next action (re-measured 2026-10-11): **publish 0.3.5** — HEAD `ccf3472` is
+committed, CI-green and not yet tagged; the owner's go-ahead is the only thing
+missing (§0). Local = origin = `ccf3472`, 2 commits past tag `v0.3.4`; the working
+tree carries no **code** change — the only tracked edits are the 2026-10-11 doc fix
+to this file and `CLAUDE.md` (uncommitted, not pushed); suite is 62 entries. *(The
+2026-10-01 state this sentence originally recorded was `79503be` / tag `v0.3.3`.)* Re-verification
 commands are in the block above; `CLAUDE.md:229` holds the current inventory.
 
 **Release surfaces, confirmed after the fact (2026-10-01).** PyPI
@@ -2110,7 +2124,9 @@ GitHub Release `v0.3.3` published (not a draft) as *"v0.3.3 — the review wave
 lands, and the unwired modules go"*; MCP Registry
 `io.github.dwgx/smartcli` answers **HTTP 200 with version 0.3.3** on its
 version-specific endpoint (its search endpoint lists older versions first, which
-is not evidence of absence).
+is not evidence of absence). *(Superseded 2026-10-11: PyPI and the GitHub Release
+both now read **0.3.4** — §0. The MCP Registry's current version was not
+re-measured.)*
 
 **The annotated tag's claim "full 62-entry suite" was untrue when written** — the
 63/63 run predated the cut that removed the `box_junction` self-test. The tag
